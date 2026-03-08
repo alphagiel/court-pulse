@@ -25,6 +25,7 @@ export default function Home() {
   const [intentActive, setIntentActive] = useState(false);
   const [intentExpiresAt, setIntentExpiresAt] = useState<string | null>(null);
   const [intentTargetLabel, setIntentTargetLabel] = useState<string | null>(null);
+  const [intentParkId, setIntentParkId] = useState<string | null>(null);
   const [actionLoading, setActionLoading] = useState(false);
   const [paddleLoading, setPaddleLoading] = useState<string | null>(null);
   const [userCheckIns, setUserCheckIns] = useState<Record<string, string>>({}); // parkId -> expiresAt
@@ -54,6 +55,7 @@ export default function Home() {
     setIntentActive(!!activeIntent);
     setIntentExpiresAt(activeIntent?.expires_at || null);
     setIntentTargetLabel(activeIntent ? formatHourLabel(activeIntent.target_time) : null);
+    setIntentParkId(activeIntent?.park_id || null);
 
     const activeCheckIns: Record<string, string> = {};
     for (const ci of checkIns) {
@@ -76,6 +78,7 @@ export default function Home() {
         setIntentActive(false);
         setIntentExpiresAt(null);
         setIntentTargetLabel(null);
+        setIntentParkId(null);
       }
       setUserCheckIns((prev) => {
         const updated: Record<string, string> = {};
@@ -88,35 +91,37 @@ export default function Home() {
     return () => clearInterval(interval);
   }, [intentExpiresAt]);
 
-  const handleDownToPlay = async (targetTime: string | null) => {
+  // Create or update intent for a specific park
+  const createIntent = async (parkId: string, targetTime: string | null) => {
+    // Delete any existing intent (upsert)
+    await supabase.from("intents").delete().eq("user_id", userId);
+
+    let expiresAt: string;
+    if (targetTime) {
+      expiresAt = new Date(new Date(targetTime).getTime() + 60 * 60 * 1000).toISOString();
+    } else {
+      expiresAt = new Date(Date.now() + 90 * 60 * 1000).toISOString();
+    }
+
+    await supabase.from("intents").insert({
+      user_id: userId,
+      park_id: parkId,
+      skill_level: skillLevel,
+      target_time: targetTime,
+      expires_at: expiresAt,
+    });
+
+    setIntentActive(true);
+    setIntentExpiresAt(expiresAt);
+    setIntentTargetLabel(formatHourLabel(targetTime));
+    setIntentParkId(parkId);
+  };
+
+  const handleDownToPlay = async (parkId: string, targetTime: string | null) => {
     if (!parks.length) return;
     setActionLoading(true);
-
     try {
-      // Delete any existing intent (upsert)
-      await supabase.from("intents").delete().eq("user_id", userId);
-
-      const targetPark = parkActivities[0]?.park;
-      if (!targetPark) return;
-
-      // Expire at the target hour + 1h, or 90 min from now if "Now"
-      let expiresAt: string;
-      if (targetTime) {
-        expiresAt = new Date(new Date(targetTime).getTime() + 60 * 60 * 1000).toISOString();
-      } else {
-        expiresAt = new Date(Date.now() + 90 * 60 * 1000).toISOString();
-      }
-
-      await supabase.from("intents").insert({
-        user_id: userId,
-        park_id: targetPark.id,
-        skill_level: skillLevel,
-        target_time: targetTime,
-        expires_at: expiresAt,
-      });
-      setIntentActive(true);
-      setIntentExpiresAt(expiresAt);
-      setIntentTargetLabel(formatHourLabel(targetTime));
+      await createIntent(parkId, targetTime);
     } catch (err) {
       console.error("Intent error:", err);
     } finally {
@@ -131,6 +136,7 @@ export default function Home() {
       setIntentActive(false);
       setIntentExpiresAt(null);
       setIntentTargetLabel(null);
+      setIntentParkId(null);
     } catch (err) {
       console.error("Cancel intent error:", err);
     } finally {
@@ -141,8 +147,8 @@ export default function Home() {
   const handlePaddleDown = async (parkId: string) => {
     setPaddleLoading(parkId);
     try {
+      // Create check-in
       await supabase.from("check_ins").delete().eq("user_id", userId).eq("park_id", parkId);
-
       const expiresAt = new Date(Date.now() + 2 * 60 * 60 * 1000).toISOString();
       await supabase.from("check_ins").insert({
         user_id: userId,
@@ -152,6 +158,11 @@ export default function Home() {
         expires_at: expiresAt,
       });
       setUserCheckIns((prev) => ({ ...prev, [parkId]: expiresAt }));
+
+      // Auto-activate "Down to Play" for this park with "Now"
+      if (!intentActive || intentParkId !== parkId) {
+        await createIntent(parkId, null);
+      }
     } catch (err) {
       console.error("Paddle down error:", err);
     } finally {
@@ -183,6 +194,10 @@ export default function Home() {
     );
   }
 
+  const intentParkName = intentParkId
+    ? parks.find((p) => p.id === intentParkId)?.name || null
+    : null;
+
   return (
     <main className="min-h-screen bg-background">
       <div className="max-w-lg mx-auto px-5 py-8 sm:px-6 space-y-8">
@@ -211,7 +226,9 @@ export default function Home() {
           isActive={intentActive}
           loading={actionLoading}
           activeTargetLabel={intentTargetLabel}
+          activeParkName={intentParkName}
           expiresAt={intentExpiresAt}
+          parks={parks}
         />
 
         {/* Dashboard */}
@@ -237,6 +254,7 @@ export default function Home() {
                   paddleLoading={paddleLoading === activity.park.id}
                   userCheckedIn={activity.park.id in userCheckIns}
                   checkInExpiresAt={userCheckIns[activity.park.id] || null}
+                  canCheckIn={!intentActive || intentParkId === activity.park.id}
                 />
               ))}
             </div>

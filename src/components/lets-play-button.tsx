@@ -2,14 +2,17 @@
 
 import { useState, useMemo } from "react";
 import { Button } from "@/components/ui/button";
+import type { Park } from "@/types/database";
 
 interface LetsPlayButtonProps {
-  onPress: (targetTime: string | null) => void;
+  onPress: (parkId: string, targetTime: string | null) => void;
   onCancel: () => void;
   isActive: boolean;
   loading: boolean;
   activeTargetLabel: string | null;
+  activeParkName: string | null;
   expiresAt: string | null;
+  parks: Park[];
 }
 
 function formatTime(date: Date): string {
@@ -41,9 +44,12 @@ export function LetsPlayButton({
   isActive,
   loading,
   activeTargetLabel,
+  activeParkName,
   expiresAt,
+  parks,
 }: LetsPlayButtonProps) {
   const [pickerOpen, setPickerOpen] = useState(false);
+  const [selectedParkId, setSelectedParkId] = useState<string | null>(null);
   const availableHours = useMemo(() => getAvailableHours(), []);
 
   const expiresAtFormatted = expiresAt ? formatTime(new Date(expiresAt)) : null;
@@ -52,14 +58,22 @@ export function LetsPlayButton({
     if (isActive) {
       onCancel();
       setPickerOpen(false);
+      setSelectedParkId(null);
     } else {
       setPickerOpen(!pickerOpen);
+      setSelectedParkId(null);
     }
   };
 
+  const handleParkTap = (parkId: string) => {
+    setSelectedParkId(parkId);
+  };
+
   const handleSlotTap = (value: string | null) => {
-    onPress(value);
+    if (!selectedParkId) return;
+    onPress(selectedParkId, value);
     setPickerOpen(false);
+    setSelectedParkId(null);
   };
 
   return (
@@ -84,16 +98,36 @@ export function LetsPlayButton({
         {!loading && (
           <span className="text-[12px] font-normal opacity-80 leading-tight">
             {isActive
-              ? `${activeTargetLabel || "Now"} · Until ${expiresAtFormatted || "..."} · Tap to cancel`
-              : "Tap to pick a time"}
+              ? `${activeParkName || "Park"} · ${activeTargetLabel || "Now"} · Until ${expiresAtFormatted || "..."} · Tap to cancel`
+              : "Tap to pick a court"}
           </span>
         )}
       </Button>
 
-      {/* Hour picker */}
-      {pickerOpen && !isActive && (
+      {/* Step 1: Park picker */}
+      {pickerOpen && !isActive && !selectedParkId && (
         <div className="bg-muted/40 border border-border/50 rounded-xl p-3 space-y-2">
-          <p className="text-[12px] text-muted-foreground text-center">When are you free?</p>
+          <p className="text-[12px] text-muted-foreground text-center">Where are you playing?</p>
+          <div className="flex flex-col gap-2">
+            {parks.map((park) => (
+              <button
+                key={park.id}
+                onClick={() => handleParkTap(park.id)}
+                className="px-4 py-2.5 rounded-lg border border-border/50 bg-background text-[13px] font-medium hover:bg-green-50 hover:border-green-300 hover:text-green-700 transition-colors text-left"
+              >
+                {park.name}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Step 2: Hour picker */}
+      {pickerOpen && !isActive && selectedParkId && (
+        <div className="bg-muted/40 border border-border/50 rounded-xl p-3 space-y-2">
+          <p className="text-[12px] text-muted-foreground text-center">
+            {parks.find((p) => p.id === selectedParkId)?.name} — When are you free?
+          </p>
           <div className="flex gap-2 overflow-x-auto pb-1 scrollbar-hide">
             {availableHours.map((slot) => (
               <button
