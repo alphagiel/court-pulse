@@ -1,6 +1,6 @@
 # Court Pulse - Development Checkpoint
 
-## Current Status: Auth Complete — Ready for Testing
+## Current Status: MVP Complete — Ready for Production Deploy
 
 ### What's Done
 
@@ -16,10 +16,11 @@
 - [x] Geolocation utilities — Haversine distance, drive time estimate (`src/lib/geo.ts`)
 - [x] Data hooks — realtime subscriptions, park activity builder with time buckets (`src/lib/hooks.ts`)
 - [x] Modern system font (SF Pro / Segoe UI) + 0.5px letter-spacing globally
-- [x] **"I'm Down to Play" button** with hourly time picker
-  - Scrollable slots: Now, next hours through 9 PM (past hours disabled)
+- [x] **"I'm Down to Play" button** — 2-step picker
+  - Step 1: Pick a park ("Where are you playing?")
+  - Step 2: Pick a time slot (Now, next hours through 9 PM)
+  - Active state shows park name + time + expiry + tap to cancel
   - Toggle on/off, upsert (no duplicates)
-  - Active state shows target time + expiry time + tap to cancel
 - [x] **Park cards** with:
   - Here now (player count) + last update
   - "Who's interested" — Morning/Afternoon/Evening bucket grid (blue)
@@ -29,11 +30,21 @@
   - **"I'm Here" / Paddle Up** toggle (check-in/out)
     - Upsert — no duplicate check-ins
     - Shows auto check-out time when active
+    - **Guard: can only check in at the park you selected** (others show "Select this court first")
+    - **Auto-activates "Down to Play"** for that park when checking in
   - Directions button (Google Maps)
 - [x] Animated expand/collapse panels (slide down/up, 250ms ease-out)
 - [x] Expiry times shown as actual clock time (e.g., "Until 2:30 PM") not countdowns
 - [x] Auto-clear expired intents/check-ins from UI
-- [x] 2 parks seeded: Harper Park (Knightdale), Clayton Community Center
+- [x] **7 parks seeded** — all free, outdoor pickleball courts
+  - Harper Park (Knightdale) — 4 courts, lit
+  - Clayton Community Center — 8 courts
+  - Hollybrook Park (Wendell) — 4 courts, new (2025)
+  - Wendell Park — 2 courts, lit
+  - Method Community Park (Raleigh) — 6 courts, lit
+  - McCrimmon Park (Cary) — 6 courts, lit, most popular free in Cary
+  - Ed Yerha Park (Cary) — 3 courts
+  - Seed script: `scripts/seed-more-parks.sql`
 - [x] Test scripts: `scripts/test/seed-dummy-data.sql`, `clear-dummy-data.sql`, `adding-single-user.sql`
 - [x] Environment template (`.env.local.example`)
 - [x] **Auth: Google + Apple sign-in** via Supabase Auth
@@ -60,16 +71,24 @@
   - Regeneration instructions in `.env.local`
   - `.p8` key file: `full-stack/AuthKey_UCLL98T44T.p8`
 
-### What's Next
+### Pre-Deploy Checklist
 
-- [ ] Seed more local parks (5-10 total)
-- [ ] Push notifications (when someone beacons at your followed parks)
+- [ ] Add production domain to Google OAuth authorized redirect URIs
+- [ ] Add production domain to Apple Developer Services ID return URLs
+- [ ] Set environment variables in Vercel (NEXT_PUBLIC_SUPABASE_URL, NEXT_PUBLIC_SUPABASE_ANON_KEY)
+- [ ] Add production URL to Supabase Auth > URL Configuration > Site URL + Redirect URLs
 - [ ] Deploy to Vercel
+
+### What's Next (Post-Launch)
+
+- [ ] Push notifications (when someone beacons at your followed parks)
+- [ ] Seed additional parks as users request them
 
 ### Architecture Decisions
 
 - **Auth via Supabase OAuth** — Google + Apple providers, session managed client-side via `AuthProvider` context.
 - **Profile required** — after first sign-in, users must set username + skill level before accessing dashboard.
+- **Intent-park binding** — intent is tied to a specific park. "I'm Here" auto-creates intent. Can only check in at the park you selected. Cancel intent to switch parks.
 - **Realtime via refetch** — on any Postgres change, refetch all. Simple, correct. Optimize later.
 - **Intents expire based on target time** — "Now" = 90 min, specific hour = target + 1 hour.
 - **Check-ins expire in 2 hours** from check-in.
