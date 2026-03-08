@@ -13,6 +13,7 @@ interface ParkCardProps {
   paddleLoading: boolean;
   userCheckedIn: boolean;
   checkInExpiresAt: string | null;
+  canCheckIn: boolean;
 }
 
 function timeAgo(dateStr: string): string {
@@ -46,6 +47,7 @@ export function ParkCard({
   paddleLoading,
   userCheckedIn,
   checkInExpiresAt,
+  canCheckIn,
 }: ParkCardProps) {
   const [skillExpanded, setSkillExpanded] = useState(false);
   const [interestExpanded, setInterestExpanded] = useState(false);
@@ -227,11 +229,15 @@ export function ParkCard({
           ) : (
             <Button
               size="sm"
-              className="flex-1 h-9 text-[13px] font-medium bg-green-600 hover:bg-green-700 text-white"
+              className={`flex-1 h-9 text-[13px] font-medium ${
+                canCheckIn
+                  ? "bg-green-600 hover:bg-green-700 text-white"
+                  : "bg-muted text-muted-foreground"
+              }`}
               onClick={() => onPaddleDown(park.id)}
-              disabled={paddleLoading}
+              disabled={paddleLoading || !canCheckIn}
             >
-              {paddleLoading ? "Checking in..." : "I'm Here"}
+              {paddleLoading ? "Checking in..." : !canCheckIn ? "Select this court first" : "I'm Here"}
             </Button>
           )}
           <Button
