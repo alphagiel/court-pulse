@@ -231,7 +231,7 @@ export function ParkCard({
               onClick={() => onPaddleDown(park.id)}
               disabled={paddleLoading}
             >
-              {paddleLoading ? "Placing paddle..." : "Paddle Down"}
+              {paddleLoading ? "Checking in..." : "I'm Here"}
             </Button>
           )}
           <Button

@@ -1,7 +1,9 @@
 "use client";
 
 import { useState, useCallback, useEffect } from "react";
+import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase";
+import { useAuth } from "@/lib/auth-context";
 import { useUserLocation, useParkActivity, buildParkActivities } from "@/lib/hooks";
 import { LetsPlayButton } from "@/components/lets-play-button";
 import { ParkCard } from "@/components/park-card";
@@ -16,6 +18,8 @@ function formatHourLabel(targetTime: string | null): string {
 }
 
 export default function Home() {
+  const { user, profile, loading: authLoading, signOut } = useAuth();
+  const router = useRouter();
   const { location, error: locationError } = useUserLocation();
   const { parks, checkIns, intents, loading } = useParkActivity();
   const [intentActive, setIntentActive] = useState(false);
@@ -25,18 +29,27 @@ export default function Home() {
   const [paddleLoading, setPaddleLoading] = useState<string | null>(null);
   const [userCheckIns, setUserCheckIns] = useState<Record<string, string>>({}); // parkId -> expiresAt
 
-  // TODO: Replace with real auth user
-  const mockUserId = "demo-user";
-  const mockSkillLevel = "3.5";
+  // Redirect if not authenticated
+  useEffect(() => {
+    if (!authLoading && !user) {
+      router.replace("/login");
+    } else if (!authLoading && user && !profile) {
+      router.replace("/setup");
+    }
+  }, [authLoading, user, profile, router]);
+
+  const userId = user?.id ?? "";
+  const skillLevel = profile?.skill_level ?? "3.5";
 
   const parkActivities = buildParkActivities(parks, checkIns, intents, location);
 
   // Sync intent state from DB on load
   const syncUserState = useCallback(() => {
+    if (!userId) return;
     const now = new Date().toISOString();
 
     const activeIntent = intents.find(
-      (i) => i.user_id === mockUserId && i.expires_at > now
+      (i) => i.user_id === userId && i.expires_at > now
     );
     setIntentActive(!!activeIntent);
     setIntentExpiresAt(activeIntent?.expires_at || null);
@@ -44,12 +57,12 @@ export default function Home() {
 
     const activeCheckIns: Record<string, string> = {};
     for (const ci of checkIns) {
-      if (ci.user_id === mockUserId && ci.expires_at > now) {
+      if (ci.user_id === userId && ci.expires_at > now) {
         activeCheckIns[ci.park_id] = ci.expires_at;
       }
     }
     setUserCheckIns(activeCheckIns);
-  }, [intents, checkIns]);
+  }, [intents, checkIns, userId]);
 
   useEffect(() => {
     syncUserState();
@@ -81,7 +94,7 @@ export default function Home() {
 
     try {
       // Delete any existing intent (upsert)
-      await supabase.from("intents").delete().eq("user_id", mockUserId);
+      await supabase.from("intents").delete().eq("user_id", userId);
 
       const targetPark = parkActivities[0]?.park;
       if (!targetPark) return;
@@ -95,9 +108,9 @@ export default function Home() {
       }
 
       await supabase.from("intents").insert({
-        user_id: mockUserId,
+        user_id: userId,
         park_id: targetPark.id,
-        skill_level: mockSkillLevel,
+        skill_level: skillLevel,
         target_time: targetTime,
         expires_at: expiresAt,
       });
@@ -114,7 +127,7 @@ export default function Home() {
   const handleCancelIntent = async () => {
     setActionLoading(true);
     try {
-      await supabase.from("intents").delete().eq("user_id", mockUserId);
+      await supabase.from("intents").delete().eq("user_id", userId);
       setIntentActive(false);
       setIntentExpiresAt(null);
       setIntentTargetLabel(null);
@@ -128,13 +141,13 @@ export default function Home() {
   const handlePaddleDown = async (parkId: string) => {
     setPaddleLoading(parkId);
     try {
-      await supabase.from("check_ins").delete().eq("user_id", mockUserId).eq("park_id", parkId);
+      await supabase.from("check_ins").delete().eq("user_id", userId).eq("park_id", parkId);
 
       const expiresAt = new Date(Date.now() + 2 * 60 * 60 * 1000).toISOString();
       await supabase.from("check_ins").insert({
-        user_id: mockUserId,
+        user_id: userId,
         park_id: parkId,
-        skill_level: mockSkillLevel,
+        skill_level: skillLevel,
         player_count: 1,
         expires_at: expiresAt,
       });
@@ -149,7 +162,7 @@ export default function Home() {
   const handlePaddleUp = async (parkId: string) => {
     setPaddleLoading(parkId);
     try {
-      await supabase.from("check_ins").delete().eq("user_id", mockUserId).eq("park_id", parkId);
+      await supabase.from("check_ins").delete().eq("user_id", userId).eq("park_id", parkId);
       setUserCheckIns((prev) => {
         const updated = { ...prev };
         delete updated[parkId];
@@ -162,14 +175,28 @@ export default function Home() {
     }
   };
 
+  if (authLoading || !user || !profile) {
+    return (
+      <main className="min-h-screen bg-background flex items-center justify-center">
+        <p className="text-[14px] text-muted-foreground">Loading...</p>
+      </main>
+    );
+  }
+
   return (
     <main className="min-h-screen bg-background">
       <div className="max-w-lg mx-auto px-5 py-8 sm:px-6 space-y-8">
         {/* Header */}
-        <div className="text-center space-y-1">
+        <div className="text-center space-y-1 relative">
+          <button
+            onClick={signOut}
+            className="absolute right-0 top-0 text-[12px] text-muted-foreground hover:text-foreground transition-colors"
+          >
+            Sign out
+          </button>
           <h1 className="text-[27px] font-bold tracking-[0.5px]">Court Pulse</h1>
           <p className="text-[14px] text-muted-foreground">
-            Pickup Pickleball, Live
+            {profile.username} &middot; {profile.skill_level}
           </p>
         </div>
 
