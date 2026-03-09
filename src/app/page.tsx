@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback, useEffect } from "react";
+import { useState, useCallback, useEffect, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase";
 import { useAuth } from "@/lib/auth-context";
@@ -42,7 +42,16 @@ export default function Home() {
   const userId = user?.id ?? "";
   const skillLevel = profile?.skill_level ?? "3.5";
 
-  const parkActivities = buildParkActivities(parks, checkIns, intents, location);
+  const parkActivitiesBase = buildParkActivities(parks, checkIns, intents, location);
+
+  // Bubble the user's intent park to the top
+  const parkActivities = useMemo(() => {
+    if (!intentParkId) return parkActivitiesBase;
+    return [
+      ...parkActivitiesBase.filter((a) => a.park.id === intentParkId),
+      ...parkActivitiesBase.filter((a) => a.park.id !== intentParkId),
+    ];
+  }, [parkActivitiesBase, intentParkId]);
 
   // Sync intent state from DB on load
   const syncUserState = useCallback(() => {
