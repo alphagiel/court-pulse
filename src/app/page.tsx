@@ -132,11 +132,17 @@ export default function Home() {
   const handleCancelIntent = async () => {
     setActionLoading(true);
     try {
+      // Cancel intent
       await supabase.from("intents").delete().eq("user_id", userId);
+
+      // Also paddle up from all parks
+      await supabase.from("check_ins").delete().eq("user_id", userId);
+
       setIntentActive(false);
       setIntentExpiresAt(null);
       setIntentTargetLabel(null);
       setIntentParkId(null);
+      setUserCheckIns({});
     } catch (err) {
       console.error("Cancel intent error:", err);
     } finally {
@@ -158,11 +164,6 @@ export default function Home() {
         expires_at: expiresAt,
       });
       setUserCheckIns((prev) => ({ ...prev, [parkId]: expiresAt }));
-
-      // Auto-activate "Down to Play" for this park with "Now"
-      if (!intentActive || intentParkId !== parkId) {
-        await createIntent(parkId, null);
-      }
     } catch (err) {
       console.error("Paddle down error:", err);
     } finally {
@@ -254,7 +255,7 @@ export default function Home() {
                   paddleLoading={paddleLoading === activity.park.id}
                   userCheckedIn={activity.park.id in userCheckIns}
                   checkInExpiresAt={userCheckIns[activity.park.id] || null}
-                  canCheckIn={!intentActive || intentParkId === activity.park.id}
+                  canCheckIn={intentActive && intentParkId === activity.park.id}
                 />
               ))}
             </div>
