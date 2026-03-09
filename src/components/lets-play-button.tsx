@@ -82,7 +82,7 @@ export function LetsPlayButton({
         onClick={handleMainTap}
         disabled={loading}
         size="lg"
-        className={`w-full py-8 rounded-xl transition-all flex flex-col items-center gap-1 ${
+        className={`w-full py-8 rounded-xl transition-all flex flex-col items-center gap-1 whitespace-normal h-auto ${
           isActive
             ? "bg-green-600 hover:bg-green-700 text-white shadow-lg shadow-green-500/25"
             : "bg-emerald-500 hover:bg-emerald-600 text-white shadow-md"
@@ -95,11 +95,16 @@ export function LetsPlayButton({
               ? "You're Down to Play!"
               : "I'm Down to Play"}
         </span>
-        {!loading && (
+        {!loading && isActive && (
+          <span className="text-[12px] font-normal opacity-80 leading-snug text-center">
+            {activeParkName || "Park"} &middot; {activeTargetLabel || "Now"} &middot; Until {expiresAtFormatted || "..."}
+            <br />
+            Tap to cancel
+          </span>
+        )}
+        {!loading && !isActive && (
           <span className="text-[12px] font-normal opacity-80 leading-tight">
-            {isActive
-              ? `${activeParkName || "Park"} · ${activeTargetLabel || "Now"} · Until ${expiresAtFormatted || "..."} · Tap to cancel`
-              : "Tap to pick a court"}
+            Tap to pick a court
           </span>
         )}
       </Button>
