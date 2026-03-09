@@ -28,6 +28,7 @@ export default function Home() {
   const [intentParkId, setIntentParkId] = useState<string | null>(null);
   const [actionLoading, setActionLoading] = useState(false);
   const [paddleLoading, setPaddleLoading] = useState<string | null>(null);
+  const [allExpanded, setAllExpanded] = useState<boolean | null>(null);
   const [userCheckIns, setUserCheckIns] = useState<Record<string, string>>({}); // parkId -> expiresAt
 
   // Redirect if not authenticated
@@ -243,7 +244,17 @@ export default function Home() {
 
         {/* Dashboard */}
         <div className="space-y-4">
-          <h2 className="text-[16px] font-semibold">Nearby Courts</h2>
+          <div className="flex items-center justify-between">
+            <h2 className="text-[16px] font-semibold">Nearby Courts</h2>
+            {parkActivities.length > 0 && (
+              <button
+                onClick={() => setAllExpanded((prev) => (prev === null ? true : !prev))}
+                className="text-[12px] text-muted-foreground hover:text-foreground transition-colors"
+              >
+                {allExpanded ? "Collapse all" : "Expand all"}
+              </button>
+            )}
+          </div>
 
           {loading ? (
             <div className="text-center py-12 text-[14px] text-muted-foreground">
@@ -254,17 +265,22 @@ export default function Home() {
               No courts found. Check back soon!
             </div>
           ) : (
-            <div className="space-y-4">
+            <div className="space-y-2.5">
               {parkActivities.map((activity) => (
                 <ParkCard
                   key={activity.park.id}
                   activity={activity}
                   onPaddleDown={handlePaddleDown}
-                  onPaddleUp={handlePaddleUp}
                   paddleLoading={paddleLoading === activity.park.id}
                   userCheckedIn={activity.park.id in userCheckIns}
                   checkInExpiresAt={userCheckIns[activity.park.id] || null}
                   canCheckIn={intentActive && intentParkId === activity.park.id}
+                  expandOverride={allExpanded}
+                  defaultExpanded={
+                    intentParkId === activity.park.id ||
+                    activity.totalPlayers > 0 ||
+                    activity.park.id in userCheckIns
+                  }
                 />
               ))}
             </div>
