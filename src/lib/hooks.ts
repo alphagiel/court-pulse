@@ -15,24 +15,35 @@ function formatHour(date: Date): string {
 }
 
 function buildIntentGroups(intents: Intent[]): IntentGroup[] {
-  const groups: Record<string, number> = {};
+  const groups: Record<string, { count: number; skillLevels: Set<string> }> = {};
 
   for (const intent of intents) {
-    if (intent.target_time) {
-      const targetDate = new Date(intent.target_time);
-      const label = formatHour(targetDate);
-      groups[label] = (groups[label] || 0) + 1;
-    } else {
-      groups["Now"] = (groups["Now"] || 0) + 1;
+    const label = intent.target_time
+      ? formatHour(new Date(intent.target_time))
+      : "Now";
+    if (!groups[label]) {
+      groups[label] = { count: 0, skillLevels: new Set() };
+    }
+    groups[label].count++;
+    if (intent.skill_level) {
+      groups[label].skillLevels.add(intent.skill_level);
     }
   }
 
   // Sort: "Now" first, then by time
-  const entries = Object.entries(groups).map(([label, count]) => ({ label, count }));
+  const entries = Object.entries(groups).map(([label, { count, skillLevels }]) => {
+    const sorted = [...skillLevels].sort((a, b) => parseFloat(a) - parseFloat(b));
+    const levels = sorted.length === 0
+      ? "–"
+      : sorted.length === 1
+        ? sorted[0]
+        : `${sorted[0]}–${sorted[sorted.length - 1]}`;
+    return { label, count, levels };
+  });
   entries.sort((a, b) => {
     if (a.label === "Now") return -1;
     if (b.label === "Now") return 1;
-    return 0; // keep insertion order for hours (already chronological from DB)
+    return 0;
   });
 
   return entries;

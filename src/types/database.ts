@@ -41,6 +41,7 @@ export interface CheckIn {
 export interface IntentGroup {
   label: string; // "Now", "2 PM", "3 PM", etc.
   count: number;
+  levels: string; // e.g. "3.0–4.5"
 }
 
 export type TimeBucket = "morning" | "afternoon" | "evening";
