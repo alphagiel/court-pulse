@@ -224,6 +224,12 @@ export default function Home() {
           <p className="text-[14px] text-muted-foreground">
             {profile.username} &middot; {profile.skill_level}
           </p>
+          <button
+            onClick={() => router.push("/ladder")}
+            className="absolute left-0 top-0 text-[12px] text-muted-foreground hover:text-foreground transition-colors font-medium"
+          >
+            Ladder &rarr;
+          </button>
         </div>
 
         {locationError && (
