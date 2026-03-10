@@ -126,7 +126,7 @@ export function ParkCard({
               }`}>
                 {totalInterested}
               </div>
-              <div className="text-[9px] text-muted-foreground mt-0.5">want</div>
+              <div className="text-[9px] text-muted-foreground mt-0.5">going</div>
             </div>
 
             {/* Expand chevron */}
@@ -166,7 +166,7 @@ export function ParkCard({
               onClick={() => hasInterested && setInterestExpanded(!interestExpanded)}
             >
               <p className="text-[12px] text-muted-foreground mb-2 flex items-center justify-between">
-                <span>Who&apos;s interested</span>
+                <span>Who&apos;s going</span>
                 {hasInterested && (
                   <span className="text-[11px]">{interestExpanded ? "Hide detail" : "Tap for detail"}</span>
                 )}
@@ -185,6 +185,7 @@ export function ParkCard({
                     <thead>
                       <tr className="border-b border-border/30 bg-muted/30">
                         <th className="py-1.5 px-3 text-left text-muted-foreground font-medium">Time</th>
+                        <th className="py-1.5 px-3 text-center text-muted-foreground font-medium">Level</th>
                         <th className="py-1.5 px-3 text-right text-muted-foreground font-medium">Players</th>
                       </tr>
                     </thead>
@@ -192,6 +193,7 @@ export function ParkCard({
                       {intentGroups.map((group, i) => (
                         <tr key={group.label} className={i < intentGroups.length - 1 ? "border-b border-border/20" : ""}>
                           <td className="py-1.5 px-3">{group.label}</td>
+                          <td className="py-1.5 px-3 text-center text-muted-foreground">{group.levels}</td>
                           <td className="py-1.5 px-3 text-right font-medium">{group.count}</td>
                         </tr>
                       ))}
@@ -364,6 +366,18 @@ function AnimatedPanel({
       setHeight(contentRef.current.scrollHeight);
     }
   }, [open, children]);
+
+  // Re-measure when nested content resizes (e.g. inner panels expand)
+  useEffect(() => {
+    if (!contentRef.current) return;
+    const observer = new ResizeObserver(() => {
+      if (contentRef.current) {
+        setHeight(contentRef.current.scrollHeight);
+      }
+    });
+    observer.observe(contentRef.current);
+    return () => observer.disconnect();
+  }, []);
 
   return (
     <div
