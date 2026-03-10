@@ -1,0 +1,726 @@
+"use client";
+
+import { useState } from "react";
+import { useRouter } from "next/navigation";
+import { useAuth } from "@/lib/auth-context";
+import { supabase } from "@/lib/supabase";
+import { skillToElo } from "@/lib/elo";
+import {
+  useLadderMembership,
+  useLadderRankings,
+  useProposals,
+  useMyMatches,
+  useTierPreviews,
+  type TierPreview,
+} from "@/lib/ladder-hooks";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent } from "@/components/ui/card";
+import type {
+  ProposalWithDetails,
+  MatchWithDetails,
+  LadderRankEntry,
+  SkillTier,
+} from "@/types/database";
+import { getSkillTier, SKILL_TIER_LABELS } from "@/types/database";
+
+function formatDate(dateStr: string): string {
+  const d = new Date(dateStr);
+  return d.toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" });
+}
+
+function formatTime(dateStr: string): string {
+  const d = new Date(dateStr);
+  return d.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" });
+}
+
+function formatDateTime(dateStr: string): string {
+  return `${formatDate(dateStr)} at ${formatTime(dateStr)}`;
+}
+
+type Tab = "rankings" | "proposals" | "matches";
+
+const TIER_SHORT: Record<SkillTier, string> = {
+  beginner: "Beginner",
+  intermediate: "Intermediate",
+  advanced: "Advanced",
+};
+
+const TIER_RANGE: Record<SkillTier, string> = {
+  beginner: "2.5 – 3.0",
+  intermediate: "3.5 – 4.0",
+  advanced: "4.5 – 5.0",
+};
+
+export default function LadderPage() {
+  const { user, profile, loading: authLoading } = useAuth();
+  const router = useRouter();
+  const userId = user?.id;
+
+  const userTier = profile ? getSkillTier(profile.skill_level) : "intermediate";
+
+  const { member, loading: memberLoading, refetch: refetchMember } = useLadderMembership(userId);
+  const { previews, loading: previewsLoading } = useTierPreviews();
+
+  // Selected tier — null means we're on the landing page
+  const [selectedTier, setSelectedTier] = useState<SkillTier | null>(null);
+  const [tab, setTab] = useState<Tab>("rankings");
+  const [registering, setRegistering] = useState(false);
+  const [actionId, setActionId] = useState<string | null>(null);
+
+  // These hooks run with a fallback tier; data only shows when selectedTier is set
+  const activeTier = selectedTier || userTier;
+  const { rankings, loading: rankingsLoading, refetch: refetchRankings } = useLadderRankings(activeTier);
+  const { proposals, loading: proposalsLoading, refetch: refetchProposals } = useProposals(activeTier);
+  const { matches, loading: matchesLoading, refetch: refetchMatches } = useMyMatches(userId, activeTier);
+
+  const isOwnTier = selectedTier === userTier;
+  const isReadOnly = selectedTier !== null && !isOwnTier;
+
+  // Redirect if not authenticated
+  if (!authLoading && !user) {
+    router.replace("/login");
+    return null;
+  }
+  if (!authLoading && user && !profile) {
+    router.replace("/setup");
+    return null;
+  }
+
+  const handleRegister = async () => {
+    if (!userId || !profile) return;
+    setRegistering(true);
+    try {
+      await supabase.from("ladder_members").insert({ user_id: userId });
+      await supabase.from("ladder_ratings").insert({
+        user_id: userId,
+        elo_rating: skillToElo(profile.skill_level),
+      });
+      await refetchMember();
+      await refetchRankings();
+    } catch (err) {
+      console.error("Registration error:", err);
+    } finally {
+      setRegistering(false);
+    }
+  };
+
+  const handleAcceptProposal = async (proposal: ProposalWithDetails) => {
+    if (!userId || isReadOnly) return;
+    setActionId(proposal.id);
+    try {
+      const { data, error } = await supabase
+        .from("proposals")
+        .update({
+          status: "accepted",
+          accepted_by: userId,
+          accepted_at: new Date().toISOString(),
+        })
+        .eq("id", proposal.id)
+        .eq("status", "open")
+        .select();
+
+      if (error || !data || data.length === 0) {
+        await refetchProposals();
+        return;
+      }
+
+      await supabase.from("matches").insert({
+        proposal_id: proposal.id,
+        player1_id: proposal.creator_id,
+        player2_id: userId,
+      });
+
+      await refetchProposals();
+      await refetchMatches();
+    } catch (err) {
+      console.error("Accept error:", err);
+    } finally {
+      setActionId(null);
+    }
+  };
+
+  const handleCancelProposal = async (proposal: ProposalWithDetails) => {
+    if (!userId || isReadOnly) return;
+    setActionId(proposal.id);
+    try {
+      const isOwner = proposal.creator_id === userId;
+
+      if (proposal.status === "accepted") {
+        await supabase
+          .from("matches")
+          .delete()
+          .eq("proposal_id", proposal.id)
+          .eq("status", "pending");
+      }
+
+      if (isOwner) {
+        await supabase
+          .from("proposals")
+          .update({ status: "cancelled" })
+          .eq("id", proposal.id);
+      } else if (proposal.status === "accepted") {
+        await supabase
+          .from("proposals")
+          .update({
+            status: "open",
+            accepted_by: null,
+            accepted_at: null,
+          })
+          .eq("id", proposal.id);
+      }
+
+      await refetchProposals();
+      await refetchMatches();
+    } catch (err) {
+      console.error("Cancel error:", err);
+    } finally {
+      setActionId(null);
+    }
+  };
+
+  if (authLoading || memberLoading || !profile) {
+    return (
+      <main className="min-h-screen bg-background flex items-center justify-center">
+        <p className="text-[14px] text-muted-foreground">Loading...</p>
+      </main>
+    );
+  }
+
+  // Registration gate
+  if (!member) {
+    return (
+      <main className="min-h-screen bg-background">
+        <div className="max-w-lg mx-auto px-4 py-8 sm:px-6 space-y-8">
+          <div className="text-center space-y-1 relative">
+            <button
+              onClick={() => router.push("/")}
+              className="absolute left-0 top-0 text-[12px] text-muted-foreground hover:text-foreground transition-colors"
+            >
+              &larr; Courts
+            </button>
+            <h1 className="text-[27px] font-bold tracking-[0.5px]">Ladder</h1>
+            <p className="text-[14px] text-muted-foreground">
+              Competitive pickleball rankings
+            </p>
+          </div>
+
+          <Card>
+            <CardContent className="pt-6 text-center space-y-4">
+              <h2 className="text-[18px] font-semibold">Join the Ladder</h2>
+              <p className="text-[14px] text-muted-foreground">
+                Challenge other players, report scores, and climb the rankings.
+                Free to join.
+              </p>
+              <div className="text-[13px] text-muted-foreground space-y-1">
+                <p>Your tier: <span className="font-medium text-foreground">{SKILL_TIER_LABELS[userTier]}</span></p>
+                <p>Starting rating: <span className="font-medium text-foreground">{skillToElo(profile.skill_level)}</span></p>
+              </div>
+              <Button onClick={handleRegister} disabled={registering} className="w-full">
+                {registering ? "Registering..." : "Join the Ladder"}
+              </Button>
+            </CardContent>
+          </Card>
+        </div>
+      </main>
+    );
+  }
+
+  // --- Landing page: tier cards ---
+  if (selectedTier === null) {
+    return (
+      <main className="min-h-screen bg-background">
+        <div className="max-w-lg mx-auto px-4 py-8 sm:px-6 space-y-6">
+          <div className="text-center space-y-1 relative">
+            <button
+              onClick={() => router.push("/")}
+              className="absolute left-0 top-0 text-[12px] text-muted-foreground hover:text-foreground transition-colors"
+            >
+              &larr; Courts
+            </button>
+            <h1 className="text-[27px] font-bold tracking-[0.5px]">Ladder</h1>
+            <p className="text-[14px] text-muted-foreground">
+              {profile.username} &middot; {TIER_SHORT[userTier]}
+            </p>
+          </div>
+
+          {previewsLoading ? (
+            <p className="text-center py-12 text-[14px] text-muted-foreground">Loading...</p>
+          ) : (
+            <div className="grid grid-cols-1 min-[360px]:grid-cols-3 gap-2.5">
+              {previews.map((preview) => (
+                <TierCard
+                  key={preview.tier}
+                  preview={preview}
+                  isUserTier={preview.tier === userTier}
+                  onSelect={() => {
+                    setSelectedTier(preview.tier);
+                    setTab("rankings");
+                  }}
+                />
+              ))}
+            </div>
+          )}
+        </div>
+      </main>
+    );
+  }
+
+  // --- Tier detail view ---
+  return (
+    <main className="min-h-screen bg-background">
+      <div className="max-w-lg mx-auto px-4 py-8 sm:px-6 space-y-5">
+        {/* Header */}
+        <div className="text-center space-y-1 relative">
+          <button
+            onClick={() => setSelectedTier(null)}
+            className="absolute left-0 top-0 text-[12px] text-muted-foreground hover:text-foreground transition-colors"
+          >
+            &larr; All Tiers
+          </button>
+          <h1 className="text-[20px] sm:text-[22px] font-bold tracking-[0.5px]">
+            {TIER_SHORT[selectedTier]} Ladder
+          </h1>
+          <p className="text-[14px] text-muted-foreground">
+            {isOwnTier
+              ? <>{profile.username} &middot; {rankings.find(r => r.user_id === userId)?.elo_rating || "—"} ELO</>
+              : <>{TIER_RANGE[selectedTier]} &middot; View only</>
+            }
+          </p>
+        </div>
+
+        {isReadOnly && (
+          <div className="text-center bg-muted/60 rounded-lg py-2 px-3">
+            <p className="text-[12px] text-muted-foreground">
+              You&apos;re viewing the {TIER_SHORT[selectedTier]} tier. Your tier is {TIER_SHORT[userTier]}.
+            </p>
+          </div>
+        )}
+
+        {/* Content tabs */}
+        <div className="flex gap-1 bg-muted rounded-lg p-1">
+          {(["rankings", "proposals", "matches"] as Tab[]).map((t) => {
+            // Non-own tier: hide matches tab (those are personal)
+            if (t === "matches" && isReadOnly) return null;
+            return (
+              <button
+                key={t}
+                onClick={() => setTab(t)}
+                className={`flex-1 text-[13px] font-medium py-2 rounded-md transition-colors capitalize ${
+                  tab === t
+                    ? "bg-background text-foreground shadow-sm"
+                    : "text-muted-foreground hover:text-foreground"
+                }`}
+              >
+                {t}
+              </button>
+            );
+          })}
+        </div>
+
+        {/* Tab content */}
+        {tab === "rankings" && (
+          <RankingsTab rankings={rankings} loading={rankingsLoading} currentUserId={userId} />
+        )}
+        {tab === "proposals" && (
+          <ProposalsTab
+            proposals={proposals}
+            loading={proposalsLoading}
+            currentUserId={userId!}
+            onAccept={handleAcceptProposal}
+            onCancel={handleCancelProposal}
+            actionId={actionId}
+            onCreateNew={() => router.push("/ladder/proposals/new")}
+            readOnly={isReadOnly}
+          />
+        )}
+        {tab === "matches" && !isReadOnly && (
+          <MatchesTab
+            matches={matches}
+            loading={matchesLoading}
+            currentUserId={userId!}
+            onViewMatch={(id) => router.push(`/ladder/match/${id}`)}
+          />
+        )}
+      </div>
+    </main>
+  );
+}
+
+// --- Tier Landing Card ---
+
+function TierCard({
+  preview,
+  isUserTier,
+  onSelect,
+}: {
+  preview: TierPreview;
+  isUserTier: boolean;
+  onSelect: () => void;
+}) {
+  return (
+    <Card
+      className={`cursor-pointer transition-all shadow-sm hover:shadow-md flex flex-col ${
+        isUserTier
+          ? "border-2 border-green-500 [box-shadow:0_0_8px_rgba(34,197,94,0.4)]"
+          : "hover:border-foreground/20"
+      }`}
+      onClick={onSelect}
+    >
+      <CardContent className="p-3 flex flex-col gap-[15px]">
+        {/* Tier header */}
+        <div>
+          <h3 className="text-[13px] font-semibold leading-tight">
+            {TIER_SHORT[preview.tier]}
+          </h3>
+          <p className="text-[10px] text-muted-foreground">{TIER_RANGE[preview.tier]}</p>
+        </div>
+
+        <hr className="border-border" />
+
+        {/* Stats */}
+        <div className="space-y-1 text-[10px]">
+          <div className="flex justify-between">
+            <span className="text-muted-foreground">Players</span>
+            <span className="font-semibold">{preview.playerCount}</span>
+          </div>
+          <div className="flex justify-between">
+            <span className="text-muted-foreground">Proposals</span>
+            <span className="font-semibold">{preview.openProposals}</span>
+          </div>
+          <div className="flex justify-between">
+            <span className="text-muted-foreground">Matches</span>
+            <span className="font-semibold">{preview.totalMatches}</span>
+          </div>
+        </div>
+
+        <hr className="border-border" />
+
+        {/* Top players */}
+        {preview.topPlayers.length > 0 ? (
+          <div className="space-y-1">
+            {preview.topPlayers.slice(0, 2).map((p, i) => (
+              <div key={i} className="flex justify-between text-[9px]">
+                <span className="truncate text-muted-foreground">
+                  <span className="font-medium text-foreground">#{i + 1}</span> {p.username}
+                </span>
+                <span className="tabular-nums font-medium ml-1 shrink-0">{p.elo_rating}</span>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <p className="text-[9px] text-muted-foreground">
+            No players yet
+          </p>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
+// --- Tab Components ---
+
+function RankingsTab({
+  rankings,
+  loading,
+  currentUserId,
+}: {
+  rankings: LadderRankEntry[];
+  loading: boolean;
+  currentUserId: string | undefined;
+}) {
+  if (loading) return <LoadingState text="Loading rankings..." />;
+  if (rankings.length === 0) return <EmptyState text="No players ranked yet in this tier." />;
+
+  return (
+    <div className="space-y-2.5">
+      {rankings.map((entry) => (
+        <Card
+          key={entry.user_id}
+          className={`shadow-sm ${entry.user_id === currentUserId ? "border-2 border-green-500 [box-shadow:0_0_8px_rgba(34,197,94,0.4)]" : ""}`}
+        >
+          <CardContent className="p-4 space-y-3 overflow-hidden">
+            {/* Name + rank badge */}
+            <div className="flex items-start justify-between gap-2">
+              <div className="min-w-0">
+                <p className="text-[16px] font-semibold truncate">{entry.username}</p>
+                <span className="inline-block text-[11px] text-green-700 bg-green-50 border border-green-200 rounded-full px-2 py-0.5 mt-1">
+                  #{entry.rank} &middot; {entry.skill_level}
+                </span>
+              </div>
+              <span className="text-[22px] font-bold tabular-nums shrink-0">{entry.elo_rating}</span>
+            </div>
+
+            {/* Stats rows */}
+            <div className="space-y-1 text-[13px]">
+              <DetailRow label="Record" value={`${entry.wins}W – ${entry.losses}L`} />
+              <DetailRow label="Last Played" value={entry.last_played ? formatDate(entry.last_played) : "—"} />
+            </div>
+          </CardContent>
+        </Card>
+      ))}
+    </div>
+  );
+}
+
+const INITIAL_SHOW = 5;
+
+function ProposalsTab({
+  proposals,
+  loading,
+  currentUserId,
+  onAccept,
+  onCancel,
+  actionId,
+  onCreateNew,
+  readOnly,
+}: {
+  proposals: ProposalWithDetails[];
+  loading: boolean;
+  currentUserId: string;
+  onAccept: (p: ProposalWithDetails) => void;
+  onCancel: (p: ProposalWithDetails) => void;
+  actionId: string | null;
+  onCreateNew: () => void;
+  readOnly: boolean;
+}) {
+  const [showAllOpen, setShowAllOpen] = useState(false);
+  const [showAllTaken, setShowAllTaken] = useState(false);
+
+  if (loading) return <LoadingState text="Loading proposals..." />;
+
+  const open = proposals.filter((p) => p.status === "open");
+  const taken = proposals.filter((p) => p.status === "accepted");
+  const visibleOpen = showAllOpen ? open : open.slice(0, INITIAL_SHOW);
+  const visibleTaken = showAllTaken ? taken : taken.slice(0, INITIAL_SHOW);
+
+  return (
+    <div className="space-y-3">
+      {!readOnly && (
+        <Button onClick={onCreateNew} variant="outline" className="w-full border-green-300 text-green-700 hover:bg-green-50 hover:border-green-400">
+          Create Proposal
+        </Button>
+      )}
+
+      {open.length === 0 && taken.length === 0 ? (
+        <EmptyState text={readOnly ? "No proposals in this tier." : "No proposals in this tier. Create one!"} />
+      ) : (
+        <>
+          {/* Open proposals */}
+          {visibleOpen.map((p) => (
+            <Card key={p.id} className="shadow-sm">
+              <CardContent className="p-4 space-y-3 overflow-hidden">
+                {/* Name + skill badge */}
+                <div className="flex items-start justify-between gap-2">
+                  <div className="min-w-0">
+                    <p className="text-[16px] font-semibold truncate">{p.creator.username}</p>
+                    <span className="inline-block text-[11px] text-green-700 bg-green-50 border border-green-200 rounded-full px-2 py-0.5 mt-1">
+                      {p.creator.skill_level}
+                    </span>
+                  </div>
+                </div>
+
+                {/* Details rows */}
+                <div className="space-y-1 text-[13px]">
+                  <DetailRow label="Park" value={p.park.name} />
+                  <DetailRow label="When" value={formatDateTime(p.proposed_time)} />
+                  {p.message && <DetailRow label="Note" value={p.message} italic />}
+                </div>
+
+                {/* Action */}
+                {!readOnly && (
+                  p.creator_id === currentUserId ? (
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => onCancel(p)}
+                      disabled={actionId === p.id}
+                      className="w-full text-red-500 hover:text-red-600 hover:bg-red-50"
+                    >
+                      {actionId === p.id ? "Cancelling..." : "Cancel Proposal"}
+                    </Button>
+                  ) : (
+                    <Button
+                      size="sm"
+                      onClick={() => onAccept(p)}
+                      disabled={actionId === p.id}
+                      className="w-full bg-green-600 hover:bg-green-700 text-white"
+                    >
+                      {actionId === p.id ? "Accepting..." : "Accept Challenge"}
+                    </Button>
+                  )
+                )}
+              </CardContent>
+            </Card>
+          ))}
+
+          {!showAllOpen && open.length > INITIAL_SHOW && (
+            <button
+              onClick={() => setShowAllOpen(true)}
+              className="w-full text-center text-[12px] text-muted-foreground hover:text-foreground py-2 transition-colors"
+            >
+              Show {open.length - INITIAL_SHOW} more open proposals
+            </button>
+          )}
+
+          {/* Taken proposals */}
+          {taken.length > 0 && (
+            <>
+              {open.length > 0 && (
+                <p className="text-[11px] text-muted-foreground uppercase tracking-wider pt-2">
+                  Accepted
+                </p>
+              )}
+              {visibleTaken.map((p) => {
+                const isOwner = p.creator_id === currentUserId;
+                const isAcceptor = p.accepted_by === currentUserId;
+                const isInvolved = isOwner || isAcceptor;
+                return (
+                  <Card key={p.id} className="shadow-sm opacity-60 border-dashed">
+                    <CardContent className="p-4 space-y-3 overflow-hidden">
+                      {/* Name + taken badge */}
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="min-w-0">
+                          <p className="text-[16px] font-semibold truncate">{p.creator.username}</p>
+                          <span className="inline-block text-[11px] text-green-700 bg-green-50 border border-green-200 rounded-full px-2 py-0.5 mt-1">
+                            Taken
+                          </span>
+                        </div>
+                      </div>
+
+                      {/* Details rows */}
+                      <div className="space-y-1 text-[13px]">
+                        <DetailRow label="Park" value={p.park.name} />
+                        <DetailRow label="When" value={formatDateTime(p.proposed_time)} />
+                        <DetailRow label="Accepted" value={p.acceptor?.username || "someone"} />
+                      </div>
+
+                      {/* Action */}
+                      {!readOnly && isInvolved && (
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => onCancel(p)}
+                          disabled={actionId === p.id}
+                          className="w-full text-red-500 hover:text-red-600 hover:bg-red-50"
+                        >
+                          {actionId === p.id
+                            ? "Cancelling..."
+                            : isOwner
+                              ? "Delete Proposal"
+                              : "Back Out"
+                          }
+                        </Button>
+                      )}
+                    </CardContent>
+                  </Card>
+                );
+              })}
+
+              {!showAllTaken && taken.length > INITIAL_SHOW && (
+                <button
+                  onClick={() => setShowAllTaken(true)}
+                  className="w-full text-center text-[12px] text-muted-foreground hover:text-foreground py-2 transition-colors"
+                >
+                  Show {taken.length - INITIAL_SHOW} more accepted
+                </button>
+              )}
+            </>
+          )}
+        </>
+      )}
+    </div>
+  );
+}
+
+function MatchesTab({
+  matches,
+  loading,
+  currentUserId,
+  onViewMatch,
+}: {
+  matches: MatchWithDetails[];
+  loading: boolean;
+  currentUserId: string;
+  onViewMatch: (id: string) => void;
+}) {
+  const [showAll, setShowAll] = useState(false);
+
+  if (loading) return <LoadingState text="Loading matches..." />;
+  if (matches.length === 0) return <EmptyState text="No matches yet. Accept or create a proposal!" />;
+
+  const visible = showAll ? matches : matches.slice(0, INITIAL_SHOW);
+
+  const statusBadge: Record<string, { text: string; className: string }> = {
+    pending: { text: "Pending", className: "text-amber-700 bg-amber-50 border-amber-200" },
+    score_submitted: { text: "Needs Confirm", className: "text-blue-700 bg-blue-50 border-blue-200" },
+    confirmed: { text: "Confirmed", className: "text-green-700 bg-green-50 border-green-200" },
+    disputed: { text: "Disputed", className: "text-red-700 bg-red-50 border-red-200" },
+  };
+
+  return (
+    <div className="space-y-2.5">
+      {visible.map((m) => {
+        const opponent = m.player1_id === currentUserId ? m.player2 : m.player1;
+        const badge = statusBadge[m.status] || statusBadge.pending;
+
+        return (
+          <Card
+            key={m.id}
+            className="shadow-sm cursor-pointer hover:shadow-md transition-shadow"
+            onClick={() => onViewMatch(m.id)}
+          >
+            <CardContent className="p-4 space-y-3 overflow-hidden">
+              {/* Opponent + status badge */}
+              <div className="flex items-start justify-between gap-2">
+                <div className="min-w-0">
+                  <p className="text-[16px] font-semibold truncate">vs {opponent.username}</p>
+                  <span className={`inline-block text-[11px] border rounded-full px-2 py-0.5 mt-1 ${badge.className}`}>
+                    {badge.text}
+                  </span>
+                </div>
+                {m.status === "confirmed" && m.winner_id && (
+                  <span className={`text-[14px] font-bold shrink-0 ${m.winner_id === currentUserId ? "text-green-600" : "text-red-500"}`}>
+                    {m.winner_id === currentUserId ? "W" : "L"}
+                  </span>
+                )}
+              </div>
+
+              {/* Details rows */}
+              <div className="space-y-1 text-[13px]">
+                <DetailRow label="Park" value={m.park.name} />
+                <DetailRow label="Date" value={formatDate(m.created_at)} />
+              </div>
+            </CardContent>
+          </Card>
+        );
+      })}
+
+      {!showAll && matches.length > INITIAL_SHOW && (
+        <button
+          onClick={() => setShowAll(true)}
+          className="w-full text-center text-[12px] text-muted-foreground hover:text-foreground py-2 transition-colors"
+        >
+          Show {matches.length - INITIAL_SHOW} more matches
+        </button>
+      )}
+    </div>
+  );
+}
+
+function DetailRow({ label, value, italic }: { label: string; value: string; italic?: boolean }) {
+  return (
+    <div className="flex items-baseline gap-1">
+      <span className="text-muted-foreground shrink-0">{label}</span>
+      <span className="flex-1 border-b border-dotted border-muted-foreground/30 min-w-4 relative top-[-2px]" />
+      <span className={`font-medium shrink-0 ${italic ? "italic" : ""}`}>{value}</span>
+    </div>
+  );
+}
+
+function LoadingState({ text }: { text: string }) {
+  return <p className="text-center py-8 text-[14px] text-muted-foreground">{text}</p>;
+}
+
+function EmptyState({ text }: { text: string }) {
+  return <p className="text-center py-8 text-[14px] text-muted-foreground">{text}</p>;
+}

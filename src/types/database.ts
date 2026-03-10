@@ -66,6 +66,108 @@ export interface ParkActivity {
   distanceMiles: number | null;
 }
 
+// --- Ladder System ---
+
+export type SkillTier = "beginner" | "intermediate" | "advanced";
+
+export const SKILL_TIER_MAP: Record<SkillLevel, SkillTier> = {
+  "2.5": "beginner",
+  "3.0": "beginner",
+  "3.5": "intermediate",
+  "4.0": "intermediate",
+  "4.5": "advanced",
+  "5.0": "advanced",
+};
+
+export const SKILL_TIER_LABELS: Record<SkillTier, string> = {
+  beginner: "Beginner (2.5–3.0)",
+  intermediate: "Intermediate (3.5–4.0)",
+  advanced: "Advanced (4.5–5.0)",
+};
+
+export const SKILL_TIER_LEVELS: Record<SkillTier, SkillLevel[]> = {
+  beginner: ["2.5", "3.0"],
+  intermediate: ["3.5", "4.0"],
+  advanced: ["4.5", "5.0"],
+};
+
+export function getSkillTier(skill: SkillLevel): SkillTier {
+  return SKILL_TIER_MAP[skill];
+}
+
+export type ProposalStatus = "open" | "accepted" | "cancelled" | "expired";
+export type MatchStatus = "pending" | "score_submitted" | "confirmed" | "disputed" | "cancelled";
+
+export interface LadderMember {
+  id: string;
+  user_id: string;
+  season: string;
+  status: "active" | "inactive";
+  registered_at: string;
+}
+
+export interface Proposal {
+  id: string;
+  creator_id: string;
+  park_id: string;
+  proposed_time: string;
+  message: string | null;
+  status: ProposalStatus;
+  accepted_by: string | null;
+  accepted_at: string | null;
+  created_at: string;
+  expires_at: string;
+}
+
+export interface Match {
+  id: string;
+  proposal_id: string;
+  player1_id: string;
+  player2_id: string;
+  player1_scores: number[] | null;
+  player2_scores: number[] | null;
+  submitted_by: string | null;
+  confirmed_by: string | null;
+  status: MatchStatus;
+  winner_id: string | null;
+  played_at: string | null;
+  created_at: string;
+}
+
+export interface LadderRating {
+  id: string;
+  user_id: string;
+  elo_rating: number;
+  wins: number;
+  losses: number;
+  last_played: string | null;
+  season: string;
+  updated_at: string;
+}
+
+export interface ProposalWithDetails extends Proposal {
+  creator: Profile;
+  acceptor: Profile | null;
+  park: Park;
+}
+
+export interface MatchWithDetails extends Match {
+  player1: Profile;
+  player2: Profile;
+  park: Park;
+}
+
+export interface LadderRankEntry {
+  rank: number;
+  user_id: string;
+  username: string;
+  skill_level: SkillLevel;
+  elo_rating: number;
+  wins: number;
+  losses: number;
+  last_played: string | null;
+}
+
 export interface Database {
   public: {
     Tables: {
