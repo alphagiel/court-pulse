@@ -439,16 +439,17 @@ function RankingsTab({
           className={`shadow-sm ${entry.user_id === currentUserId ? "border-2 border-green-500 [box-shadow:0_0_8px_rgba(34,197,94,0.4)]" : ""}`}
         >
           <CardContent className="p-4 space-y-3 overflow-hidden">
-            {/* Name + rank badge */}
-            <div className="flex items-start justify-between gap-2">
-              <div className="min-w-0">
+            {/* Name row */}
+            <div className="flex items-center justify-between gap-2">
+              <div className="flex items-center gap-2 min-w-0">
                 <p className="text-[16px] font-semibold truncate">{entry.username}</p>
-                <span className="inline-block text-[11px] text-green-700 bg-green-50 border border-green-200 rounded-full px-2 py-0.5 mt-1">
-                  #{entry.rank} &middot; {entry.skill_level}
+                <span className="text-[11px] text-green-700 bg-green-50 border border-green-200 rounded-full px-2 py-0.5 shrink-0">
+                  {entry.skill_level}
                 </span>
               </div>
               <span className="text-[22px] font-bold tabular-nums shrink-0">{entry.elo_rating}</span>
             </div>
+            <span className="text-[11px] text-muted-foreground">#{entry.rank} in tier</span>
 
             {/* Stats rows */}
             <div className="space-y-1 text-[13px]">
@@ -509,14 +510,12 @@ function ProposalsTab({
           {visibleOpen.map((p) => (
             <Card key={p.id} className="shadow-sm">
               <CardContent className="p-4 space-y-3 overflow-hidden">
-                {/* Name + skill badge */}
-                <div className="flex items-start justify-between gap-2">
-                  <div className="min-w-0">
-                    <p className="text-[16px] font-semibold truncate">{p.creator.username}</p>
-                    <span className="inline-block text-[11px] text-green-700 bg-green-50 border border-green-200 rounded-full px-2 py-0.5 mt-1">
-                      {p.creator.skill_level}
-                    </span>
-                  </div>
+                {/* Name + skill level */}
+                <div className="flex items-center gap-2 min-w-0">
+                  <p className="text-[16px] font-semibold truncate">{p.creator.username}</p>
+                  <span className="text-[11px] text-green-700 bg-green-50 border border-green-200 rounded-full px-2 py-0.5 shrink-0">
+                    {p.creator.skill_level}
+                  </span>
                 </div>
 
                 {/* Details rows */}
@@ -577,14 +576,17 @@ function ProposalsTab({
                 return (
                   <Card key={p.id} className="shadow-sm opacity-60 border-dashed">
                     <CardContent className="p-4 space-y-3 overflow-hidden">
-                      {/* Name + taken badge */}
-                      <div className="flex items-start justify-between gap-2">
-                        <div className="min-w-0">
+                      {/* Name + skill level + taken badge */}
+                      <div className="flex items-center justify-between gap-2">
+                        <div className="flex items-center gap-2 min-w-0">
                           <p className="text-[16px] font-semibold truncate">{p.creator.username}</p>
-                          <span className="inline-block text-[11px] text-green-700 bg-green-50 border border-green-200 rounded-full px-2 py-0.5 mt-1">
-                            Taken
+                          <span className="text-[11px] text-green-700 bg-green-50 border border-green-200 rounded-full px-2 py-0.5 shrink-0">
+                            {p.creator.skill_level}
                           </span>
                         </div>
+                        <span className="text-[11px] text-amber-700 bg-amber-50 border border-amber-200 rounded-full px-2 py-0.5 shrink-0">
+                          Taken
+                        </span>
                       </div>
 
                       {/* Details rows */}

@@ -175,7 +175,9 @@ CREATE POLICY "Users can update own membership" ON ladder_members FOR UPDATE USI
 -- Proposals
 CREATE POLICY "Proposals viewable by everyone" ON proposals FOR SELECT USING (true);
 CREATE POLICY "Users can create proposals" ON proposals FOR INSERT WITH CHECK (auth.uid() = creator_id);
-CREATE POLICY "Users can update own proposals" ON proposals FOR UPDATE USING (auth.uid() = creator_id OR auth.uid() = accepted_by);
+CREATE POLICY "Users can update own proposals" ON proposals FOR UPDATE USING (
+  auth.uid() = creator_id OR auth.uid() = accepted_by OR (status = 'open' AND auth.role() = 'authenticated')
+);
 CREATE POLICY "Users can delete own proposals" ON proposals FOR DELETE USING (auth.uid() = creator_id);
 
 -- Matches
