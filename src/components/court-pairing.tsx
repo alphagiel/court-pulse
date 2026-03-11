@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef, useMemo, useCallback } from "react";
+import { useState, useRef, useMemo, useCallback, useLayoutEffect } from "react";
 import { autoBalanceTeams } from "@/lib/elo";
 import type { Profile } from "@/types/database";
 
@@ -30,7 +30,6 @@ export function CourtPairing({
 }: CourtPairingProps) {
   const isCreator = currentUserId === creatorId;
 
-  // Auto-balance once on first render, then user controls from there
   const initialTeams = useRef(
     autoBalanceTeams(players.map((p) => ({ userId: p.userId, elo: p.elo })))
   );
@@ -39,6 +38,11 @@ export function CourtPairing({
   const [teamB, setTeamB] = useState<[string, string]>(initialTeams.current.teamB);
   const [selected, setSelected] = useState<string | null>(null);
   const [hasSetInitialTeams, setHasSetInitialTeams] = useState(false);
+
+  // FLIP animation refs
+  const chipRefs = useRef<Map<string, HTMLButtonElement>>(new Map());
+  const prevRectsRef = useRef<Map<string, DOMRect>>(new Map());
+  const pendingSwapRef = useRef<[string, string] | null>(null);
 
   const playerMap = useMemo(() => {
     const map = new Map<string, PlayerInfo>();
@@ -59,12 +63,62 @@ export function CourtPairing({
   const allConfirmed = players.every((p) => p.confirmed);
   const currentConfirmed = players.find((p) => p.userId === currentUserId)?.confirmed;
 
-  // Save initial team assignments once (creator only)
   const handleSetInitialTeams = useCallback(() => {
     if (hasSetInitialTeams) return;
     setHasSetInitialTeams(true);
     onPairingChange(teamA, teamB);
   }, [hasSetInitialTeams, onPairingChange, teamA, teamB]);
+
+  // FLIP: after React re-renders with new positions, animate from old → new
+  useLayoutEffect(() => {
+    const swap = pendingSwapRef.current;
+    if (!swap) return;
+    pendingSwapRef.current = null;
+
+    const [idA, idB] = swap;
+    const elA = chipRefs.current.get(idA);
+    const elB = chipRefs.current.get(idB);
+    const oldA = prevRectsRef.current.get(idA);
+    const oldB = prevRectsRef.current.get(idB);
+
+    if (!elA || !elB || !oldA || !oldB) return;
+
+    const newA = elA.getBoundingClientRect();
+    const newB = elB.getBoundingClientRect();
+
+    // Invert: translate each chip from its old position
+    const dxA = oldA.left - newA.left;
+    const dyA = oldA.top - newA.top;
+    const dxB = oldB.left - newB.left;
+    const dyB = oldB.top - newB.top;
+
+    // Apply inverse transform (jump to old position)
+    elA.style.transform = `translate(${dxA}px, ${dyA}px)`;
+    elB.style.transform = `translate(${dxB}px, ${dyB}px)`;
+    elA.style.transition = "none";
+    elB.style.transition = "none";
+    elA.style.zIndex = "10";
+    elB.style.zIndex = "10";
+
+    // Force reflow so the browser registers the starting position
+    void elA.offsetHeight;
+
+    // Play: animate to final position (transform: none)
+    elA.style.transition = "transform 0.25s ease-out";
+    elB.style.transition = "transform 0.25s ease-out";
+    elA.style.transform = "";
+    elB.style.transform = "";
+
+    const cleanup = () => {
+      elA.style.transition = "";
+      elA.style.zIndex = "";
+      elB.style.transition = "";
+      elB.style.zIndex = "";
+    };
+    elA.addEventListener("transitionend", cleanup, { once: true });
+    // Fallback in case transitionend doesn't fire
+    setTimeout(cleanup, 300);
+  }, [teamA, teamB]);
 
   const handlePlayerTap = (playerId: string) => {
     if (!isCreator || disabled) return;
@@ -78,6 +132,16 @@ export function CourtPairing({
       setSelected(null);
       return;
     }
+
+    // FLIP step 1: snapshot current positions before state change
+    const allIds = [...teamA, ...teamB];
+    const rects = new Map<string, DOMRect>();
+    for (const id of allIds) {
+      const el = chipRefs.current.get(id);
+      if (el) rects.set(id, el.getBoundingClientRect());
+    }
+    prevRectsRef.current = rects;
+    pendingSwapRef.current = [selected, playerId];
 
     // Swap the two players
     const allSlots = { a: [...teamA] as [string, string], b: [...teamB] as [string, string] };
@@ -100,19 +164,22 @@ export function CourtPairing({
       allSlots[toTeam][toIdx] = selected;
       setTeamA(allSlots.a);
       setTeamB(allSlots.b);
-      // Only notify parent on actual swap
       onPairingChange(allSlots.a, allSlots.b);
     }
 
     setSelected(null);
   };
 
+  const setChipRef = useCallback((id: string, el: HTMLButtonElement | null) => {
+    if (el) chipRefs.current.set(id, el);
+    else chipRefs.current.delete(id);
+  }, []);
+
   return (
     <div className="space-y-4">
       {/* Court */}
       <div className="relative rounded-xl border-2 border-green-600/30 bg-green-950/5 overflow-hidden">
-        {/* Court surface */}
-        <div className="px-4 py-5">
+        <div className="px-3 py-3">
           {/* Team labels */}
           <div className="flex justify-between mb-3">
             <span className="text-[11px] font-semibold uppercase tracking-wider text-green-700">
@@ -124,12 +191,13 @@ export function CourtPairing({
           </div>
 
           {/* Court with net */}
-          <div className="flex items-stretch gap-0">
+          <div className="relative flex gap-0">
             {/* Team A side */}
-            <div className="flex-1 flex flex-col gap-3 pr-3">
+            <div className="flex-1 flex flex-col gap-2 pr-2">
               {teamA.map((id) => (
                 <PlayerChip
                   key={id}
+                  ref={(el) => setChipRef(id, el)}
                   player={getPlayer(id)}
                   isSelected={selected === id}
                   isCreator={isCreator}
@@ -139,17 +207,19 @@ export function CourtPairing({
               ))}
             </div>
 
-            {/* Net */}
-            <div className="w-[3px] bg-green-600/40 rounded-full self-stretch relative">
-              <div className="absolute -top-1 left-1/2 -translate-x-1/2 w-2 h-2 rounded-full bg-green-600/60" />
-              <div className="absolute -bottom-1 left-1/2 -translate-x-1/2 w-2 h-2 rounded-full bg-green-600/60" />
+            {/* Net — absolute so it never collapses */}
+            <div className="absolute left-1/2 top-0 bottom-0 -translate-x-1/2 flex flex-col items-center">
+              <div className="w-2 h-2 rounded-full bg-green-600/60 shrink-0" />
+              <div className="w-[3px] flex-1 bg-green-600/40 rounded-full" />
+              <div className="w-2 h-2 rounded-full bg-green-600/60 shrink-0" />
             </div>
 
             {/* Team B side */}
-            <div className="flex-1 flex flex-col gap-3 pl-3">
+            <div className="flex-1 flex flex-col gap-2 pl-2">
               {teamB.map((id) => (
                 <PlayerChip
                   key={id}
+                  ref={(el) => setChipRef(id, el)}
                   player={getPlayer(id)}
                   isSelected={selected === id}
                   isCreator={isCreator}
@@ -218,7 +288,7 @@ export function CourtPairing({
         ))}
       </div>
 
-      {/* Confirm button — first saves initial teams if not yet saved */}
+      {/* Confirm button */}
       {!currentConfirmed && !disabled && (
         <button
           onClick={() => {
@@ -246,27 +316,27 @@ export function CourtPairing({
   );
 }
 
-function PlayerChip({
-  player,
-  isSelected,
-  isCreator,
-  disabled,
-  onTap,
-}: {
-  player: PlayerInfo;
-  isSelected: boolean;
-  isCreator: boolean;
-  disabled?: boolean;
-  onTap: () => void;
-}) {
+import { forwardRef } from "react";
+
+const PlayerChip = forwardRef<
+  HTMLButtonElement,
+  {
+    player: PlayerInfo;
+    isSelected: boolean;
+    isCreator: boolean;
+    disabled?: boolean;
+    onTap: () => void;
+  }
+>(function PlayerChip({ player, isSelected, isCreator, disabled, onTap }, ref) {
   const canInteract = isCreator && !disabled;
 
   return (
     <button
+      ref={ref}
       onClick={onTap}
       disabled={!canInteract}
       className={`
-        relative flex items-center gap-2.5 px-3 py-2.5 rounded-lg border-2 transition-all text-left w-full
+        relative flex items-center gap-1.5 px-2 py-1.5 rounded-lg border-2 text-left w-full
         ${canInteract ? "cursor-pointer active:scale-[0.97]" : "cursor-default"}
         ${isSelected
           ? "border-green-500 bg-green-50 shadow-sm shadow-green-200/50"
@@ -274,28 +344,26 @@ function PlayerChip({
         }
       `}
     >
-      {/* Avatar placeholder */}
-      <div className={`w-8 h-8 rounded-full flex items-center justify-center text-[13px] font-bold shrink-0 ${
+      <div className={`w-7 h-7 rounded-full flex items-center justify-center text-[12px] font-bold shrink-0 ${
         isSelected ? "bg-green-600 text-white" : "bg-muted text-muted-foreground"
       }`}>
         {player.profile.username.charAt(0).toUpperCase()}
       </div>
 
       <div className="min-w-0 flex-1">
-        <p className="text-[13px] font-semibold truncate leading-tight">
+        <p className="text-[12px] font-semibold truncate leading-tight">
           {player.profile.username}
         </p>
-        <p className="text-[11px] text-muted-foreground leading-tight">
-          {player.profile.skill_level} &middot; {player.elo}
+        <p className="text-[10px] text-muted-foreground leading-tight">
+          {player.elo}
         </p>
       </div>
 
-      {/* Confirmed indicator */}
       {player.confirmed && (
-        <div className="shrink-0 w-5 h-5 rounded-full bg-green-600 flex items-center justify-center">
-          <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="3.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+        <div className="shrink-0 w-4 h-4 rounded-full bg-green-600 flex items-center justify-center">
+          <svg width="8" height="8" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="3.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
         </div>
       )}
     </button>
   );
-}
+});

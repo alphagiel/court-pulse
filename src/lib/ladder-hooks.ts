@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useRef } from "react";
 import { supabase } from "@/lib/supabase";
 import type {
   Proposal,
@@ -351,10 +351,12 @@ export function useMyMatches(userId: string | undefined, tier: SkillTier, mode: 
 export function useProposalSignups(proposalId: string | undefined) {
   const [signups, setSignups] = useState<ProposalSignupWithProfile[]>([]);
   const [loading, setLoading] = useState(true);
+  const hasFetched = useRef(false);
 
   const fetch = useCallback(async () => {
     if (!proposalId) { setLoading(false); return; }
-    setLoading(true);
+    // Only show loading spinner on initial fetch, not refetches
+    if (!hasFetched.current) setLoading(true);
 
     const { data } = await supabase
       .from("proposal_signups")
@@ -383,6 +385,7 @@ export function useProposalSignups(proposalId: string | undefined) {
 
     setSignups(enriched);
     setLoading(false);
+    hasFetched.current = true;
   }, [proposalId]);
 
   useEffect(() => {
