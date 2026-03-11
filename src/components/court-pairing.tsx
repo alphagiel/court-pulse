@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef, useMemo, useCallback, useLayoutEffect } from "react";
+import { useState, useRef, useMemo, useCallback, useLayoutEffect, forwardRef } from "react";
 import { autoBalanceTeams } from "@/lib/elo";
 import type { Profile } from "@/types/database";
 
@@ -8,15 +8,15 @@ interface PlayerInfo {
   userId: string;
   profile: Profile;
   elo: number;
-  confirmed: boolean;
+  team: "a" | "b" | null;
 }
 
 interface CourtPairingProps {
   players: PlayerInfo[];
   creatorId: string;
   currentUserId: string;
-  onConfirm: (userId: string) => void;
-  onPairingChange: (teamA: [string, string], teamB: [string, string]) => void;
+  onStartMatch: (teamA: [string, string], teamB: [string, string]) => void;
+  onPairingChange?: (teamA: [string, string], teamB: [string, string]) => void | Promise<void>;
   disabled?: boolean;
 }
 
@@ -24,20 +24,32 @@ export function CourtPairing({
   players,
   creatorId,
   currentUserId,
-  onConfirm,
+  onStartMatch,
   onPairingChange,
   disabled,
 }: CourtPairingProps) {
   const isCreator = currentUserId === creatorId;
 
-  const initialTeams = useRef(
-    autoBalanceTeams(players.map((p) => ({ userId: p.userId, elo: p.elo })))
-  );
+  // Use saved DB team assignments if all players have them, otherwise auto-balance
+  const initialTeams = useRef(() => {
+    const savedA = players.filter((p) => p.team === "a");
+    const savedB = players.filter((p) => p.team === "b");
+    if (savedA.length === 2 && savedB.length === 2) {
+      return {
+        teamA: [savedA[0].userId, savedA[1].userId] as [string, string],
+        teamB: [savedB[0].userId, savedB[1].userId] as [string, string],
+        fromDb: true,
+      };
+    }
+    const auto = autoBalanceTeams(players.map((p) => ({ userId: p.userId, elo: p.elo })));
+    return { ...auto, fromDb: false };
+  });
+  const computed = initialTeams.current();
 
-  const [teamA, setTeamA] = useState<[string, string]>(initialTeams.current.teamA);
-  const [teamB, setTeamB] = useState<[string, string]>(initialTeams.current.teamB);
+  const [teamA, setTeamA] = useState<[string, string]>(computed.teamA);
+  const [teamB, setTeamB] = useState<[string, string]>(computed.teamB);
   const [selected, setSelected] = useState<string | null>(null);
-  const [hasSetInitialTeams, setHasSetInitialTeams] = useState(false);
+  const [autoBalanced, setAutoBalanced] = useState(!computed.fromDb);
 
   // FLIP animation refs
   const chipRefs = useRef<Map<string, HTMLButtonElement>>(new Map());
@@ -60,15 +72,6 @@ export function CourtPairing({
   );
   const eloDiff = Math.abs(teamAAvg - teamBAvg);
 
-  const allConfirmed = players.every((p) => p.confirmed);
-  const currentConfirmed = players.find((p) => p.userId === currentUserId)?.confirmed;
-
-  const handleSetInitialTeams = useCallback(() => {
-    if (hasSetInitialTeams) return;
-    setHasSetInitialTeams(true);
-    onPairingChange(teamA, teamB);
-  }, [hasSetInitialTeams, onPairingChange, teamA, teamB]);
-
   // FLIP: after React re-renders with new positions, animate from old → new
   useLayoutEffect(() => {
     const swap = pendingSwapRef.current;
@@ -86,13 +89,11 @@ export function CourtPairing({
     const newA = elA.getBoundingClientRect();
     const newB = elB.getBoundingClientRect();
 
-    // Invert: translate each chip from its old position
     const dxA = oldA.left - newA.left;
     const dyA = oldA.top - newA.top;
     const dxB = oldB.left - newB.left;
     const dyB = oldB.top - newB.top;
 
-    // Apply inverse transform (jump to old position)
     elA.style.transform = `translate(${dxA}px, ${dyA}px)`;
     elB.style.transform = `translate(${dxB}px, ${dyB}px)`;
     elA.style.transition = "none";
@@ -100,10 +101,8 @@ export function CourtPairing({
     elA.style.zIndex = "10";
     elB.style.zIndex = "10";
 
-    // Force reflow so the browser registers the starting position
     void elA.offsetHeight;
 
-    // Play: animate to final position (transform: none)
     elA.style.transition = "transform 0.25s ease-out";
     elB.style.transition = "transform 0.25s ease-out";
     elA.style.transform = "";
@@ -116,12 +115,23 @@ export function CourtPairing({
       elB.style.zIndex = "";
     };
     elA.addEventListener("transitionend", cleanup, { once: true });
-    // Fallback in case transitionend doesn't fire
     setTimeout(cleanup, 300);
   }, [teamA, teamB]);
 
+  // Snapshot positions for FLIP
+  const snapshotPositions = useCallback(() => {
+    const allIds = [...teamA, ...teamB];
+    const rects = new Map<string, DOMRect>();
+    for (const id of allIds) {
+      const el = chipRefs.current.get(id);
+      if (el) rects.set(id, el.getBoundingClientRect());
+    }
+    prevRectsRef.current = rects;
+  }, [teamA, teamB]);
+
   const handlePlayerTap = (playerId: string) => {
-    if (!isCreator || disabled) return;
+    // Everyone can swap locally to preview, but only creator saves
+    if (disabled) return;
 
     if (!selected) {
       setSelected(playerId);
@@ -133,17 +143,11 @@ export function CourtPairing({
       return;
     }
 
-    // FLIP step 1: snapshot current positions before state change
-    const allIds = [...teamA, ...teamB];
-    const rects = new Map<string, DOMRect>();
-    for (const id of allIds) {
-      const el = chipRefs.current.get(id);
-      if (el) rects.set(id, el.getBoundingClientRect());
-    }
-    prevRectsRef.current = rects;
+    // FLIP step 1: snapshot
+    snapshotPositions();
     pendingSwapRef.current = [selected, playerId];
 
-    // Swap the two players
+    // Swap
     const allSlots = { a: [...teamA] as [string, string], b: [...teamB] as [string, string] };
 
     let fromTeam: "a" | "b" | null = null;
@@ -164,10 +168,32 @@ export function CourtPairing({
       allSlots[toTeam][toIdx] = selected;
       setTeamA(allSlots.a);
       setTeamB(allSlots.b);
-      onPairingChange(allSlots.a, allSlots.b);
+      setAutoBalanced(false);
+      // Only save to DB if creator
+      if (isCreator && onPairingChange) {
+        onPairingChange(allSlots.a, allSlots.b);
+      }
     }
 
     setSelected(null);
+  };
+
+  const handleAutoBalance = () => {
+    if (!autoBalanced) {
+      const auto = autoBalanceTeams(players.map((p) => ({ userId: p.userId, elo: p.elo })));
+      snapshotPositions();
+      const movedA = auto.teamA.find((id, i) => id !== teamA[i]);
+      const movedB = auto.teamB.find((id, i) => id !== teamB[i]);
+      if (movedA && movedB) pendingSwapRef.current = [movedA, movedB];
+
+      setTeamA(auto.teamA);
+      setTeamB(auto.teamB);
+      setSelected(null);
+      if (isCreator && onPairingChange) {
+        onPairingChange(auto.teamA, auto.teamB);
+      }
+    }
+    setAutoBalanced(!autoBalanced);
   };
 
   const setChipRef = useCallback((id: string, el: HTMLButtonElement | null) => {
@@ -176,7 +202,45 @@ export function CourtPairing({
   }, []);
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-3">
+      {/* Controls — above the court */}
+      {isCreator && !disabled && (
+        <div className="flex items-center justify-between">
+          <p className="text-[12px] text-muted-foreground">
+            {selected
+              ? "Now tap another player to swap"
+              : "Tap a player to rearrange teams"}
+          </p>
+          <button
+            onClick={handleAutoBalance}
+            className={`inline-flex items-center gap-1.5 text-[11px] font-medium px-3 py-1 rounded-full transition-colors shrink-0 ${
+              autoBalanced
+                ? "bg-green-100 text-green-700"
+                : "bg-muted text-muted-foreground"
+            }`}
+          >
+            <span className={`inline-block w-2.5 h-2.5 rounded-full border-2 transition-colors ${
+              autoBalanced
+                ? "bg-green-600 border-green-600"
+                : "border-muted-foreground/50"
+            }`} />
+            Auto-balance
+          </button>
+        </div>
+      )}
+
+      {/* Participant info — above the court */}
+      {!isCreator && !disabled && (
+        <div className="text-center space-y-1">
+          <p className="text-[12px] text-muted-foreground">
+            Preview pairings below. Only the organizer can save changes.
+          </p>
+          <p className="text-[11px] text-muted-foreground/70">
+            On match day, discuss and the organizer can rearrange before scores are submitted.
+          </p>
+        </div>
+      )}
+
       {/* Court */}
       <div className="relative rounded-xl border-2 border-green-600/30 bg-green-950/5 overflow-hidden">
         <div className="px-3 py-3">
@@ -200,14 +264,13 @@ export function CourtPairing({
                   ref={(el) => setChipRef(id, el)}
                   player={getPlayer(id)}
                   isSelected={selected === id}
-                  isCreator={isCreator}
-                  disabled={disabled}
+                  canInteract={!disabled}
                   onTap={() => handlePlayerTap(id)}
                 />
               ))}
             </div>
 
-            {/* Net — absolute so it never collapses */}
+            {/* Net */}
             <div className="absolute left-1/2 top-0 bottom-0 -translate-x-1/2 flex flex-col items-center">
               <div className="w-2 h-2 rounded-full bg-green-600/60 shrink-0" />
               <div className="w-[3px] flex-1 bg-green-600/40 rounded-full" />
@@ -222,8 +285,7 @@ export function CourtPairing({
                   ref={(el) => setChipRef(id, el)}
                   player={getPlayer(id)}
                   isSelected={selected === id}
-                  isCreator={isCreator}
-                  disabled={disabled}
+                  canInteract={!disabled}
                   onTap={() => handlePlayerTap(id)}
                 />
               ))}
@@ -253,83 +315,28 @@ export function CourtPairing({
         </div>
       </div>
 
-      {/* Instructions */}
+      {/* Start Match — creator only */}
       {isCreator && !disabled && (
-        <p className="text-[12px] text-muted-foreground text-center">
-          {selected
-            ? "Now tap another player to swap"
-            : "Tap a player to rearrange teams"}
-        </p>
-      )}
-      {!isCreator && !disabled && (
-        <p className="text-[12px] text-muted-foreground text-center">
-          Waiting for {players.find((p) => p.userId === creatorId)?.profile.username || "creator"} to finalize teams
-        </p>
-      )}
-
-      {/* Confirmation status */}
-      <div className="flex flex-wrap justify-center gap-2">
-        {players.map((p) => (
-          <span
-            key={p.userId}
-            className={`inline-flex items-center gap-1.5 text-[12px] px-2.5 py-1 rounded-full font-medium ${
-              p.confirmed
-                ? "bg-green-100 text-green-700"
-                : "bg-muted text-muted-foreground"
-            }`}
-          >
-            {p.confirmed ? (
-              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
-            ) : (
-              <span className="w-3 h-3 rounded-full border-2 border-current opacity-40" />
-            )}
-            {p.profile.username}
-          </span>
-        ))}
-      </div>
-
-      {/* Confirm button */}
-      {!currentConfirmed && !disabled && (
         <button
-          onClick={() => {
-            handleSetInitialTeams();
-            onConfirm(currentUserId);
-          }}
+          onClick={() => onStartMatch(teamA, teamB)}
           className="w-full py-2.5 rounded-lg bg-green-600 hover:bg-green-700 text-white text-[14px] font-medium transition-colors"
         >
-          Confirm Pairings
+          Start Match
         </button>
-      )}
-
-      {currentConfirmed && !allConfirmed && (
-        <p className="text-[13px] text-green-600 font-medium text-center">
-          You confirmed. Waiting for others...
-        </p>
-      )}
-
-      {allConfirmed && (
-        <p className="text-[13px] text-green-600 font-medium text-center">
-          All confirmed! Creating match...
-        </p>
       )}
     </div>
   );
 }
-
-import { forwardRef } from "react";
 
 const PlayerChip = forwardRef<
   HTMLButtonElement,
   {
     player: PlayerInfo;
     isSelected: boolean;
-    isCreator: boolean;
-    disabled?: boolean;
+    canInteract: boolean;
     onTap: () => void;
   }
->(function PlayerChip({ player, isSelected, isCreator, disabled, onTap }, ref) {
-  const canInteract = isCreator && !disabled;
-
+>(function PlayerChip({ player, isSelected, canInteract, onTap }, ref) {
   return (
     <button
       ref={ref}
@@ -358,12 +365,6 @@ const PlayerChip = forwardRef<
           {player.elo}
         </p>
       </div>
-
-      {player.confirmed && (
-        <div className="shrink-0 w-4 h-4 rounded-full bg-green-600 flex items-center justify-center">
-          <svg width="8" height="8" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="3.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
-        </div>
-      )}
     </button>
   );
 });

@@ -5,7 +5,7 @@ import { useRouter, useParams, useSearchParams } from "next/navigation";
 import { useAuth } from "@/lib/auth-context";
 import { supabase } from "@/lib/supabase";
 import { useProposalSignups } from "@/lib/ladder-hooks";
-import { autoBalanceTeams } from "@/lib/elo";
+
 import { CourtPairing } from "@/components/court-pairing";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -15,7 +15,6 @@ import type {
   Profile,
   Park,
   LadderRating,
-  ProposalSignupWithProfile,
 } from "@/types/database";
 
 function formatDateTime(dateStr: string): string {
@@ -91,7 +90,6 @@ function ProposalDetailInner() {
   }, [signups]);
 
   const handlePairingChange = useCallback(async (teamA: [string, string], teamB: [string, string]) => {
-    // Update team assignments in the signups table
     const updates = [
       ...teamA.map((id) => ({ user_id: id, team: "a" as const })),
       ...teamB.map((id) => ({ user_id: id, team: "b" as const })),
@@ -100,7 +98,7 @@ function ProposalDetailInner() {
     for (const update of updates) {
       await supabase
         .from("proposal_signups")
-        .update({ team: update.team, confirmed: false })
+        .update({ team: update.team })
         .eq("proposal_id", proposalId)
         .eq("user_id", update.user_id);
     }
@@ -134,7 +132,11 @@ function ProposalDetailInner() {
     return () => { supabase.removeChannel(channel); };
   }, [fetchProposal, proposalId]);
 
-  if (!authLoading && !user) { router.replace("/login"); return null; }
+  useEffect(() => {
+    if (!authLoading && !user) router.replace("/login");
+  }, [authLoading, user, router]);
+
+  if (!authLoading && !user) return null;
 
   if (loading || authLoading || signupsLoading) {
     return (
@@ -155,19 +157,11 @@ function ProposalDetailInner() {
   const isCreator = userId === proposal.creator_id;
   const isSignedUp = signups.some((s) => s.user_id === userId);
   const signupCount = signups.length;
-  const needsPartner = proposal.seeking_partner && !signups.some((s) => s.role === "partner");
   const isInvitedPartner = userId === proposal.partner_id && !isSignedUp;
   const isPairing = proposal.status === "pairing";
 
-  // Determine what role the current user would fill
-  const getAvailableRole = (): string | null => {
-    if (isSignedUp) return null;
-    if (needsPartner) return "partner";
-    if (signupCount < 3) return "opponent";
-    if (signupCount === 3) return "opponent_partner";
-    return null;
-  };
-  const availableRole = getAvailableRole();
+  // Can this user join? (role assigned internally, creator arranges teams later)
+  const canJoin = !isSignedUp && !isInvitedPartner && signupCount < 4 && proposal.status !== "accepted";
 
   const handleAcceptPartner = async () => {
     if (!userId) return;
@@ -199,10 +193,10 @@ function ProposalDetailInner() {
     if (!userId) return;
     setActionLoading(true);
     try {
-      // Clear partner_id and set seeking_partner to true
+      // Clear partner — slot opens for anyone to join
       await supabase
         .from("proposals")
-        .update({ partner_id: null, seeking_partner: true })
+        .update({ partner_id: null, seeking_partner: false })
         .eq("id", proposalId);
 
       fetchProposal();
@@ -214,13 +208,17 @@ function ProposalDetailInner() {
   };
 
   const handleJoin = async () => {
-    if (!userId || !availableRole) return;
+    if (!userId || !canJoin) return;
     setActionLoading(true);
     try {
+      // Assign role: first non-creator = opponent, rest = opponent_partner
+      const hasOpponent = signups.some((s) => s.role === "opponent");
+      const role = hasOpponent ? "opponent_partner" : "opponent";
+
       await supabase.from("proposal_signups").insert({
         proposal_id: proposalId,
         user_id: userId,
-        role: availableRole,
+        role,
       });
 
       const newCount = signupCount + 1;
@@ -273,75 +271,53 @@ function ProposalDetailInner() {
     }
   };
 
-  const handleConfirmPairing = async (confirmUserId: string) => {
+  const handleStartMatch = async (teamA: [string, string], teamB: [string, string]) => {
     setActionLoading(true);
     try {
+      // Save final team assignments
+      await handlePairingChange(teamA, teamB);
+
+      // Accept the proposal
+      const firstOpponent = signups.find((s) => s.role === "opponent");
+      const opponentPartner = signups.find((s) => s.role === "opponent_partner");
+
       await supabase
-        .from("proposal_signups")
-        .update({ confirmed: true })
-        .eq("proposal_id", proposalId)
-        .eq("user_id", confirmUserId);
+        .from("proposals")
+        .update({
+          status: "accepted",
+          accepted_by: firstOpponent?.user_id || null,
+          acceptor_partner_id: opponentPartner?.user_id || null,
+          accepted_at: new Date().toISOString(),
+        })
+        .eq("id", proposalId);
 
-      // Check if all 4 are now confirmed
-      const updatedSignups = signups.map((s) =>
-        s.user_id === confirmUserId ? { ...s, confirmed: true } : s
-      );
-      const allConfirmed = updatedSignups.every((s) => s.confirmed);
+      // Create the match
+      const { data: match } = await supabase.from("matches").insert({
+        proposal_id: proposalId,
+        mode: "doubles",
+        player1_id: teamA[0],
+        player2_id: teamA[1],
+        player3_id: teamB[0],
+        player4_id: teamB[1],
+        status: "pending",
+      }).select().single();
 
-      if (allConfirmed) {
-        await createDoublesMatch(updatedSignups);
+      if (match) {
+        router.push(`/ladder/match/${match.id}?tier=${tierParam}`);
       }
-
-      refetchSignups();
     } catch (err) {
-      console.error("Confirm error:", err);
+      console.error("Start match error:", err);
     } finally {
       setActionLoading(false);
     }
   };
 
-  const createDoublesMatch = async (confirmedSignups: ProposalSignupWithProfile[]) => {
-    const teamAPlayers = confirmedSignups.filter((s) => s.team === "a");
-    const teamBPlayers = confirmedSignups.filter((s) => s.team === "b");
-
-    if (teamAPlayers.length !== 2 || teamBPlayers.length !== 2) return;
-
-    // Accept the proposal
-    const firstOpponent = confirmedSignups.find((s) => s.role === "opponent");
-    const opponentPartner = confirmedSignups.find((s) => s.role === "opponent_partner");
-
-    await supabase
-      .from("proposals")
-      .update({
-        status: "accepted",
-        accepted_by: firstOpponent?.user_id || null,
-        acceptor_partner_id: opponentPartner?.user_id || null,
-        accepted_at: new Date().toISOString(),
-      })
-      .eq("id", proposalId);
-
-    // Create the match
-    const { data: match } = await supabase.from("matches").insert({
-      proposal_id: proposalId,
-      mode: "doubles",
-      player1_id: teamAPlayers[0].user_id,
-      player2_id: teamAPlayers[1].user_id,
-      player3_id: teamBPlayers[0].user_id,
-      player4_id: teamBPlayers[1].user_id,
-      status: "pending",
-    }).select().single();
-
-    if (match) {
-      router.push(`/ladder/match/${match.id}?tier=${tierParam}`);
-    }
-  };
-
-  // Build player info for court pairing
+  // Build player info for court pairing (include saved team assignments)
   const courtPlayers = signups.map((s) => ({
     userId: s.user_id,
     profile: s.profile,
     elo: ratings.get(s.user_id)?.elo_rating || 1200,
-    confirmed: s.confirmed,
+    team: s.team,
   }));
 
   const statusLabel: Record<string, string> = {
@@ -437,15 +413,15 @@ function ProposalDetailInner() {
                       </div>
                       <div>
                         <p className="text-[13px] font-medium">{s.profile.username}</p>
-                        <p className="text-[11px] text-muted-foreground">{s.role === "creator" ? "Organizer" : s.role === "partner" ? "Partner" : "Opponent"}</p>
+                        <p className="text-[11px] text-muted-foreground">{s.role === "creator" ? "Organizer" : "Player"}</p>
                       </div>
                     </div>
                     <span className="text-[12px] text-muted-foreground">{s.profile.skill_level}</span>
                   </div>
                 ))}
 
-                {/* Pending partner invitation slot */}
-                {proposal.partner_id && !signups.some((s) => s.role === "partner") && (
+                {/* Pending partner invitation slot — only if partner_id is set and they haven't joined yet */}
+                {proposal.partner_id && proposal.seeking_partner && !signups.some((s) => s.user_id === proposal.partner_id) && (
                   <div className="flex items-center gap-2 py-1.5">
                     <div className="w-7 h-7 rounded-full border-2 border-dashed border-amber-400 bg-amber-50 flex items-center justify-center">
                       <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" className="text-amber-500" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M12 5v14M5 12h14"/></svg>
@@ -458,24 +434,24 @@ function ProposalDetailInner() {
                 )}
 
                 {/* Empty slots (excluding pending partner slot) */}
-                {Array.from({ length: Math.max(0, 4 - signupCount - (proposal.partner_id && !signups.some((s) => s.role === "partner") ? 1 : 0)) }).map((_, i) => (
+                {Array.from({ length: Math.max(0, 4 - signupCount - (proposal.partner_id && proposal.seeking_partner && !signups.some((s) => s.user_id === proposal.partner_id) ? 1 : 0)) }).map((_, i) => (
                   <div key={`empty-${i}`} className="flex items-center gap-2 py-1.5 opacity-40">
                     <div className="w-7 h-7 rounded-full border-2 border-dashed border-muted-foreground/40" />
                     <p className="text-[13px] text-muted-foreground">
-                      {i === 0 && needsPartner ? "Waiting for partner..." : "Waiting for player..."}
+                      Waiting for player...
                     </p>
                   </div>
                 ))}
               </div>
 
               {/* Join / Leave buttons (hide if user is invited partner — they use accept/decline above) */}
-              {!isSignedUp && !isInvitedPartner && availableRole && (
+              {canJoin && (
                 <Button
                   onClick={handleJoin}
                   disabled={actionLoading}
                   className="w-full bg-green-600 hover:bg-green-700 text-white"
                 >
-                  {actionLoading ? "Joining..." : availableRole === "partner" ? "Join as Partner" : "Join as Opponent"}
+                  {actionLoading ? "Joining..." : "Join"}
                 </Button>
               )}
 
@@ -502,7 +478,7 @@ function ProposalDetailInner() {
                 players={courtPlayers}
                 creatorId={proposal.creator_id}
                 currentUserId={userId}
-                onConfirm={handleConfirmPairing}
+                onStartMatch={handleStartMatch}
                 onPairingChange={handlePairingChange}
                 disabled={actionLoading}
               />
