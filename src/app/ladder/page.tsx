@@ -80,7 +80,7 @@ function LadderPageInner() {
     tierFromUrl && ["beginner", "intermediate", "advanced"].includes(tierFromUrl) ? tierFromUrl : null
   );
   const [mode, setMode] = useState<MatchMode>(modeFromUrl === "doubles" ? "doubles" : "singles");
-  const [tab, setTab] = useState<Tab>("rankings");
+  const [tab, setTab] = useState<Tab>(modeFromUrl === "doubles" ? "proposals" : "rankings");
   const [registering, setRegistering] = useState(false);
   const [actionId, setActionId] = useState<string | null>(null);
 
