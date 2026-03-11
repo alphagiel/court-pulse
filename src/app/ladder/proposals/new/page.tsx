@@ -7,7 +7,8 @@ import { supabase } from "@/lib/supabase";
 import { useLadderMembership } from "@/lib/ladder-hooks";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
-import type { Park } from "@/types/database";
+import type { Park, Profile, MatchMode, SkillLevel } from "@/types/database";
+import { SKILL_TIER_LEVELS, getSkillTier } from "@/types/database";
 
 export default function NewProposalPage() {
   return (
@@ -22,10 +23,17 @@ function NewProposalPageInner() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const tierParam = searchParams.get("tier");
-  const goBack = () => tierParam ? router.push(`/ladder?tier=${tierParam}`) : router.push("/ladder");
+  const modeParam = searchParams.get("mode") as MatchMode | null;
+  const goBack = () => {
+    const params = new URLSearchParams();
+    if (tierParam) params.set("tier", tierParam);
+    if (mode === "doubles") params.set("mode", "doubles");
+    router.push(`/ladder${params.toString() ? `?${params}` : ""}`);
+  };
   const userId = user?.id;
   const { member, loading: memberLoading } = useLadderMembership(userId);
 
+  const [mode, setMode] = useState<MatchMode>(modeParam === "doubles" ? "doubles" : "singles");
   const [parks, setParks] = useState<Park[]>([]);
   const [parkId, setParkId] = useState("");
   const [date, setDate] = useState("");
@@ -33,13 +41,46 @@ function NewProposalPageInner() {
   const [message, setMessage] = useState("");
   const [submitting, setSubmitting] = useState(false);
 
+  // Doubles-specific state
+  const [seekingPartner, setSeekingPartner] = useState(true);
+  const [partnerId, setPartnerId] = useState("");
+  const [tierMembers, setTierMembers] = useState<Profile[]>([]);
+
   useEffect(() => {
     supabase.from("parks").select("*").order("name").then(({ data }) => {
       if (data) setParks(data);
     });
   }, []);
 
-  // Set default date to today, compute min/max for date picker
+  // Fetch tier members for partner picker (doubles with partner)
+  useEffect(() => {
+    if (mode !== "doubles" || seekingPartner || !profile) return;
+
+    const userTier = getSkillTier(profile.skill_level as SkillLevel);
+    const tierLevels = SKILL_TIER_LEVELS[userTier];
+
+    (async () => {
+      // Get all active ladder members
+      const { data: members } = await supabase
+        .from("ladder_members")
+        .select("user_id")
+        .eq("status", "active");
+
+      if (!members || members.length === 0) { setTierMembers([]); return; }
+
+      const memberIds = members.map((m: { user_id: string }) => m.user_id);
+      const { data: profiles } = await supabase
+        .from("profiles")
+        .select("*")
+        .in("id", memberIds)
+        .in("skill_level", tierLevels)
+        .neq("id", userId)
+        .order("username");
+
+      setTierMembers(profiles || []);
+    })();
+  }, [mode, seekingPartner, profile, userId]);
+
   const todayStr = (() => {
     const d = new Date();
     return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
@@ -74,13 +115,41 @@ function NewProposalPageInner() {
       const proposedTime = new Date(`${date}T${time}:00`).toISOString();
       const expiresAt = new Date(Date.now() + 48 * 60 * 60 * 1000).toISOString();
 
-      await supabase.from("proposals").insert({
+      const isDoubles = mode === "doubles";
+      const hasPartner = isDoubles && !seekingPartner && partnerId;
+
+      // Create the proposal
+      const { data: proposal, error } = await supabase.from("proposals").insert({
         creator_id: userId,
         park_id: parkId,
         proposed_time: proposedTime,
         message: message.trim() || null,
         expires_at: expiresAt,
-      });
+        mode,
+        partner_id: hasPartner ? partnerId : null,
+        seeking_partner: isDoubles ? seekingPartner : false,
+        status: isDoubles ? "forming" : "open",
+      }).select().single();
+
+      if (error || !proposal) throw error;
+
+      // For doubles, auto-create the creator's signup
+      if (isDoubles) {
+        await supabase.from("proposal_signups").insert({
+          proposal_id: proposal.id,
+          user_id: userId,
+          role: "creator",
+        });
+
+        // If partner was selected, also create their signup
+        if (hasPartner) {
+          await supabase.from("proposal_signups").insert({
+            proposal_id: proposal.id,
+            user_id: partnerId,
+            role: "partner",
+          });
+        }
+      }
 
       goBack();
     } catch (err) {
@@ -90,7 +159,8 @@ function NewProposalPageInner() {
     }
   };
 
-  const isValid = parkId && date && time;
+  const isValid = parkId && date && time &&
+    (mode === "singles" || seekingPartner || partnerId);
 
   return (
     <main className="min-h-screen bg-background">
@@ -104,11 +174,87 @@ function NewProposalPageInner() {
             <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="m15 18-6-6 6-6"/></svg>Back
           </button>
           <h1 className="text-[22px] font-bold tracking-[0.5px]">New Proposal</h1>
-          <p className="text-[14px] text-muted-foreground">Challenge someone to a match</p>
+          <p className="text-[14px] text-muted-foreground">
+            {mode === "doubles" ? "Find a doubles match" : "Challenge someone to a match"}
+          </p>
+        </div>
+
+        {/* Mode Toggle */}
+        <div className="flex rounded-lg border border-border overflow-hidden">
+          <button
+            onClick={() => setMode("singles")}
+            className={`flex-1 py-2.5 text-[14px] font-medium transition-colors ${
+              mode === "singles"
+                ? "bg-green-600 text-white"
+                : "bg-muted/30 text-muted-foreground hover:text-foreground"
+            }`}
+          >
+            Singles
+          </button>
+          <button
+            onClick={() => setMode("doubles")}
+            className={`flex-1 py-2.5 text-[14px] font-medium transition-colors ${
+              mode === "doubles"
+                ? "bg-green-600 text-white"
+                : "bg-muted/30 text-muted-foreground hover:text-foreground"
+            }`}
+          >
+            Doubles
+          </button>
         </div>
 
         <Card>
           <CardContent className="pt-6 space-y-4">
+            {/* Doubles: Partner selection */}
+            {mode === "doubles" && (
+              <div className="space-y-3">
+                <label className="text-[14px] font-medium">Partner</label>
+                <div className="flex rounded-lg border border-border overflow-hidden">
+                  <button
+                    onClick={() => { setSeekingPartner(true); setPartnerId(""); }}
+                    className={`flex-1 py-2 text-[13px] font-medium transition-colors ${
+                      seekingPartner
+                        ? "bg-foreground text-background"
+                        : "bg-muted/30 text-muted-foreground hover:text-foreground"
+                    }`}
+                  >
+                    Looking for partner
+                  </button>
+                  <button
+                    onClick={() => setSeekingPartner(false)}
+                    className={`flex-1 py-2 text-[13px] font-medium transition-colors ${
+                      !seekingPartner
+                        ? "bg-foreground text-background"
+                        : "bg-muted/30 text-muted-foreground hover:text-foreground"
+                    }`}
+                  >
+                    I have a partner
+                  </button>
+                </div>
+
+                {seekingPartner && (
+                  <p className="text-[12px] text-muted-foreground bg-muted/40 rounded-md px-3 py-2">
+                    Other players in your tier can join as your partner before opponents sign up.
+                  </p>
+                )}
+
+                {!seekingPartner && (
+                  <select
+                    value={partnerId}
+                    onChange={(e) => setPartnerId(e.target.value)}
+                    className="w-full rounded-md border border-input bg-background px-3 py-3 text-[16px] focus:outline-none focus:ring-2 focus:ring-ring"
+                  >
+                    <option value="">Select your partner...</option>
+                    {tierMembers.map((p) => (
+                      <option key={p.id} value={p.id}>
+                        {p.username} ({p.skill_level})
+                      </option>
+                    ))}
+                  </select>
+                )}
+              </div>
+            )}
+
             {/* Park select */}
             <div className="space-y-1.5">
               <label className="text-[14px] font-medium">Court</label>
@@ -154,12 +300,34 @@ function NewProposalPageInner() {
               <textarea
                 value={message}
                 onChange={(e) => setMessage(e.target.value)}
-                placeholder="Looking for a competitive match..."
+                placeholder={mode === "doubles"
+                  ? "Looking for a fun doubles game..."
+                  : "Looking for a competitive match..."
+                }
                 rows={2}
                 maxLength={200}
                 className="w-full rounded-md border border-input bg-background px-3 py-3 text-[16px] focus:outline-none focus:ring-2 focus:ring-ring resize-none"
               />
             </div>
+
+            {/* Summary for doubles */}
+            {mode === "doubles" && (
+              <div className="text-[12px] text-muted-foreground bg-muted/40 rounded-md px-3 py-2 space-y-1">
+                <p className="font-medium text-foreground">What happens next:</p>
+                {seekingPartner ? (
+                  <ol className="list-decimal list-inside space-y-0.5">
+                    <li>A partner from your tier joins you</li>
+                    <li>An opposing team (or two solos) sign up</li>
+                    <li>Teams auto-balanced by rating, then everyone confirms</li>
+                  </ol>
+                ) : (
+                  <ol className="list-decimal list-inside space-y-0.5">
+                    <li>An opposing team (or two solos) sign up</li>
+                    <li>Teams auto-balanced by rating, then everyone confirms</li>
+                  </ol>
+                )}
+              </div>
+            )}
 
             <Button
               onClick={handleSubmit}

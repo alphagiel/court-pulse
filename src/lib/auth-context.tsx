@@ -11,6 +11,9 @@ interface AuthState {
   loading: boolean;
   signInWithGoogle: () => Promise<void>;
   signInWithApple: () => Promise<void>;
+  signUpWithEmail: (email: string, password: string) => Promise<{ error: string | null }>;
+  signInWithEmail: (email: string, password: string) => Promise<{ error: string | null }>;
+  resetPassword: (email: string) => Promise<{ error: string | null }>;
   signOut: () => Promise<void>;
   refreshProfile: () => Promise<void>;
 }
@@ -21,6 +24,9 @@ const AuthContext = createContext<AuthState>({
   loading: true,
   signInWithGoogle: async () => {},
   signInWithApple: async () => {},
+  signUpWithEmail: async () => ({ error: null }),
+  signInWithEmail: async () => ({ error: null }),
+  resetPassword: async () => ({ error: null }),
   signOut: async () => {},
   refreshProfile: async () => {},
 });
@@ -90,6 +96,32 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     });
   };
 
+  const signUpWithEmail = async (email: string, password: string) => {
+    const { error } = await supabase.auth.signUp({
+      email,
+      password,
+      options: {
+        emailRedirectTo: `${window.location.origin}/auth/callback`,
+      },
+    });
+    if (error) return { error: error.message };
+    return { error: null };
+  };
+
+  const signInWithEmail = async (email: string, password: string) => {
+    const { error } = await supabase.auth.signInWithPassword({ email, password });
+    if (error) return { error: error.message };
+    return { error: null };
+  };
+
+  const resetPassword = async (email: string) => {
+    const { error } = await supabase.auth.resetPasswordForEmail(email, {
+      redirectTo: `${window.location.origin}/reset-password`,
+    });
+    if (error) return { error: error.message };
+    return { error: null };
+  };
+
   const signOut = async () => {
     await supabase.auth.signOut();
     setUser(null);
@@ -97,7 +129,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   };
 
   return (
-    <AuthContext.Provider value={{ user, profile, loading, signInWithGoogle, signInWithApple, signOut, refreshProfile }}>
+    <AuthContext.Provider value={{
+      user, profile, loading,
+      signInWithGoogle, signInWithApple,
+      signUpWithEmail, signInWithEmail, resetPassword,
+      signOut, refreshProfile,
+    }}>
       {children}
     </AuthContext.Provider>
   );

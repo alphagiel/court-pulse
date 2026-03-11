@@ -95,8 +95,11 @@ export function getSkillTier(skill: SkillLevel): SkillTier {
   return SKILL_TIER_MAP[skill];
 }
 
-export type ProposalStatus = "open" | "accepted" | "cancelled" | "expired";
+export type ProposalStatus = "open" | "forming" | "pairing" | "accepted" | "cancelled" | "expired";
 export type MatchStatus = "pending" | "score_submitted" | "confirmed" | "disputed" | "cancelled";
+export type MatchMode = "singles" | "doubles";
+export type SignupRole = "creator" | "partner" | "opponent" | "opponent_partner";
+export type Team = "a" | "b";
 
 export interface LadderMember {
   id: string;
@@ -117,6 +120,11 @@ export interface Proposal {
   accepted_at: string | null;
   created_at: string;
   expires_at: string;
+  // Doubles fields
+  mode: MatchMode;
+  partner_id: string | null;
+  seeking_partner: boolean;
+  acceptor_partner_id: string | null;
 }
 
 export interface Match {
@@ -132,6 +140,21 @@ export interface Match {
   winner_id: string | null;
   played_at: string | null;
   created_at: string;
+  // Doubles fields
+  mode: MatchMode;
+  player3_id: string | null;
+  player4_id: string | null;
+  winning_team: Team | null;
+}
+
+export interface ProposalSignup {
+  id: string;
+  proposal_id: string;
+  user_id: string;
+  role: SignupRole;
+  team: Team | null;
+  confirmed: boolean;
+  joined_at: string;
 }
 
 export interface LadderRating {
@@ -154,7 +177,13 @@ export interface ProposalWithDetails extends Proposal {
 export interface MatchWithDetails extends Match {
   player1: Profile;
   player2: Profile;
+  player3: Profile | null;
+  player4: Profile | null;
   park: Park;
+}
+
+export interface ProposalSignupWithProfile extends ProposalSignup {
+  profile: Profile;
 }
 
 export interface LadderRankEntry {

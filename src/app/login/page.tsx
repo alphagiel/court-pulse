@@ -1,13 +1,28 @@
 "use client";
 
+import { useState, useEffect } from "react";
 import { useAuth } from "@/lib/auth-context";
 import { useRouter } from "next/navigation";
-import { useEffect } from "react";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import Link from "next/link";
+
+type Mode = "signin" | "signup";
 
 export default function LoginPage() {
-  const { user, profile, loading, signInWithGoogle, signInWithApple } = useAuth();
+  const {
+    user, profile, loading,
+    signInWithGoogle, signInWithApple,
+    signInWithEmail, signUpWithEmail,
+  } = useAuth();
   const router = useRouter();
+
+  const [mode, setMode] = useState<Mode>("signin");
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [error, setError] = useState<string | null>(null);
+  const [submitting, setSubmitting] = useState(false);
+  const [checkEmail, setCheckEmail] = useState(false);
 
   useEffect(() => {
     if (!loading && user) {
@@ -27,9 +42,71 @@ export default function LoginPage() {
     );
   }
 
+  const handleEmailSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError(null);
+
+    const trimmedEmail = email.trim();
+    if (!trimmedEmail || !password) {
+      setError("Email and password are required");
+      return;
+    }
+    if (mode === "signup" && password.length < 6) {
+      setError("Password must be at least 6 characters");
+      return;
+    }
+
+    setSubmitting(true);
+    try {
+      if (mode === "signup") {
+        const { error: signUpError } = await signUpWithEmail(trimmedEmail, password);
+        if (signUpError) {
+          setError(signUpError);
+        } else {
+          setCheckEmail(true);
+        }
+      } else {
+        const { error: signInError } = await signInWithEmail(trimmedEmail, password);
+        if (signInError) {
+          setError(signInError);
+        }
+      }
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  // Confirmation email sent
+  if (checkEmail) {
+    return (
+      <main className="min-h-screen bg-background">
+        <div className="max-w-lg mx-auto px-5 py-16 sm:px-6 flex flex-col items-center gap-8">
+          <div className="text-center space-y-2">
+            <h1 className="text-[32px] font-bold tracking-[0.5px]">Court Pulse</h1>
+            <p className="text-[15px] text-muted-foreground">Check your email</p>
+          </div>
+          <div className="w-full text-center space-y-4">
+            <div className="bg-green-50 border border-green-200 rounded-xl px-5 py-6 space-y-2">
+              <p className="text-[15px] font-medium text-green-800">Confirmation email sent</p>
+              <p className="text-[13px] text-green-700">
+                We sent a link to <span className="font-medium">{email}</span>. Click it to verify your account, then come back to sign in.
+              </p>
+            </div>
+            <button
+              onClick={() => { setCheckEmail(false); setMode("signin"); }}
+              className="text-[13px] text-muted-foreground hover:text-foreground transition-colors"
+            >
+              Back to sign in
+            </button>
+          </div>
+        </div>
+      </main>
+    );
+  }
+
   return (
     <main className="min-h-screen bg-background">
-      <div className="max-w-lg mx-auto px-5 py-16 sm:px-6 flex flex-col items-center gap-10">
+      <div className="max-w-lg mx-auto px-5 py-16 sm:px-6 flex flex-col items-center gap-8">
         <div className="text-center space-y-2">
           <h1 className="text-[32px] font-bold tracking-[0.5px]">Court Pulse</h1>
           <p className="text-[15px] text-muted-foreground">
@@ -37,6 +114,70 @@ export default function LoginPage() {
           </p>
         </div>
 
+        {/* Email/password form */}
+        <form onSubmit={handleEmailSubmit} className="w-full space-y-3">
+          <Input
+            type="email"
+            placeholder="Email"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            className="h-12 text-[15px] rounded-xl"
+            autoComplete="email"
+          />
+          <Input
+            type="password"
+            placeholder="Password"
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            className="h-12 text-[15px] rounded-xl"
+            autoComplete={mode === "signup" ? "new-password" : "current-password"}
+          />
+
+          {error && (
+            <p className="text-[13px] text-red-600 text-center">{error}</p>
+          )}
+
+          <Button
+            type="submit"
+            size="lg"
+            disabled={submitting}
+            className="w-full py-6 rounded-xl text-[15px] font-medium bg-green-600 hover:bg-green-700 text-white"
+          >
+            {submitting
+              ? "..."
+              : mode === "signup"
+                ? "Create Account"
+                : "Sign In"
+            }
+          </Button>
+
+          <div className="flex items-center justify-between text-[13px]">
+            <button
+              type="button"
+              onClick={() => { setMode(mode === "signin" ? "signup" : "signin"); setError(null); }}
+              className="text-muted-foreground hover:text-foreground transition-colors"
+            >
+              {mode === "signin" ? "Create an account" : "Already have an account?"}
+            </button>
+            {mode === "signin" && (
+              <Link
+                href="/forgot-password"
+                className="text-muted-foreground hover:text-foreground transition-colors"
+              >
+                Forgot password?
+              </Link>
+            )}
+          </div>
+        </form>
+
+        {/* Divider */}
+        <div className="w-full flex items-center gap-4">
+          <div className="flex-1 border-t border-border" />
+          <span className="text-[12px] text-muted-foreground">or</span>
+          <div className="flex-1 border-t border-border" />
+        </div>
+
+        {/* Social buttons */}
         <div className="w-full space-y-3">
           <Button
             onClick={signInWithGoogle}
