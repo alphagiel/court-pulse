@@ -7,6 +7,7 @@ import { supabase } from "@/lib/supabase";
 import { useLadderMembership } from "@/lib/ladder-hooks";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
+import { AppHeader } from "@/components/app-header";
 import type { Park, Profile, MatchMode, SkillLevel } from "@/types/database";
 import { SKILL_TIER_LEVELS, getSkillTier } from "@/types/database";
 
@@ -134,21 +135,13 @@ function NewProposalPageInner() {
       if (error || !proposal) throw error;
 
       // For doubles, auto-create the creator's signup
+      // Partner is NOT auto-added — they must accept the invitation from the proposal page
       if (isDoubles) {
         await supabase.from("proposal_signups").insert({
           proposal_id: proposal.id,
           user_id: userId,
           role: "creator",
         });
-
-        // If partner was selected, also create their signup
-        if (hasPartner) {
-          await supabase.from("proposal_signups").insert({
-            proposal_id: proposal.id,
-            user_id: partnerId,
-            role: "partner",
-          });
-        }
       }
 
       goBack();
@@ -165,19 +158,11 @@ function NewProposalPageInner() {
   return (
     <main className="min-h-screen bg-background">
       <div className="max-w-lg mx-auto px-5 py-8 sm:px-6 space-y-6">
-        {/* Header */}
-        <div className="text-center space-y-1 relative">
-          <button
-            onClick={goBack}
-            className="absolute left-0 top-0 flex items-center gap-1 text-[13px] text-muted-foreground font-medium border border-border bg-muted/50 rounded-full px-3 py-1 hover:bg-muted hover:text-foreground transition-colors"
-          >
-            <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="m15 18-6-6 6-6"/></svg>Back
-          </button>
-          <h1 className="text-[22px] font-bold tracking-[0.5px]">New Proposal</h1>
-          <p className="text-[14px] text-muted-foreground">
-            {mode === "doubles" ? "Find a doubles match" : "Challenge someone to a match"}
-          </p>
-        </div>
+        <AppHeader
+          title="New Proposal"
+          subtitle={mode === "doubles" ? "Find a doubles match" : "Challenge someone to a match"}
+          onBack={goBack}
+        />
 
         {/* Mode Toggle */}
         <div className="flex rounded-lg border border-border overflow-hidden">

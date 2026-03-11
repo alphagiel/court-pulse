@@ -16,6 +16,7 @@ import {
 } from "@/lib/ladder-hooks";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
+import { AppHeader } from "@/components/app-header";
 import type {
   ProposalWithDetails,
   MatchWithDetails,
@@ -190,6 +191,7 @@ function LadderPageInner() {
     return (
       <main className="min-h-screen bg-background">
         <div className="max-w-lg mx-auto px-4 py-8 sm:px-6 space-y-8">
+<<<<<<< Updated upstream
           <div className="space-y-1">
             <div className="flex items-center justify-start">
               <button
@@ -206,6 +208,13 @@ function LadderPageInner() {
               </p>
             </div>
           </div>
+=======
+          <AppHeader
+            title="Ladder"
+            subtitle="Competitive pickleball rankings"
+            backHref="/"
+          />
+>>>>>>> Stashed changes
 
           <Card>
             <CardContent className="pt-6 text-center space-y-4">
@@ -233,6 +242,7 @@ function LadderPageInner() {
     return (
       <main className="min-h-screen bg-background">
         <div className="max-w-lg mx-auto px-4 py-8 sm:px-6 space-y-6">
+<<<<<<< Updated upstream
           <div className="space-y-1">
             <div className="flex items-center justify-start">
               <button
@@ -249,6 +259,13 @@ function LadderPageInner() {
               </p>
             </div>
           </div>
+=======
+          <AppHeader
+            title="Ladder"
+            subtitle={`${TIER_SHORT[userTier]}`}
+            backHref="/"
+          />
+>>>>>>> Stashed changes
 
           {/* Mode selection */}
           <div className="grid grid-cols-2 gap-3">
@@ -305,6 +322,7 @@ function LadderPageInner() {
   return (
     <main className="min-h-screen bg-background">
       <div className="max-w-lg mx-auto px-4 py-8 sm:px-6 space-y-5">
+<<<<<<< Updated upstream
         {/* Header */}
         <div className="space-y-1">
           <div className="flex items-center justify-start">
@@ -327,6 +345,16 @@ function LadderPageInner() {
             </p>
           </div>
         </div>
+=======
+        <AppHeader
+          title={`${TIER_SHORT[selectedTier]} ${isDoubles ? "Doubles" : "Ladder"}`}
+          subtitle={isOwnTier
+            ? `${rankings.find(r => r.user_id === userId)?.elo_rating || "—"} ELO`
+            : `${TIER_RANGE[selectedTier]} · View only`
+          }
+          onBack={() => setSelectedTier(null)}
+        />
+>>>>>>> Stashed changes
 
         {/* Mode toggle (compact) */}
         <div className="flex rounded-lg border border-border overflow-hidden">
