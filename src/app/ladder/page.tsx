@@ -203,17 +203,21 @@ function LadderPageInner() {
     return (
       <main className="min-h-screen bg-background">
         <div className="max-w-lg mx-auto px-4 py-8 sm:px-6 space-y-8">
-          <div className="text-center space-y-1 relative">
-            <button
-              onClick={() => router.push("/")}
-              className="absolute left-0 top-0 flex items-center gap-1 text-[13px] text-muted-foreground font-medium border border-border bg-muted/50 rounded-full px-3 py-1 hover:bg-muted hover:text-foreground transition-colors"
-            >
-              <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="m15 18-6-6 6-6"/></svg>Back
-            </button>
-            <h1 className="text-[27px] font-bold tracking-[0.5px]">Ladder</h1>
-            <p className="text-[14px] text-muted-foreground">
-              Competitive pickleball rankings
-            </p>
+          <div className="space-y-1">
+            <div className="flex items-center justify-start">
+              <button
+                onClick={() => router.push("/")}
+                className="flex items-center gap-1 text-[13px] text-muted-foreground font-medium border border-border bg-muted/50 rounded-full px-3 py-1 hover:bg-muted hover:text-foreground transition-colors"
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="m15 18-6-6 6-6"/></svg>Back
+              </button>
+            </div>
+            <div className="text-center">
+              <h1 className="text-[27px] font-bold tracking-[0.5px]">Ladder</h1>
+              <p className="text-[14px] text-muted-foreground">
+                Competitive pickleball rankings
+              </p>
+            </div>
           </div>
 
           <Card>
@@ -242,17 +246,21 @@ function LadderPageInner() {
     return (
       <main className="min-h-screen bg-background">
         <div className="max-w-lg mx-auto px-4 py-8 sm:px-6 space-y-6">
-          <div className="text-center space-y-1 relative">
-            <button
-              onClick={() => router.push("/")}
-              className="absolute left-0 top-0 flex items-center gap-1 text-[13px] text-muted-foreground font-medium border border-border bg-muted/50 rounded-full px-3 py-1 hover:bg-muted hover:text-foreground transition-colors"
-            >
-              <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="m15 18-6-6 6-6"/></svg>Back
-            </button>
-            <h1 className="text-[27px] font-bold tracking-[0.5px]">Ladder</h1>
-            <p className="text-[14px] text-muted-foreground">
-              {profile.username} &middot; {TIER_SHORT[userTier]}
-            </p>
+          <div className="space-y-1">
+            <div className="flex items-center justify-start">
+              <button
+                onClick={() => router.push("/")}
+                className="flex items-center gap-1 text-[13px] text-muted-foreground font-medium border border-border bg-muted/50 rounded-full px-3 py-1 hover:bg-muted hover:text-foreground transition-colors"
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="m15 18-6-6 6-6"/></svg>Back
+              </button>
+            </div>
+            <div className="text-center">
+              <h1 className="text-[27px] font-bold tracking-[0.5px]">Ladder</h1>
+              <p className="text-[14px] text-muted-foreground">
+                {profile.username} &middot; {TIER_SHORT[userTier]}
+              </p>
+            </div>
           </div>
 
           {/* Mode selection */}
@@ -302,22 +310,26 @@ function LadderPageInner() {
     <main className="min-h-screen bg-background">
       <div className="max-w-lg mx-auto px-4 py-8 sm:px-6 space-y-5">
         {/* Header */}
-        <div className="text-center space-y-1 relative">
-          <button
-            onClick={() => setSelectedTier(null)}
-            className="absolute left-0 top-0 flex items-center gap-1 text-[13px] text-muted-foreground font-medium border border-border bg-muted/50 rounded-full px-3 py-1 hover:bg-muted hover:text-foreground transition-colors"
-          >
-            <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="m15 18-6-6 6-6"/></svg>Back
-          </button>
-          <h1 className="text-[20px] sm:text-[22px] font-bold tracking-[0.5px]">
-            {TIER_SHORT[selectedTier]} Ladder
-          </h1>
-          <p className="text-[14px] text-muted-foreground">
-            {isOwnTier
-              ? <>{profile.username} &middot; {rankings.find(r => r.user_id === userId)?.elo_rating || "—"} ELO</>
-              : <>{TIER_RANGE[selectedTier]} &middot; View only</>
-            }
-          </p>
+        <div className="space-y-1">
+          <div className="flex items-center justify-start">
+            <button
+              onClick={() => setSelectedTier(null)}
+              className="flex items-center gap-1 text-[13px] text-muted-foreground font-medium border border-border bg-muted/50 rounded-full px-3 py-1 hover:bg-muted hover:text-foreground transition-colors"
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="m15 18-6-6 6-6"/></svg>Back
+            </button>
+          </div>
+          <div className="text-center">
+            <h1 className="text-[20px] sm:text-[22px] font-bold tracking-[0.5px]">
+              {TIER_SHORT[selectedTier]} Ladder
+            </h1>
+            <p className="text-[14px] text-muted-foreground">
+              {isOwnTier
+                ? <>{profile.username} &middot; {rankings.find(r => r.user_id === userId)?.elo_rating || "—"} ELO</>
+                : <>{TIER_RANGE[selectedTier]} &middot; View only</>
+              }
+            </p>
+          </div>
         </div>
 
         {isReadOnly && (
@@ -396,18 +408,14 @@ function TierCard({
     >
       <CardContent className="p-3 flex flex-col gap-[15px]">
         {/* Tier header */}
-        <div className="flex items-start justify-between">
-          <div>
-            <h3 className="text-[13px] font-semibold leading-tight">
-              {TIER_SHORT[preview.tier]}
-            </h3>
-            <p className="text-[10px] text-muted-foreground">{TIER_RANGE[preview.tier]}</p>
-          </div>
-          {isUserTier && (
-            <span className="text-[9px] font-medium text-green-700 bg-green-50 border border-green-200 rounded-full px-1.5 py-0.5 leading-none">
-              You
-            </span>
-          )}
+        <div>
+          <h3 className="text-[13px] font-semibold leading-tight flex items-center gap-1.5">
+            {TIER_SHORT[preview.tier]}
+            {isUserTier && (
+              <span className="inline-block w-2 h-2 rounded-full bg-green-500 shrink-0" title="Your tier" />
+            )}
+          </h3>
+          <p className="text-[10px] text-muted-foreground">{TIER_RANGE[preview.tier]}</p>
         </div>
 
         <hr className="border-border" />
