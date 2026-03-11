@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { useAuth } from "@/lib/auth-context";
 import { supabase } from "@/lib/supabase";
 import { useLadderMembership } from "@/lib/ladder-hooks";
@@ -12,6 +12,9 @@ import type { Park } from "@/types/database";
 export default function NewProposalPage() {
   const { user, profile, loading: authLoading } = useAuth();
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const tierParam = searchParams.get("tier");
+  const goBack = () => tierParam ? router.push(`/ladder?tier=${tierParam}`) : router.push("/ladder");
   const userId = user?.id;
   const { member, loading: memberLoading } = useLadderMembership(userId);
 
@@ -71,7 +74,7 @@ export default function NewProposalPage() {
         expires_at: expiresAt,
       });
 
-      router.push("/ladder");
+      goBack();
     } catch (err) {
       console.error("Create proposal error:", err);
     } finally {
@@ -87,10 +90,10 @@ export default function NewProposalPage() {
         {/* Header */}
         <div className="text-center space-y-1 relative">
           <button
-            onClick={() => router.push("/ladder")}
-            className="absolute left-0 top-0 text-[12px] text-muted-foreground hover:text-foreground transition-colors"
+            onClick={goBack}
+            className="absolute left-0 top-0 flex items-center gap-1 text-[13px] text-muted-foreground font-medium border border-border bg-muted/50 rounded-full px-3 py-1 hover:bg-muted hover:text-foreground transition-colors"
           >
-            &larr; Ladder
+            <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="m15 18-6-6 6-6"/></svg>Back
           </button>
           <h1 className="text-[22px] font-bold tracking-[0.5px]">New Proposal</h1>
           <p className="text-[14px] text-muted-foreground">Challenge someone to a match</p>

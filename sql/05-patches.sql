@@ -20,6 +20,20 @@
 --   Once accepted, only creator or acceptor can modify.
 -- ============================================================
 
+-- ============================================================
+-- PATCH 2: Deduplicate parks + add unique constraint on name
+-- ============================================================
+-- Problem: Parks table had no unique constraint on name, so
+--   re-running 02-seed-parks.sql created duplicates.
+--   ON CONFLICT DO NOTHING only works with a unique constraint.
+-- ============================================================
+
+DELETE FROM parks a USING parks b
+WHERE a.id > b.id AND a.name = b.name;
+
+ALTER TABLE parks ADD CONSTRAINT parks_name_unique UNIQUE (name);
+
+
 DROP POLICY IF EXISTS "Users can update own proposals" ON proposals;
 CREATE POLICY "Users can update own proposals" ON proposals FOR UPDATE USING (
   auth.uid() = creator_id
