@@ -410,31 +410,37 @@ function MatchPageInner() {
         <Card>
           <CardContent className="pt-5 space-y-3">
             {isDoubles ? (
-              <>
-                {/* Team A */}
-                <div>
-                  <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground mb-1.5">Team A</p>
-                  <div className="flex items-center gap-3">
-                    <PlayerBadge profile={match.player1} />
-                    <span className="text-[12px] text-muted-foreground">&</span>
-                    <PlayerBadge profile={match.player2} />
-                  </div>
+              <div className="rounded-xl border-2 border-green-600/30 bg-green-950/5 overflow-hidden px-3 py-3">
+                {/* Team labels */}
+                <div className="flex justify-between mb-3">
+                  <span className="text-[11px] font-semibold uppercase tracking-wider text-green-700">Team A</span>
+                  <span className="text-[11px] font-semibold uppercase tracking-wider text-green-700">Team B</span>
                 </div>
 
-                <div className="text-center">
-                  <span className="text-[14px] font-bold text-muted-foreground">vs</span>
-                </div>
+                {/* Court with VS */}
+                <div className="relative flex gap-0">
+                  {/* Team A */}
+                  <div className="flex-1 flex flex-col gap-2 pr-2">
+                    <MatchPlayerChip profile={match.player1} />
+                    <MatchPlayerChip profile={match.player2} />
+                  </div>
 
-                {/* Team B */}
-                <div>
-                  <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground mb-1.5">Team B</p>
-                  <div className="flex items-center gap-3">
-                    {match.player3 && <PlayerBadge profile={match.player3} />}
-                    <span className="text-[12px] text-muted-foreground">&</span>
-                    {match.player4 && <PlayerBadge profile={match.player4} />}
+                  {/* Net + VS circle */}
+                  <div className="absolute left-1/2 top-0 bottom-0 -translate-x-1/2 flex flex-col items-center">
+                    <div className="w-[3px] flex-1 bg-green-600/40 rounded-full" />
+                    <div className="w-7 h-7 rounded-full bg-green-600 flex items-center justify-center z-10 shrink-0 -my-1">
+                      <span className="text-[9px] font-bold text-white tracking-tight">VS</span>
+                    </div>
+                    <div className="w-[3px] flex-1 bg-green-600/40 rounded-full" />
+                  </div>
+
+                  {/* Team B */}
+                  <div className="flex-1 flex flex-col gap-2 pl-2">
+                    {match.player3 && <MatchPlayerChip profile={match.player3} />}
+                    {match.player4 && <MatchPlayerChip profile={match.player4} />}
                   </div>
                 </div>
-              </>
+              </div>
             ) : (
               <div className="flex items-center justify-between">
                 <div>
@@ -582,15 +588,15 @@ function MatchPageInner() {
   );
 }
 
-function PlayerBadge({ profile }: { profile: Profile }) {
+function MatchPlayerChip({ profile }: { profile: Profile }) {
   return (
-    <div className="flex items-center gap-2">
-      <div className="w-7 h-7 rounded-full bg-green-100 text-green-700 flex items-center justify-center text-[12px] font-bold">
+    <div className="flex items-center gap-1.5 px-2 py-1.5 rounded-lg border-2 border-border bg-card w-full">
+      <div className="w-7 h-7 rounded-full bg-muted text-muted-foreground flex items-center justify-center text-[12px] font-bold shrink-0">
         {profile.username.charAt(0).toUpperCase()}
       </div>
-      <div>
-        <p className="text-[13px] font-medium leading-tight">{profile.username}</p>
-        <p className="text-[11px] text-muted-foreground leading-tight">{profile.skill_level}</p>
+      <div className="min-w-0 flex-1">
+        <p className="text-[12px] font-semibold truncate leading-tight">{profile.username}</p>
+        <p className="text-[10px] text-muted-foreground leading-tight">{profile.skill_level}</p>
       </div>
     </div>
   );
