@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { useAuth } from "@/lib/auth-context";
 import { supabase } from "@/lib/supabase";
 import { skillToElo } from "@/lib/elo";
@@ -54,6 +54,7 @@ const TIER_RANGE: Record<SkillTier, string> = {
 export default function LadderPage() {
   const { user, profile, loading: authLoading } = useAuth();
   const router = useRouter();
+  const searchParams = useSearchParams();
   const userId = user?.id;
 
   const userTier = profile ? getSkillTier(profile.skill_level) : "intermediate";
@@ -62,7 +63,10 @@ export default function LadderPage() {
   const { previews, loading: previewsLoading } = useTierPreviews();
 
   // Selected tier — null means we're on the landing page
-  const [selectedTier, setSelectedTier] = useState<SkillTier | null>(null);
+  const tierFromUrl = searchParams.get("tier") as SkillTier | null;
+  const [selectedTier, setSelectedTier] = useState<SkillTier | null>(
+    tierFromUrl && ["beginner", "intermediate", "advanced"].includes(tierFromUrl) ? tierFromUrl : null
+  );
   const [tab, setTab] = useState<Tab>("rankings");
   const [registering, setRegistering] = useState(false);
   const [actionId, setActionId] = useState<string | null>(null);
@@ -194,9 +198,9 @@ export default function LadderPage() {
           <div className="text-center space-y-1 relative">
             <button
               onClick={() => router.push("/")}
-              className="absolute left-0 top-0 text-[12px] text-muted-foreground hover:text-foreground transition-colors"
+              className="absolute left-0 top-0 flex items-center gap-1 text-[13px] text-muted-foreground font-medium border border-border bg-muted/50 rounded-full px-3 py-1 hover:bg-muted hover:text-foreground transition-colors"
             >
-              &larr; Courts
+              <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="m15 18-6-6 6-6"/></svg>Back
             </button>
             <h1 className="text-[27px] font-bold tracking-[0.5px]">Ladder</h1>
             <p className="text-[14px] text-muted-foreground">
@@ -233,9 +237,9 @@ export default function LadderPage() {
           <div className="text-center space-y-1 relative">
             <button
               onClick={() => router.push("/")}
-              className="absolute left-0 top-0 text-[12px] text-muted-foreground hover:text-foreground transition-colors"
+              className="absolute left-0 top-0 flex items-center gap-1 text-[13px] text-muted-foreground font-medium border border-border bg-muted/50 rounded-full px-3 py-1 hover:bg-muted hover:text-foreground transition-colors"
             >
-              &larr; Courts
+              <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="m15 18-6-6 6-6"/></svg>Back
             </button>
             <h1 className="text-[27px] font-bold tracking-[0.5px]">Ladder</h1>
             <p className="text-[14px] text-muted-foreground">
@@ -273,9 +277,9 @@ export default function LadderPage() {
         <div className="text-center space-y-1 relative">
           <button
             onClick={() => setSelectedTier(null)}
-            className="absolute left-0 top-0 text-[12px] text-muted-foreground hover:text-foreground transition-colors"
+            className="absolute left-0 top-0 flex items-center gap-1 text-[13px] text-muted-foreground font-medium border border-border bg-muted/50 rounded-full px-3 py-1 hover:bg-muted hover:text-foreground transition-colors"
           >
-            &larr; All Tiers
+            <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="m15 18-6-6 6-6"/></svg>Back
           </button>
           <h1 className="text-[20px] sm:text-[22px] font-bold tracking-[0.5px]">
             {TIER_SHORT[selectedTier]} Ladder
@@ -329,7 +333,7 @@ export default function LadderPage() {
             onAccept={handleAcceptProposal}
             onCancel={handleCancelProposal}
             actionId={actionId}
-            onCreateNew={() => router.push("/ladder/proposals/new")}
+            onCreateNew={() => router.push(`/ladder/proposals/new?tier=${selectedTier}`)}
             readOnly={isReadOnly}
           />
         )}
@@ -338,7 +342,7 @@ export default function LadderPage() {
             matches={matches}
             loading={matchesLoading}
             currentUserId={userId!}
-            onViewMatch={(id) => router.push(`/ladder/match/${id}`)}
+            onViewMatch={(id) => router.push(`/ladder/match/${id}?tier=${selectedTier}`)}
           />
         )}
       </div>

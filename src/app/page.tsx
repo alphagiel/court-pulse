@@ -226,7 +226,7 @@ export default function Home() {
           </p>
           <button
             onClick={() => router.push("/ladder")}
-            className="absolute left-0 top-0 text-[12px] text-muted-foreground hover:text-foreground transition-colors font-medium"
+            className="absolute left-0 top-0 text-[13px] text-green-700 font-medium border border-green-200 bg-green-50 rounded-full px-3 py-1 hover:bg-green-100 transition-colors"
           >
             Ladder &rarr;
           </button>
