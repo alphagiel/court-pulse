@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useAuth } from "@/lib/auth-context";
 import { supabase } from "@/lib/supabase";
@@ -10,6 +10,14 @@ import { Card, CardContent } from "@/components/ui/card";
 import type { Park } from "@/types/database";
 
 export default function NewProposalPage() {
+  return (
+    <Suspense fallback={<main className="min-h-screen bg-background flex items-center justify-center"><p className="text-[14px] text-muted-foreground">Loading...</p></main>}>
+      <NewProposalPageInner />
+    </Suspense>
+  );
+}
+
+function NewProposalPageInner() {
   const { user, profile, loading: authLoading } = useAuth();
   const router = useRouter();
   const searchParams = useSearchParams();
