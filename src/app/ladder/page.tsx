@@ -191,30 +191,11 @@ function LadderPageInner() {
     return (
       <main className="min-h-screen bg-background">
         <div className="max-w-lg mx-auto px-4 py-8 sm:px-6 space-y-8">
-<<<<<<< Updated upstream
-          <div className="space-y-1">
-            <div className="flex items-center justify-start">
-              <button
-                onClick={() => router.push("/")}
-                className="flex items-center gap-1 text-[13px] text-muted-foreground font-medium border border-border bg-muted/50 rounded-full px-3 py-1 hover:bg-muted hover:text-foreground transition-colors"
-              >
-                <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="m15 18-6-6 6-6"/></svg>Back
-              </button>
-            </div>
-            <div className="text-center">
-              <h1 className="text-[27px] font-bold tracking-[0.5px]">Ladder</h1>
-              <p className="text-[14px] text-muted-foreground">
-                Competitive pickleball rankings
-              </p>
-            </div>
-          </div>
-=======
           <AppHeader
             title="Ladder"
             subtitle="Competitive pickleball rankings"
             backHref="/"
           />
->>>>>>> Stashed changes
 
           <Card>
             <CardContent className="pt-6 text-center space-y-4">
@@ -242,30 +223,11 @@ function LadderPageInner() {
     return (
       <main className="min-h-screen bg-background">
         <div className="max-w-lg mx-auto px-4 py-8 sm:px-6 space-y-6">
-<<<<<<< Updated upstream
-          <div className="space-y-1">
-            <div className="flex items-center justify-start">
-              <button
-                onClick={() => router.push("/")}
-                className="flex items-center gap-1 text-[13px] text-muted-foreground font-medium border border-border bg-muted/50 rounded-full px-3 py-1 hover:bg-muted hover:text-foreground transition-colors"
-              >
-                <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="m15 18-6-6 6-6"/></svg>Back
-              </button>
-            </div>
-            <div className="text-center">
-              <h1 className="text-[27px] font-bold tracking-[0.5px]">Ladder</h1>
-              <p className="text-[14px] text-muted-foreground">
-                {profile.username} &middot; {TIER_SHORT[userTier]}
-              </p>
-            </div>
-          </div>
-=======
           <AppHeader
             title="Ladder"
             subtitle={`${TIER_SHORT[userTier]}`}
             backHref="/"
           />
->>>>>>> Stashed changes
 
           {/* Mode selection */}
           <div className="grid grid-cols-2 gap-3">
@@ -322,30 +284,6 @@ function LadderPageInner() {
   return (
     <main className="min-h-screen bg-background">
       <div className="max-w-lg mx-auto px-4 py-8 sm:px-6 space-y-5">
-<<<<<<< Updated upstream
-        {/* Header */}
-        <div className="space-y-1">
-          <div className="flex items-center justify-start">
-            <button
-              onClick={() => setSelectedTier(null)}
-              className="flex items-center gap-1 text-[13px] text-muted-foreground font-medium border border-border bg-muted/50 rounded-full px-3 py-1 hover:bg-muted hover:text-foreground transition-colors"
-            >
-              <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="m15 18-6-6 6-6"/></svg>Back
-            </button>
-          </div>
-          <div className="text-center">
-            <h1 className="text-[20px] sm:text-[22px] font-bold tracking-[0.5px]">
-              {TIER_SHORT[selectedTier]} {isDoubles ? "Doubles" : "Ladder"}
-            </h1>
-            <p className="text-[14px] text-muted-foreground">
-              {isOwnTier
-                ? <>{profile.username} &middot; {rankings.find(r => r.user_id === userId)?.elo_rating || "—"} ELO</>
-                : <>{TIER_RANGE[selectedTier]} &middot; View only</>
-              }
-            </p>
-          </div>
-        </div>
-=======
         <AppHeader
           title={`${TIER_SHORT[selectedTier]} ${isDoubles ? "Doubles" : "Ladder"}`}
           subtitle={isOwnTier
@@ -354,7 +292,6 @@ function LadderPageInner() {
           }
           onBack={() => setSelectedTier(null)}
         />
->>>>>>> Stashed changes
 
         {/* Mode toggle (compact) */}
         <div className="flex rounded-lg border border-border overflow-hidden">
