@@ -255,6 +255,26 @@ function LadderPageInner() {
             </p>
           </div>
 
+          {/* Mode selection */}
+          <div className="grid grid-cols-2 gap-3">
+            <button
+              className="flex flex-col items-center gap-1.5 rounded-xl border-2 border-green-500 bg-background p-4 shadow-sm [box-shadow:0_0_8px_rgba(34,197,94,0.4)] transition-colors"
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/></svg>
+              <span className="text-[15px] font-semibold">Singles</span>
+              <span className="text-[12px] text-muted-foreground">1 v 1</span>
+            </button>
+            <button
+              disabled
+              className="flex flex-col items-center gap-1.5 rounded-xl border border-border bg-muted/40 p-4 opacity-50 cursor-not-allowed transition-colors"
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+              <span className="text-[15px] font-semibold">Doubles</span>
+              <span className="text-[12px] text-muted-foreground">Coming Soon</span>
+            </button>
+          </div>
+
+          {/* Tier cards */}
           {previewsLoading ? (
             <p className="text-center py-12 text-[14px] text-muted-foreground">Loading...</p>
           ) : (
