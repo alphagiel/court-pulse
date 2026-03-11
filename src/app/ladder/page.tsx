@@ -423,6 +423,61 @@ function TierCard({
 
 // --- Tab Components ---
 
+const MIN_MATCHES_TO_RANK = 3;
+
+function RankingRow({
+  entry,
+  rank,
+  isYou,
+  isExpanded,
+  onToggle,
+  showRank,
+}: {
+  entry: LadderRankEntry;
+  rank?: number;
+  isYou: boolean;
+  isExpanded: boolean;
+  onToggle: () => void;
+  showRank: boolean;
+}) {
+  return (
+    <div>
+      <button
+        onClick={onToggle}
+        className={`w-full grid grid-cols-[2rem_1fr_3rem_4rem] gap-x-2 px-3 py-2.5 text-[13px] items-center border-b border-border/50 transition-colors text-left ${
+          isYou
+            ? "bg-green-50/60 hover:bg-green-50"
+            : "hover:bg-muted/50"
+        }`}
+      >
+        <span className="text-muted-foreground font-medium">{showRank && rank ? rank : "—"}</span>
+        <span className="font-medium truncate">
+          {entry.username}
+          {isYou && <span className="text-green-600 ml-1 text-[11px]">you</span>}
+        </span>
+        <span className="text-center text-muted-foreground tabular-nums">{entry.wins}-{entry.losses}</span>
+        <span className="text-right font-semibold tabular-nums">{entry.elo_rating}</span>
+      </button>
+
+      {isExpanded && (
+        <div className={`px-3 py-3 border-b border-border/50 ${isYou ? "bg-green-50/40" : "bg-muted/30"}`}>
+          <div className="space-y-1.5 text-[13px]">
+            <DetailRow label="Skill" value={entry.skill_level} />
+            <DetailRow label="Record" value={`${entry.wins}W – ${entry.losses}L`} />
+            <DetailRow label="Last Played" value={entry.last_played ? formatDate(entry.last_played) : "—"} />
+            <DetailRow label="Rating" value={String(entry.elo_rating)} />
+            {!showRank && (
+              <p className="text-[11px] text-muted-foreground pt-1">
+                Play {MIN_MATCHES_TO_RANK - (entry.wins + entry.losses)} more match{MIN_MATCHES_TO_RANK - (entry.wins + entry.losses) !== 1 ? "es" : ""} to qualify for rankings
+              </p>
+            )}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 function RankingsTab({
   rankings,
   loading,
@@ -432,37 +487,62 @@ function RankingsTab({
   loading: boolean;
   currentUserId: string | undefined;
 }) {
+  const [expandedId, setExpandedId] = useState<string | null>(null);
+
   if (loading) return <LoadingState text="Loading rankings..." />;
   if (rankings.length === 0) return <EmptyState text="No players ranked yet in this tier." />;
 
-  return (
-    <div className="space-y-2.5">
-      {rankings.map((entry) => (
-        <Card
-          key={entry.user_id}
-          className={`shadow-sm ${entry.user_id === currentUserId ? "border-2 border-green-500 [box-shadow:0_0_8px_rgba(34,197,94,0.4)]" : ""}`}
-        >
-          <CardContent className="p-4 space-y-3 overflow-hidden">
-            {/* Name row */}
-            <div className="flex items-center justify-between gap-2">
-              <div className="flex items-center gap-2 min-w-0">
-                <p className="text-[16px] font-semibold truncate">{entry.username}</p>
-                <span className="text-[11px] text-green-700 bg-green-50 border border-green-200 rounded-full px-2 py-0.5 shrink-0">
-                  {entry.skill_level}
-                </span>
-              </div>
-              <span className="text-[22px] font-bold tabular-nums shrink-0">{entry.elo_rating}</span>
-            </div>
-            <span className="text-[11px] text-muted-foreground">#{entry.rank} in tier</span>
+  const ranked = rankings.filter((e) => e.wins + e.losses >= MIN_MATCHES_TO_RANK);
+  const unranked = rankings.filter((e) => e.wins + e.losses < MIN_MATCHES_TO_RANK);
 
-            {/* Stats rows */}
-            <div className="space-y-1 text-[13px]">
-              <DetailRow label="Record" value={`${entry.wins}W – ${entry.losses}L`} />
-              <DetailRow label="Last Played" value={entry.last_played ? formatDate(entry.last_played) : "—"} />
-            </div>
-          </CardContent>
-        </Card>
-      ))}
+  return (
+    <div className="space-y-6">
+      {/* Ranked players */}
+      <div className="overflow-hidden">
+        <div className="grid grid-cols-[2rem_1fr_3rem_4rem] gap-x-2 px-3 py-2 text-[11px] text-muted-foreground uppercase tracking-wider border-b">
+          <span>#</span>
+          <span>Player</span>
+          <span className="text-center">W-L</span>
+          <span className="text-right">ELO</span>
+        </div>
+
+        {ranked.length === 0 ? (
+          <p className="text-center py-6 text-[13px] text-muted-foreground">
+            No players have completed {MIN_MATCHES_TO_RANK} matches yet.
+          </p>
+        ) : (
+          ranked.map((entry, i) => (
+            <RankingRow
+              key={entry.user_id}
+              entry={entry}
+              rank={i + 1}
+              isYou={entry.user_id === currentUserId}
+              isExpanded={expandedId === entry.user_id}
+              onToggle={() => setExpandedId(expandedId === entry.user_id ? null : entry.user_id)}
+              showRank
+            />
+          ))
+        )}
+      </div>
+
+      {/* Unranked / new players */}
+      {unranked.length > 0 && (
+        <div className="overflow-hidden">
+          <p className="text-[11px] text-muted-foreground uppercase tracking-wider px-3 pb-2 border-b">
+            New Players — {MIN_MATCHES_TO_RANK} matches to qualify
+          </p>
+          {unranked.map((entry) => (
+            <RankingRow
+              key={entry.user_id}
+              entry={entry}
+              isYou={entry.user_id === currentUserId}
+              isExpanded={expandedId === entry.user_id}
+              onToggle={() => setExpandedId(expandedId === entry.user_id ? null : entry.user_id)}
+              showRank={false}
+            />
+          ))}
+        </div>
+      )}
     </div>
   );
 }
