@@ -258,7 +258,7 @@ function LadderPageInner() {
           {/* Mode selection */}
           <div className="grid grid-cols-2 gap-3">
             <button
-              className="flex flex-col items-center gap-1.5 rounded-xl border-2 border-green-500 bg-background p-4 shadow-sm [box-shadow:0_0_8px_rgba(34,197,94,0.4)] transition-colors"
+              className="flex flex-col items-center gap-1.5 rounded-xl border border-border bg-green-50 dark:bg-green-950/20 p-4 shadow-sm transition-colors"
             >
               <svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/></svg>
               <span className="text-[15px] font-semibold">Singles</span>
@@ -391,20 +391,23 @@ function TierCard({
 }) {
   return (
     <Card
-      className={`cursor-pointer transition-all shadow-sm hover:shadow-md flex flex-col ${
-        isUserTier
-          ? "border-2 border-green-500 [box-shadow:0_0_8px_rgba(34,197,94,0.4)]"
-          : "hover:border-foreground/20"
-      }`}
+      className="cursor-pointer transition-all shadow-sm hover:shadow-md hover:border-foreground/20 hover:bg-muted/50 flex flex-col"
       onClick={onSelect}
     >
       <CardContent className="p-3 flex flex-col gap-[15px]">
         {/* Tier header */}
-        <div>
-          <h3 className="text-[13px] font-semibold leading-tight">
-            {TIER_SHORT[preview.tier]}
-          </h3>
-          <p className="text-[10px] text-muted-foreground">{TIER_RANGE[preview.tier]}</p>
+        <div className="flex items-start justify-between">
+          <div>
+            <h3 className="text-[13px] font-semibold leading-tight">
+              {TIER_SHORT[preview.tier]}
+            </h3>
+            <p className="text-[10px] text-muted-foreground">{TIER_RANGE[preview.tier]}</p>
+          </div>
+          {isUserTier && (
+            <span className="text-[9px] font-medium text-green-700 bg-green-50 border border-green-200 rounded-full px-1.5 py-0.5 leading-none">
+              You
+            </span>
+          )}
         </div>
 
         <hr className="border-border" />
@@ -425,25 +428,6 @@ function TierCard({
           </div>
         </div>
 
-        <hr className="border-border" />
-
-        {/* Top players */}
-        {preview.topPlayers.length > 0 ? (
-          <div className="space-y-1">
-            {preview.topPlayers.slice(0, 2).map((p, i) => (
-              <div key={i} className="flex justify-between text-[9px]">
-                <span className="truncate text-muted-foreground">
-                  <span className="font-medium text-foreground">#{i + 1}</span> {p.username}
-                </span>
-                <span className="tabular-nums font-medium ml-1 shrink-0">{p.elo_rating}</span>
-              </div>
-            ))}
-          </div>
-        ) : (
-          <p className="text-[9px] text-muted-foreground">
-            No players yet
-          </p>
-        )}
       </CardContent>
     </Card>
   );
@@ -596,6 +580,7 @@ function ProposalsTab({
   onCreateNew: () => void;
   readOnly: boolean;
 }) {
+  const [expandedId, setExpandedId] = useState<string | null>(null);
   const [showAllOpen, setShowAllOpen] = useState(false);
   const [showAllTaken, setShowAllTaken] = useState(false);
 
@@ -607,126 +592,155 @@ function ProposalsTab({
   const visibleTaken = showAllTaken ? taken : taken.slice(0, INITIAL_SHOW);
 
   return (
-    <div className="space-y-3">
+    <div className="space-y-4">
       {!readOnly && (
         <Button onClick={onCreateNew} variant="outline" className="w-full border-green-300 text-green-700 hover:bg-green-50 hover:border-green-400">
-          Create Proposal
+          Propose a Match
         </Button>
       )}
 
       {open.length === 0 && taken.length === 0 ? (
         <EmptyState text={readOnly ? "No proposals in this tier." : "No proposals in this tier. Create one!"} />
       ) : (
-        <>
+        <div className="space-y-6">
           {/* Open proposals */}
-          {visibleOpen.map((p) => (
-            <Card key={p.id} className="shadow-sm">
-              <CardContent className="p-4 space-y-3 overflow-hidden">
-                {/* Name + skill level */}
-                <div className="flex items-center gap-2 min-w-0">
-                  <p className="text-[16px] font-semibold truncate">{p.creator.username}</p>
-                  <span className="text-[11px] text-green-700 bg-green-50 border border-green-200 rounded-full px-2 py-0.5 shrink-0">
-                    {p.creator.skill_level}
-                  </span>
-                </div>
+          {open.length > 0 && (
+            <div className="overflow-hidden">
+              <div className="grid grid-cols-[1fr_5rem_4.5rem] gap-x-2 px-3 py-2 text-[11px] text-muted-foreground uppercase tracking-wider border-b">
+                <span>Player</span>
+                <span className="text-center">When</span>
+                <span className="text-right">Status</span>
+              </div>
 
-                {/* Details rows */}
-                <div className="space-y-1 text-[13px]">
-                  <DetailRow label="Park" value={p.park.name} />
-                  <DetailRow label="When" value={formatDateTime(p.proposed_time)} />
-                  {p.message && <DetailRow label="Note" value={p.message} italic />}
-                </div>
-
-                {/* Action */}
-                {!readOnly && (
-                  p.creator_id === currentUserId ? (
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      onClick={() => onCancel(p)}
-                      disabled={actionId === p.id}
-                      className="w-full text-red-500 hover:text-red-600 hover:bg-red-50"
+              {visibleOpen.map((p) => {
+                const isExpanded = expandedId === p.id;
+                const isYours = p.creator_id === currentUserId;
+                return (
+                  <div key={p.id}>
+                    <button
+                      onClick={() => setExpandedId(isExpanded ? null : p.id)}
+                      className={`w-full grid grid-cols-[1fr_5rem_4.5rem] gap-x-2 px-3 py-2.5 text-[13px] items-center border-b border-border/50 transition-colors text-left ${
+                        isYours ? "bg-green-50/60 hover:bg-green-50" : "hover:bg-muted/50"
+                      }`}
                     >
-                      {actionId === p.id ? "Cancelling..." : "Cancel Proposal"}
-                    </Button>
-                  ) : (
-                    <Button
-                      size="sm"
-                      onClick={() => onAccept(p)}
-                      disabled={actionId === p.id}
-                      className="w-full bg-green-600 hover:bg-green-700 text-white"
-                    >
-                      {actionId === p.id ? "Accepting..." : "Accept Challenge"}
-                    </Button>
-                  )
-                )}
-              </CardContent>
-            </Card>
-          ))}
+                      <span className="font-medium truncate">
+                        {p.creator.username}
+                        {isYours && <span className="text-green-600 ml-1 text-[11px]">you</span>}
+                      </span>
+                      <span className="text-center text-muted-foreground text-[12px] truncate">{formatDate(p.proposed_time)}</span>
+                      <span className="text-right">
+                        <span className="text-[10px] text-green-700 bg-green-50 border border-green-200 rounded-full px-1.5 py-0.5">Open</span>
+                      </span>
+                    </button>
 
-          {!showAllOpen && open.length > INITIAL_SHOW && (
-            <button
-              onClick={() => setShowAllOpen(true)}
-              className="w-full text-center text-[12px] text-muted-foreground hover:text-foreground py-2 transition-colors"
-            >
-              Show {open.length - INITIAL_SHOW} more open proposals
-            </button>
+                    {isExpanded && (
+                      <div className={`px-3 py-3 border-b border-border/50 ${isYours ? "bg-green-50/40" : "bg-muted/30"}`}>
+                        <div className="space-y-1.5 text-[13px]">
+                          <DetailRow label="Skill" value={p.creator.skill_level} />
+                          <DetailRow label="Park" value={p.park.name} />
+                          <DetailRow label="When" value={formatDateTime(p.proposed_time)} />
+                          {p.message && <DetailRow label="Note" value={p.message} italic />}
+                        </div>
+                        {!readOnly && (
+                          <div className="mt-3">
+                            {isYours ? (
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                onClick={() => onCancel(p)}
+                                disabled={actionId === p.id}
+                                className="w-full text-red-500 hover:text-red-600 hover:bg-red-50"
+                              >
+                                {actionId === p.id ? "Cancelling..." : "Cancel Proposal"}
+                              </Button>
+                            ) : (
+                              <Button
+                                size="sm"
+                                onClick={() => onAccept(p)}
+                                disabled={actionId === p.id}
+                                className="w-full bg-green-600 hover:bg-green-700 text-white"
+                              >
+                                {actionId === p.id ? "Accepting..." : "Accept Challenge"}
+                              </Button>
+                            )}
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+
+              {!showAllOpen && open.length > INITIAL_SHOW && (
+                <button
+                  onClick={() => setShowAllOpen(true)}
+                  className="w-full text-center text-[12px] text-muted-foreground hover:text-foreground py-2 transition-colors"
+                >
+                  Show {open.length - INITIAL_SHOW} more open proposals
+                </button>
+              )}
+            </div>
           )}
 
           {/* Taken proposals */}
           {taken.length > 0 && (
-            <>
-              {open.length > 0 && (
-                <p className="text-[11px] text-muted-foreground uppercase tracking-wider pt-2">
-                  Accepted
-                </p>
-              )}
+            <div className="overflow-hidden">
+              <p className="text-[11px] text-muted-foreground uppercase tracking-wider px-3 pb-2 border-b">
+                Accepted
+              </p>
+
               {visibleTaken.map((p) => {
+                const isExpanded = expandedId === p.id;
                 const isOwner = p.creator_id === currentUserId;
                 const isAcceptor = p.accepted_by === currentUserId;
                 const isInvolved = isOwner || isAcceptor;
                 return (
-                  <Card key={p.id} className="shadow-sm opacity-60 border-dashed">
-                    <CardContent className="p-4 space-y-3 overflow-hidden">
-                      {/* Name + skill level + taken badge */}
-                      <div className="flex items-center justify-between gap-2">
-                        <div className="flex items-center gap-2 min-w-0">
-                          <p className="text-[16px] font-semibold truncate">{p.creator.username}</p>
-                          <span className="text-[11px] text-green-700 bg-green-50 border border-green-200 rounded-full px-2 py-0.5 shrink-0">
-                            {p.creator.skill_level}
-                          </span>
+                  <div key={p.id}>
+                    <button
+                      onClick={() => setExpandedId(isExpanded ? null : p.id)}
+                      className={`w-full grid grid-cols-[1fr_5rem_4.5rem] gap-x-2 px-3 py-2.5 text-[13px] items-center border-b border-border/50 transition-colors text-left opacity-70 ${
+                        isInvolved ? "bg-green-50/40 hover:bg-green-50" : "hover:bg-muted/50"
+                      }`}
+                    >
+                      <span className="font-medium truncate">
+                        {p.creator.username}
+                        {isOwner && <span className="text-green-600 ml-1 text-[11px]">you</span>}
+                      </span>
+                      <span className="text-center text-muted-foreground text-[12px] truncate">{formatDate(p.proposed_time)}</span>
+                      <span className="text-right">
+                        <span className="text-[10px] text-amber-700 bg-amber-50 border border-amber-200 rounded-full px-1.5 py-0.5">Taken</span>
+                      </span>
+                    </button>
+
+                    {isExpanded && (
+                      <div className={`px-3 py-3 border-b border-border/50 ${isInvolved ? "bg-green-50/40" : "bg-muted/30"}`}>
+                        <div className="space-y-1.5 text-[13px]">
+                          <DetailRow label="Skill" value={p.creator.skill_level} />
+                          <DetailRow label="Park" value={p.park.name} />
+                          <DetailRow label="When" value={formatDateTime(p.proposed_time)} />
+                          <DetailRow label="Accepted by" value={p.acceptor?.username || "someone"} />
                         </div>
-                        <span className="text-[11px] text-amber-700 bg-amber-50 border border-amber-200 rounded-full px-2 py-0.5 shrink-0">
-                          Taken
-                        </span>
+                        {!readOnly && isInvolved && (
+                          <div className="mt-3">
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={() => onCancel(p)}
+                              disabled={actionId === p.id}
+                              className="w-full text-red-500 hover:text-red-600 hover:bg-red-50"
+                            >
+                              {actionId === p.id
+                                ? "Cancelling..."
+                                : isOwner
+                                  ? "Delete Proposal"
+                                  : "Back Out"
+                              }
+                            </Button>
+                          </div>
+                        )}
                       </div>
-
-                      {/* Details rows */}
-                      <div className="space-y-1 text-[13px]">
-                        <DetailRow label="Park" value={p.park.name} />
-                        <DetailRow label="When" value={formatDateTime(p.proposed_time)} />
-                        <DetailRow label="Accepted" value={p.acceptor?.username || "someone"} />
-                      </div>
-
-                      {/* Action */}
-                      {!readOnly && isInvolved && (
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          onClick={() => onCancel(p)}
-                          disabled={actionId === p.id}
-                          className="w-full text-red-500 hover:text-red-600 hover:bg-red-50"
-                        >
-                          {actionId === p.id
-                            ? "Cancelling..."
-                            : isOwner
-                              ? "Delete Proposal"
-                              : "Back Out"
-                          }
-                        </Button>
-                      )}
-                    </CardContent>
-                  </Card>
+                    )}
+                  </div>
                 );
               })}
 
@@ -738,9 +752,9 @@ function ProposalsTab({
                   Show {taken.length - INITIAL_SHOW} more accepted
                 </button>
               )}
-            </>
+            </div>
           )}
-        </>
+        </div>
       )}
     </div>
   );
@@ -757,6 +771,7 @@ function MatchesTab({
   currentUserId: string;
   onViewMatch: (id: string) => void;
 }) {
+  const [expandedId, setExpandedId] = useState<string | null>(null);
   const [showAll, setShowAll] = useState(false);
 
   if (loading) return <LoadingState text="Loading matches..." />;
@@ -766,46 +781,70 @@ function MatchesTab({
 
   const statusBadge: Record<string, { text: string; className: string }> = {
     pending: { text: "Pending", className: "text-amber-700 bg-amber-50 border-amber-200" },
-    score_submitted: { text: "Needs Confirm", className: "text-blue-700 bg-blue-50 border-blue-200" },
-    confirmed: { text: "Confirmed", className: "text-green-700 bg-green-50 border-green-200" },
+    score_submitted: { text: "Confirm", className: "text-blue-700 bg-blue-50 border-blue-200" },
+    confirmed: { text: "Done", className: "text-green-700 bg-green-50 border-green-200" },
     disputed: { text: "Disputed", className: "text-red-700 bg-red-50 border-red-200" },
   };
 
   return (
-    <div className="space-y-2.5">
+    <div className="overflow-hidden">
+      <div className="grid grid-cols-[1fr_5rem_4.5rem] gap-x-2 px-3 py-2 text-[11px] text-muted-foreground uppercase tracking-wider border-b">
+        <span>Opponent</span>
+        <span className="text-center">Date</span>
+        <span className="text-right">Status</span>
+      </div>
+
       {visible.map((m) => {
         const opponent = m.player1_id === currentUserId ? m.player2 : m.player1;
         const badge = statusBadge[m.status] || statusBadge.pending;
+        const isExpanded = expandedId === m.id;
+        const isWin = m.status === "confirmed" && m.winner_id === currentUserId;
+        const isLoss = m.status === "confirmed" && m.winner_id && m.winner_id !== currentUserId;
 
         return (
-          <Card
-            key={m.id}
-            className="shadow-sm cursor-pointer hover:shadow-md transition-shadow"
-            onClick={() => onViewMatch(m.id)}
-          >
-            <CardContent className="p-4 space-y-3 overflow-hidden">
-              {/* Opponent + status badge */}
-              <div className="flex items-start justify-between gap-2">
-                <div className="min-w-0">
-                  <p className="text-[16px] font-semibold truncate">vs {opponent.username}</p>
-                  <span className={`inline-block text-[11px] border rounded-full px-2 py-0.5 mt-1 ${badge.className}`}>
-                    {badge.text}
-                  </span>
-                </div>
-                {m.status === "confirmed" && m.winner_id && (
-                  <span className={`text-[14px] font-bold shrink-0 ${m.winner_id === currentUserId ? "text-green-600" : "text-red-500"}`}>
-                    {m.winner_id === currentUserId ? "W" : "L"}
-                  </span>
-                )}
-              </div>
+          <div key={m.id}>
+            <button
+              onClick={() => setExpandedId(isExpanded ? null : m.id)}
+              className={`w-full grid grid-cols-[1fr_5rem_4.5rem] gap-x-2 px-3 py-2.5 text-[13px] items-center border-b border-border/50 transition-colors text-left ${
+                isWin ? "bg-green-50/60 hover:bg-green-50" : isLoss ? "bg-red-50/30 hover:bg-red-50/50" : "hover:bg-muted/50"
+              }`}
+            >
+              <span className="font-medium truncate">
+                vs {opponent.username}
+                {isWin && <span className="text-green-600 ml-1 text-[11px] font-bold">W</span>}
+                {isLoss && <span className="text-red-500 ml-1 text-[11px] font-bold">L</span>}
+              </span>
+              <span className="text-center text-muted-foreground text-[12px] truncate">{formatDate(m.created_at)}</span>
+              <span className="text-right">
+                <span className={`text-[10px] border rounded-full px-1.5 py-0.5 ${badge.className}`}>{badge.text}</span>
+              </span>
+            </button>
 
-              {/* Details rows */}
-              <div className="space-y-1 text-[13px]">
-                <DetailRow label="Park" value={m.park.name} />
-                <DetailRow label="Date" value={formatDate(m.created_at)} />
+            {isExpanded && (
+              <div className={`px-3 py-3 border-b border-border/50 ${isWin ? "bg-green-50/40" : isLoss ? "bg-red-50/20" : "bg-muted/30"}`}>
+                <div className="space-y-1.5 text-[13px]">
+                  <DetailRow label="Park" value={m.park.name} />
+                  <DetailRow label="Date" value={formatDateTime(m.created_at)} />
+                  {m.status === "confirmed" && m.player1_scores && m.player2_scores && (
+                    <DetailRow
+                      label="Score"
+                      value={m.player1_scores.map((s, i) => `${s}-${m.player2_scores![i]}`).join(", ")}
+                    />
+                  )}
+                </div>
+                <div className="mt-3">
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => onViewMatch(m.id)}
+                    className="w-full"
+                  >
+                    View Match Details
+                  </Button>
+                </div>
               </div>
-            </CardContent>
-          </Card>
+            )}
+          </div>
         );
       })}
 

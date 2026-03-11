@@ -77,7 +77,7 @@ export function ParkCard({
 
   return (
     <Card
-      className={`transition-all ${
+      className={`transition-all hover:bg-muted/50 ${
         isActive
           ? "border-green-400/60 bg-green-50/40 dark:bg-green-950/20 shadow-sm"
           : "border-border/60"
