@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useAuth } from "@/lib/auth-context";
 import { supabase } from "@/lib/supabase";
@@ -52,6 +52,14 @@ const TIER_RANGE: Record<SkillTier, string> = {
 };
 
 export default function LadderPage() {
+  return (
+    <Suspense fallback={<main className="min-h-screen bg-background flex items-center justify-center"><p className="text-[14px] text-muted-foreground">Loading...</p></main>}>
+      <LadderPageInner />
+    </Suspense>
+  );
+}
+
+function LadderPageInner() {
   const { user, profile, loading: authLoading } = useAuth();
   const router = useRouter();
   const searchParams = useSearchParams();

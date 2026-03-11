@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, Suspense } from "react";
 import { useRouter, useParams, useSearchParams } from "next/navigation";
 import { useAuth } from "@/lib/auth-context";
 import { supabase } from "@/lib/supabase";
@@ -35,6 +35,14 @@ interface MatchDetail extends Match {
 }
 
 export default function MatchPage() {
+  return (
+    <Suspense fallback={<main className="min-h-screen bg-background flex items-center justify-center"><p className="text-[14px] text-muted-foreground">Loading...</p></main>}>
+      <MatchPageInner />
+    </Suspense>
+  );
+}
+
+function MatchPageInner() {
   const { user, loading: authLoading } = useAuth();
   const router = useRouter();
   const params = useParams();
