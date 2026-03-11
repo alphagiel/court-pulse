@@ -449,13 +449,18 @@ function TierCard({
       <CardContent className="p-3 flex flex-col gap-[15px]">
         {/* Tier header */}
         <div>
-          <h3 className="text-[13px] font-semibold leading-tight flex items-center gap-1.5">
+          <h3 className="text-[13px] font-semibold leading-tight">
             {TIER_SHORT[preview.tier]}
-            {isUserTier && (
-              <span className="inline-block w-2 h-2 rounded-full bg-green-500 shrink-0" title="Your tier" />
-            )}
           </h3>
-          <p className="text-[10px] text-muted-foreground">{TIER_RANGE[preview.tier]}</p>
+          <p className="text-[10px] text-muted-foreground inline-flex items-center gap-1.5">
+            {TIER_RANGE[preview.tier]}
+            {isUserTier && (
+              <>
+                <span className="text-border">|</span>
+                <span className="inline-block w-2 h-2 rounded-full bg-green-500 shrink-0 animate-pulse" title="Your tier" />
+              </>
+            )}
+          </p>
         </div>
 
         <hr className="border-border" />
