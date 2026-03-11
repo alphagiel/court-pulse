@@ -4,7 +4,11 @@ import { useState, useCallback, useEffect, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase";
 import { useAuth } from "@/lib/auth-context";
-import { useUserLocation, useParkActivity, buildParkActivities } from "@/lib/hooks";
+import {
+  useUserLocation,
+  useParkActivity,
+  buildParkActivities,
+} from "@/lib/hooks";
 import { LetsPlayButton } from "@/components/lets-play-button";
 import { ParkCard } from "@/components/park-card";
 
@@ -24,7 +28,9 @@ export default function Home() {
   const { parks, checkIns, intents, loading } = useParkActivity();
   const [intentActive, setIntentActive] = useState(false);
   const [intentExpiresAt, setIntentExpiresAt] = useState<string | null>(null);
-  const [intentTargetLabel, setIntentTargetLabel] = useState<string | null>(null);
+  const [intentTargetLabel, setIntentTargetLabel] = useState<string | null>(
+    null,
+  );
   const [intentParkId, setIntentParkId] = useState<string | null>(null);
   const [actionLoading, setActionLoading] = useState(false);
   const [paddleLoading, setPaddleLoading] = useState<string | null>(null);
@@ -43,7 +49,12 @@ export default function Home() {
   const userId = user?.id ?? "";
   const skillLevel = profile?.skill_level ?? "3.5";
 
-  const parkActivitiesBase = buildParkActivities(parks, checkIns, intents, location);
+  const parkActivitiesBase = buildParkActivities(
+    parks,
+    checkIns,
+    intents,
+    location,
+  );
 
   // Bubble the user's intent park to the top
   const parkActivities = useMemo(() => {
@@ -60,11 +71,13 @@ export default function Home() {
     const now = new Date().toISOString();
 
     const activeIntent = intents.find(
-      (i) => i.user_id === userId && i.expires_at > now
+      (i) => i.user_id === userId && i.expires_at > now,
     );
     setIntentActive(!!activeIntent);
     setIntentExpiresAt(activeIntent?.expires_at || null);
-    setIntentTargetLabel(activeIntent ? formatHourLabel(activeIntent.target_time) : null);
+    setIntentTargetLabel(
+      activeIntent ? formatHourLabel(activeIntent.target_time) : null,
+    );
     setIntentParkId(activeIntent?.park_id || null);
 
     const activeCheckIns: Record<string, string> = {};
@@ -108,7 +121,9 @@ export default function Home() {
 
     let expiresAt: string;
     if (targetTime) {
-      expiresAt = new Date(new Date(targetTime).getTime() + 60 * 60 * 1000).toISOString();
+      expiresAt = new Date(
+        new Date(targetTime).getTime() + 60 * 60 * 1000,
+      ).toISOString();
     } else {
       expiresAt = new Date(Date.now() + 90 * 60 * 1000).toISOString();
     }
@@ -127,7 +142,10 @@ export default function Home() {
     setIntentParkId(parkId);
   };
 
-  const handleDownToPlay = async (parkId: string, targetTime: string | null) => {
+  const handleDownToPlay = async (
+    parkId: string,
+    targetTime: string | null,
+  ) => {
     if (!parks.length) return;
     setActionLoading(true);
     try {
@@ -164,7 +182,11 @@ export default function Home() {
     setPaddleLoading(parkId);
     try {
       // Create check-in
-      await supabase.from("check_ins").delete().eq("user_id", userId).eq("park_id", parkId);
+      await supabase
+        .from("check_ins")
+        .delete()
+        .eq("user_id", userId)
+        .eq("park_id", parkId);
       const expiresAt = new Date(Date.now() + 2 * 60 * 60 * 1000).toISOString();
       await supabase.from("check_ins").insert({
         user_id: userId,
@@ -184,7 +206,11 @@ export default function Home() {
   const handlePaddleUp = async (parkId: string) => {
     setPaddleLoading(parkId);
     try {
-      await supabase.from("check_ins").delete().eq("user_id", userId).eq("park_id", parkId);
+      await supabase
+        .from("check_ins")
+        .delete()
+        .eq("user_id", userId)
+        .eq("park_id", parkId);
       setUserCheckIns((prev) => {
         const updated = { ...prev };
         delete updated[parkId];
@@ -220,7 +246,9 @@ export default function Home() {
           >
             Sign out
           </button>
-          <h1 className="text-[27px] font-bold tracking-[0.5px]">Court Pulse</h1>
+          <h1 className="text-[27px] font-bold tracking-[0.5px]">
+            Court Pulse
+          </h1>
           <p className="text-[14px] text-muted-foreground">
             {profile.username} &middot; {profile.skill_level}
           </p>
@@ -228,12 +256,14 @@ export default function Home() {
             onClick={() => router.push("/ladder")}
             className="absolute left-0 top-0 text-[13px] text-green-700 font-medium border border-green-200 bg-green-50 rounded-full px-3 py-1 hover:bg-green-100 transition-colors"
           >
-            Ladder &rarr;
+            Ladder
           </button>
         </div>
 
         {locationError && (
-          <p className="text-[13px] text-amber-600 text-center">{locationError}</p>
+          <p className="text-[13px] text-amber-600 text-center">
+            {locationError}
+          </p>
         )}
 
         {/* I'm Down to Play Button */}
@@ -254,7 +284,9 @@ export default function Home() {
             <h2 className="text-[16px] font-semibold">Nearby Courts</h2>
             {parkActivities.length > 0 && (
               <button
-                onClick={() => setAllExpanded((prev) => (prev === null ? true : !prev))}
+                onClick={() =>
+                  setAllExpanded((prev) => (prev === null ? true : !prev))
+                }
                 className="text-[12px] text-muted-foreground hover:text-foreground transition-colors"
               >
                 {allExpanded ? "Collapse all" : "Expand all"}
