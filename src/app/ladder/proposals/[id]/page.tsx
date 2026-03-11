@@ -1,0 +1,422 @@
+"use client";
+
+import { useState, useEffect, useCallback, Suspense } from "react";
+import { useRouter, useParams, useSearchParams } from "next/navigation";
+import { useAuth } from "@/lib/auth-context";
+import { supabase } from "@/lib/supabase";
+import { useProposalSignups } from "@/lib/ladder-hooks";
+import { autoBalanceTeams } from "@/lib/elo";
+import { CourtPairing } from "@/components/court-pairing";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent } from "@/components/ui/card";
+import type {
+  Proposal,
+  Profile,
+  Park,
+  LadderRating,
+  ProposalSignupWithProfile,
+} from "@/types/database";
+
+function formatDateTime(dateStr: string): string {
+  const d = new Date(dateStr);
+  return (
+    d.toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" }) +
+    " at " +
+    d.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" })
+  );
+}
+
+export default function ProposalDetailPage() {
+  return (
+    <Suspense fallback={<main className="min-h-screen bg-background flex items-center justify-center"><p className="text-[14px] text-muted-foreground">Loading...</p></main>}>
+      <ProposalDetailInner />
+    </Suspense>
+  );
+}
+
+function ProposalDetailInner() {
+  const { user, loading: authLoading } = useAuth();
+  const router = useRouter();
+  const params = useParams();
+  const searchParams = useSearchParams();
+  const tierParam = searchParams.get("tier");
+  const proposalId = params.id as string;
+  const userId = user?.id;
+  const goBack = () => tierParam ? router.push(`/ladder?tier=${tierParam}&mode=doubles`) : router.push("/ladder");
+
+  const [proposal, setProposal] = useState<(Proposal & { creator: Profile; park: Park }) | null>(null);
+  const [ratings, setRatings] = useState<Map<string, LadderRating>>(new Map());
+  const [loading, setLoading] = useState(true);
+  const [actionLoading, setActionLoading] = useState(false);
+
+  const { signups, loading: signupsLoading, refetch: refetchSignups } = useProposalSignups(proposalId);
+
+  const fetchProposal = useCallback(async () => {
+    const { data } = await supabase
+      .from("proposals")
+      .select("*, profiles!proposals_creator_id_fkey(*), parks(*)")
+      .eq("id", proposalId)
+      .single();
+
+    if (!data) { setLoading(false); return; }
+
+    setProposal({
+      ...data,
+      creator: (data as Record<string, unknown>).profiles as Profile,
+      park: (data as Record<string, unknown>).parks as Park,
+    });
+    setLoading(false);
+  }, [proposalId]);
+
+  // Fetch ELO ratings for all signed-up players
+  useEffect(() => {
+    if (signups.length === 0) return;
+    const ids = signups.map((s) => s.user_id);
+    supabase
+      .from("ladder_ratings")
+      .select("*")
+      .in("user_id", ids)
+      .then(({ data }) => {
+        const map = new Map<string, LadderRating>();
+        for (const r of data || []) map.set(r.user_id, r);
+        setRatings(map);
+      });
+  }, [signups]);
+
+  const handlePairingChange = useCallback(async (teamA: [string, string], teamB: [string, string]) => {
+    // Update team assignments in the signups table
+    const updates = [
+      ...teamA.map((id) => ({ user_id: id, team: "a" as const })),
+      ...teamB.map((id) => ({ user_id: id, team: "b" as const })),
+    ];
+
+    for (const update of updates) {
+      await supabase
+        .from("proposal_signups")
+        .update({ team: update.team, confirmed: false })
+        .eq("proposal_id", proposalId)
+        .eq("user_id", update.user_id);
+    }
+  }, [proposalId]);
+
+  useEffect(() => {
+    fetchProposal();
+
+    const channel = supabase
+      .channel(`proposal_${proposalId}`)
+      .on("postgres_changes", { event: "*", schema: "public", table: "proposals", filter: `id=eq.${proposalId}` }, () => {
+        fetchProposal();
+      })
+      .subscribe();
+
+    return () => { supabase.removeChannel(channel); };
+  }, [fetchProposal, proposalId]);
+
+  if (!authLoading && !user) { router.replace("/login"); return null; }
+
+  if (loading || authLoading || signupsLoading) {
+    return (
+      <main className="min-h-screen bg-background flex items-center justify-center">
+        <p className="text-[14px] text-muted-foreground">Loading...</p>
+      </main>
+    );
+  }
+
+  if (!proposal) {
+    return (
+      <main className="min-h-screen bg-background flex items-center justify-center">
+        <p className="text-[14px] text-muted-foreground">Proposal not found.</p>
+      </main>
+    );
+  }
+
+  const isCreator = userId === proposal.creator_id;
+  const isSignedUp = signups.some((s) => s.user_id === userId);
+  const signupCount = signups.length;
+  const needsPartner = proposal.seeking_partner && !signups.some((s) => s.role === "partner");
+  const isPairing = proposal.status === "pairing";
+
+  // Determine what role the current user would fill
+  const getAvailableRole = (): string | null => {
+    if (isSignedUp) return null;
+    if (needsPartner) return "partner";
+    if (signupCount < 3) return "opponent";
+    if (signupCount === 3) return "opponent_partner";
+    return null;
+  };
+  const availableRole = getAvailableRole();
+
+  const handleJoin = async () => {
+    if (!userId || !availableRole) return;
+    setActionLoading(true);
+    try {
+      await supabase.from("proposal_signups").insert({
+        proposal_id: proposalId,
+        user_id: userId,
+        role: availableRole,
+      });
+
+      const newCount = signupCount + 1;
+
+      // If this fills it to 4, move to pairing status
+      if (newCount >= 4) {
+        await supabase
+          .from("proposals")
+          .update({ status: "pairing" })
+          .eq("id", proposalId);
+      } else if (proposal.status === "open") {
+        await supabase
+          .from("proposals")
+          .update({ status: "forming" })
+          .eq("id", proposalId);
+      }
+
+      refetchSignups();
+      fetchProposal();
+    } catch (err) {
+      console.error("Join error:", err);
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  const handleLeave = async () => {
+    if (!userId) return;
+    setActionLoading(true);
+    try {
+      await supabase
+        .from("proposal_signups")
+        .delete()
+        .eq("proposal_id", proposalId)
+        .eq("user_id", userId);
+
+      // Revert status if we drop below 4
+      if (signupCount - 1 <= 1) {
+        await supabase.from("proposals").update({ status: "open" }).eq("id", proposalId);
+      } else {
+        await supabase.from("proposals").update({ status: "forming" }).eq("id", proposalId);
+      }
+
+      refetchSignups();
+      fetchProposal();
+    } catch (err) {
+      console.error("Leave error:", err);
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  const handleConfirmPairing = async (confirmUserId: string) => {
+    setActionLoading(true);
+    try {
+      await supabase
+        .from("proposal_signups")
+        .update({ confirmed: true })
+        .eq("proposal_id", proposalId)
+        .eq("user_id", confirmUserId);
+
+      // Check if all 4 are now confirmed
+      const updatedSignups = signups.map((s) =>
+        s.user_id === confirmUserId ? { ...s, confirmed: true } : s
+      );
+      const allConfirmed = updatedSignups.every((s) => s.confirmed);
+
+      if (allConfirmed) {
+        await createDoublesMatch(updatedSignups);
+      }
+
+      refetchSignups();
+    } catch (err) {
+      console.error("Confirm error:", err);
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  const createDoublesMatch = async (confirmedSignups: ProposalSignupWithProfile[]) => {
+    const teamAPlayers = confirmedSignups.filter((s) => s.team === "a");
+    const teamBPlayers = confirmedSignups.filter((s) => s.team === "b");
+
+    if (teamAPlayers.length !== 2 || teamBPlayers.length !== 2) return;
+
+    // Accept the proposal
+    const firstOpponent = confirmedSignups.find((s) => s.role === "opponent");
+    const opponentPartner = confirmedSignups.find((s) => s.role === "opponent_partner");
+
+    await supabase
+      .from("proposals")
+      .update({
+        status: "accepted",
+        accepted_by: firstOpponent?.user_id || null,
+        acceptor_partner_id: opponentPartner?.user_id || null,
+        accepted_at: new Date().toISOString(),
+      })
+      .eq("id", proposalId);
+
+    // Create the match
+    const { data: match } = await supabase.from("matches").insert({
+      proposal_id: proposalId,
+      mode: "doubles",
+      player1_id: teamAPlayers[0].user_id,
+      player2_id: teamAPlayers[1].user_id,
+      player3_id: teamBPlayers[0].user_id,
+      player4_id: teamBPlayers[1].user_id,
+      status: "pending",
+    }).select().single();
+
+    if (match) {
+      router.push(`/ladder/match/${match.id}?tier=${tierParam}`);
+    }
+  };
+
+  // Build player info for court pairing
+  const courtPlayers = signups.map((s) => ({
+    userId: s.user_id,
+    profile: s.profile,
+    elo: ratings.get(s.user_id)?.elo_rating || 1200,
+    confirmed: s.confirmed,
+  }));
+
+  const statusLabel: Record<string, string> = {
+    open: "Looking for players",
+    forming: `${signupCount}/4 players`,
+    pairing: "Arranging teams",
+    accepted: "Match created",
+  };
+
+  const statusColor: Record<string, string> = {
+    open: "bg-amber-100 text-amber-800",
+    forming: "bg-blue-100 text-blue-800",
+    pairing: "bg-green-100 text-green-800",
+    accepted: "bg-green-100 text-green-800",
+  };
+
+  return (
+    <main className="min-h-screen bg-background">
+      <div className="max-w-lg mx-auto px-5 py-8 sm:px-6 space-y-6">
+        {/* Header */}
+        <div className="text-center space-y-1 relative">
+          <button
+            onClick={goBack}
+            className="absolute left-0 top-0 flex items-center gap-1 text-[13px] text-muted-foreground font-medium border border-border bg-muted/50 rounded-full px-3 py-1 hover:bg-muted hover:text-foreground transition-colors"
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="m15 18-6-6 6-6"/></svg>Back
+          </button>
+          <h1 className="text-[22px] font-bold tracking-[0.5px]">Doubles</h1>
+          <span className={`inline-block text-[12px] px-2.5 py-0.5 rounded-full font-medium ${statusColor[proposal.status] || statusColor.open}`}>
+            {statusLabel[proposal.status] || proposal.status}
+          </span>
+        </div>
+
+        {/* Proposal info */}
+        <Card>
+          <CardContent className="pt-5 space-y-2">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-[15px] font-semibold">{proposal.creator.username}</p>
+                <p className="text-[12px] text-muted-foreground">Organizer</p>
+              </div>
+              <div className="text-right">
+                <p className="text-[13px] font-medium">{proposal.park.name}</p>
+                <p className="text-[12px] text-muted-foreground">{formatDateTime(proposal.proposed_time)}</p>
+              </div>
+            </div>
+            {proposal.message && (
+              <p className="text-[13px] text-muted-foreground italic">&ldquo;{proposal.message}&rdquo;</p>
+            )}
+          </CardContent>
+        </Card>
+
+        {/* Player slots (forming phase) */}
+        {!isPairing && proposal.status !== "accepted" && (
+          <Card>
+            <CardContent className="pt-5 space-y-3">
+              <h3 className="text-[14px] font-semibold">Players ({signupCount}/4)</h3>
+              <div className="space-y-2">
+                {signups.map((s) => (
+                  <div key={s.id} className="flex items-center justify-between py-1.5">
+                    <div className="flex items-center gap-2">
+                      <div className="w-7 h-7 rounded-full bg-green-100 text-green-700 flex items-center justify-center text-[12px] font-bold">
+                        {s.profile.username.charAt(0).toUpperCase()}
+                      </div>
+                      <div>
+                        <p className="text-[13px] font-medium">{s.profile.username}</p>
+                        <p className="text-[11px] text-muted-foreground">{s.role === "creator" ? "Organizer" : s.role === "partner" ? "Partner" : "Opponent"}</p>
+                      </div>
+                    </div>
+                    <span className="text-[12px] text-muted-foreground">{s.profile.skill_level}</span>
+                  </div>
+                ))}
+
+                {/* Empty slots */}
+                {Array.from({ length: 4 - signupCount }).map((_, i) => (
+                  <div key={`empty-${i}`} className="flex items-center gap-2 py-1.5 opacity-40">
+                    <div className="w-7 h-7 rounded-full border-2 border-dashed border-muted-foreground/40" />
+                    <p className="text-[13px] text-muted-foreground">
+                      {i === 0 && needsPartner ? "Waiting for partner..." : "Waiting for player..."}
+                    </p>
+                  </div>
+                ))}
+              </div>
+
+              {/* Join / Leave buttons */}
+              {!isSignedUp && availableRole && (
+                <Button
+                  onClick={handleJoin}
+                  disabled={actionLoading}
+                  className="w-full bg-green-600 hover:bg-green-700 text-white"
+                >
+                  {actionLoading ? "Joining..." : availableRole === "partner" ? "Join as Partner" : "Join as Opponent"}
+                </Button>
+              )}
+
+              {isSignedUp && !isCreator && (
+                <Button
+                  onClick={handleLeave}
+                  disabled={actionLoading}
+                  variant="outline"
+                  className="w-full text-red-500 hover:text-red-600 hover:bg-red-50"
+                >
+                  {actionLoading ? "Leaving..." : "Leave"}
+                </Button>
+              )}
+            </CardContent>
+          </Card>
+        )}
+
+        {/* Court pairing (pairing phase) */}
+        {isPairing && courtPlayers.length === 4 && userId && (
+          <Card>
+            <CardContent className="pt-5">
+              <h3 className="text-[14px] font-semibold mb-4 text-center">Arrange Teams</h3>
+              <CourtPairing
+                players={courtPlayers}
+                creatorId={proposal.creator_id}
+                currentUserId={userId}
+                onConfirm={handleConfirmPairing}
+                onPairingChange={handlePairingChange}
+                disabled={actionLoading}
+              />
+            </CardContent>
+          </Card>
+        )}
+
+        {/* Cancel (creator only, not yet accepted) */}
+        {isCreator && proposal.status !== "accepted" && (
+          <Button
+            variant="outline"
+            disabled={actionLoading}
+            onClick={async () => {
+              setActionLoading(true);
+              await supabase.from("proposals").update({ status: "cancelled" }).eq("id", proposalId);
+              goBack();
+            }}
+            className="w-full text-red-500 hover:text-red-600 hover:bg-red-50"
+          >
+            Cancel Proposal
+          </Button>
+        )}
+      </div>
+    </main>
+  );
+}

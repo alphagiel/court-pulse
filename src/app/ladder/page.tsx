@@ -11,6 +11,7 @@ import {
   useProposals,
   useMyMatches,
   useTierPreviews,
+  useSignupCounts,
   type TierPreview,
 } from "@/lib/ladder-hooks";
 import { Button } from "@/components/ui/button";
@@ -20,6 +21,7 @@ import type {
   MatchWithDetails,
   LadderRankEntry,
   SkillTier,
+  MatchMode,
 } from "@/types/database";
 import { getSkillTier, SKILL_TIER_LABELS } from "@/types/database";
 
@@ -70,33 +72,30 @@ function LadderPageInner() {
   const { member, loading: memberLoading, refetch: refetchMember } = useLadderMembership(userId);
   const { previews, loading: previewsLoading } = useTierPreviews();
 
-  // Selected tier — null means we're on the landing page
+  // State
   const tierFromUrl = searchParams.get("tier") as SkillTier | null;
+  const modeFromUrl = searchParams.get("mode") as MatchMode | null;
   const [selectedTier, setSelectedTier] = useState<SkillTier | null>(
     tierFromUrl && ["beginner", "intermediate", "advanced"].includes(tierFromUrl) ? tierFromUrl : null
   );
+  const [mode, setMode] = useState<MatchMode>(modeFromUrl === "doubles" ? "doubles" : "singles");
   const [tab, setTab] = useState<Tab>("rankings");
   const [registering, setRegistering] = useState(false);
   const [actionId, setActionId] = useState<string | null>(null);
 
-  // These hooks run with a fallback tier; data only shows when selectedTier is set
+  // Hooks — mode-aware
   const activeTier = selectedTier || userTier;
   const { rankings, loading: rankingsLoading, refetch: refetchRankings } = useLadderRankings(activeTier);
-  const { proposals, loading: proposalsLoading, refetch: refetchProposals } = useProposals(activeTier);
-  const { matches, loading: matchesLoading, refetch: refetchMatches } = useMyMatches(userId, activeTier);
+  const { proposals, loading: proposalsLoading, refetch: refetchProposals } = useProposals(activeTier, mode);
+  const { matches, loading: matchesLoading, refetch: refetchMatches } = useMyMatches(userId, activeTier, mode);
 
   const isOwnTier = selectedTier === userTier;
   const isReadOnly = selectedTier !== null && !isOwnTier;
+  const isDoubles = mode === "doubles";
 
   // Redirect if not authenticated
-  if (!authLoading && !user) {
-    router.replace("/login");
-    return null;
-  }
-  if (!authLoading && user && !profile) {
-    router.replace("/setup");
-    return null;
-  }
+  if (!authLoading && !user) { router.replace("/login"); return null; }
+  if (!authLoading && user && !profile) { router.replace("/setup"); return null; }
 
   const handleRegister = async () => {
     if (!userId || !profile) return;
@@ -158,27 +157,15 @@ function LadderPageInner() {
       const isOwner = proposal.creator_id === userId;
 
       if (proposal.status === "accepted") {
-        await supabase
-          .from("matches")
-          .delete()
-          .eq("proposal_id", proposal.id)
-          .eq("status", "pending");
+        await supabase.from("matches").delete().eq("proposal_id", proposal.id).eq("status", "pending");
       }
 
       if (isOwner) {
-        await supabase
-          .from("proposals")
-          .update({ status: "cancelled" })
-          .eq("id", proposal.id);
+        await supabase.from("proposals").update({ status: "cancelled" }).eq("id", proposal.id);
       } else if (proposal.status === "accepted") {
-        await supabase
-          .from("proposals")
-          .update({
-            status: "open",
-            accepted_by: null,
-            accepted_at: null,
-          })
-          .eq("id", proposal.id);
+        await supabase.from("proposals").update({
+          status: "open", accepted_by: null, accepted_at: null,
+        }).eq("id", proposal.id);
       }
 
       await refetchProposals();
@@ -237,7 +224,7 @@ function LadderPageInner() {
     );
   }
 
-  // --- Landing page: tier cards ---
+  // --- Landing page: mode + tier cards ---
   if (selectedTier === null) {
     return (
       <main className="min-h-screen bg-background">
@@ -258,19 +245,28 @@ function LadderPageInner() {
           {/* Mode selection */}
           <div className="grid grid-cols-2 gap-3">
             <button
-              className="flex flex-col items-center gap-1.5 rounded-xl border border-border bg-green-50 dark:bg-green-950/20 p-4 shadow-sm transition-colors"
+              onClick={() => setMode("singles")}
+              className={`flex flex-col items-center gap-1.5 rounded-xl border p-4 shadow-sm transition-colors ${
+                mode === "singles"
+                  ? "border-green-400 bg-green-50 dark:bg-green-950/20"
+                  : "border-border bg-muted/40 hover:bg-muted/60"
+              }`}
             >
               <svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/></svg>
               <span className="text-[15px] font-semibold">Singles</span>
               <span className="text-[12px] text-muted-foreground">1 v 1</span>
             </button>
             <button
-              disabled
-              className="flex flex-col items-center gap-1.5 rounded-xl border border-border bg-muted/40 p-4 opacity-50 cursor-not-allowed transition-colors"
+              onClick={() => setMode("doubles")}
+              className={`flex flex-col items-center gap-1.5 rounded-xl border p-4 shadow-sm transition-colors ${
+                mode === "doubles"
+                  ? "border-green-400 bg-green-50 dark:bg-green-950/20"
+                  : "border-border bg-muted/40 hover:bg-muted/60"
+              }`}
             >
               <svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
               <span className="text-[15px] font-semibold">Doubles</span>
-              <span className="text-[12px] text-muted-foreground">Coming Soon</span>
+              <span className="text-[12px] text-muted-foreground">2 v 2</span>
             </button>
           </div>
 
@@ -286,7 +282,7 @@ function LadderPageInner() {
                   isUserTier={preview.tier === userTier}
                   onSelect={() => {
                     setSelectedTier(preview.tier);
-                    setTab("rankings");
+                    setTab(isDoubles ? "proposals" : "rankings");
                   }}
                 />
               ))}
@@ -310,7 +306,7 @@ function LadderPageInner() {
             <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="m15 18-6-6 6-6"/></svg>Back
           </button>
           <h1 className="text-[20px] sm:text-[22px] font-bold tracking-[0.5px]">
-            {TIER_SHORT[selectedTier]} Ladder
+            {TIER_SHORT[selectedTier]} {isDoubles ? "Doubles" : "Ladder"}
           </h1>
           <p className="text-[14px] text-muted-foreground">
             {isOwnTier
@@ -318,6 +314,30 @@ function LadderPageInner() {
               : <>{TIER_RANGE[selectedTier]} &middot; View only</>
             }
           </p>
+        </div>
+
+        {/* Mode toggle (compact) */}
+        <div className="flex rounded-lg border border-border overflow-hidden">
+          <button
+            onClick={() => { setMode("singles"); setTab("rankings"); }}
+            className={`flex-1 py-2 text-[13px] font-medium transition-colors ${
+              mode === "singles"
+                ? "bg-green-600 text-white"
+                : "bg-muted/30 text-muted-foreground hover:text-foreground"
+            }`}
+          >
+            Singles
+          </button>
+          <button
+            onClick={() => { setMode("doubles"); setTab("proposals"); }}
+            className={`flex-1 py-2 text-[13px] font-medium transition-colors ${
+              mode === "doubles"
+                ? "bg-green-600 text-white"
+                : "bg-muted/30 text-muted-foreground hover:text-foreground"
+            }`}
+          >
+            Doubles
+          </button>
         </div>
 
         {isReadOnly && (
@@ -330,8 +350,10 @@ function LadderPageInner() {
 
         {/* Content tabs */}
         <div className="flex gap-1 bg-muted rounded-lg p-1">
-          {(["rankings", "proposals", "matches"] as Tab[]).map((t) => {
-            // Non-own tier: hide matches tab (those are personal)
+          {(isDoubles
+            ? (["proposals", "matches"] as Tab[])
+            : (["rankings", "proposals", "matches"] as Tab[])
+          ).map((t) => {
             if (t === "matches" && isReadOnly) return null;
             return (
               <button
@@ -350,10 +372,10 @@ function LadderPageInner() {
         </div>
 
         {/* Tab content */}
-        {tab === "rankings" && (
+        {tab === "rankings" && !isDoubles && (
           <RankingsTab rankings={rankings} loading={rankingsLoading} currentUserId={userId} />
         )}
-        {tab === "proposals" && (
+        {tab === "proposals" && !isDoubles && (
           <ProposalsTab
             proposals={proposals}
             loading={proposalsLoading}
@@ -365,8 +387,26 @@ function LadderPageInner() {
             readOnly={isReadOnly}
           />
         )}
-        {tab === "matches" && !isReadOnly && (
+        {tab === "proposals" && isDoubles && (
+          <DoublesProposalsTab
+            proposals={proposals}
+            loading={proposalsLoading}
+            currentUserId={userId!}
+            onCreateNew={() => router.push(`/ladder/proposals/new?tier=${selectedTier}&mode=doubles`)}
+            onViewProposal={(id) => router.push(`/ladder/proposals/${id}?tier=${selectedTier}`)}
+            readOnly={isReadOnly}
+          />
+        )}
+        {tab === "matches" && !isReadOnly && !isDoubles && (
           <MatchesTab
+            matches={matches}
+            loading={matchesLoading}
+            currentUserId={userId!}
+            onViewMatch={(id) => router.push(`/ladder/match/${id}?tier=${selectedTier}`)}
+          />
+        )}
+        {tab === "matches" && !isReadOnly && isDoubles && (
+          <DoublesMatchesTab
             matches={matches}
             loading={matchesLoading}
             currentUserId={userId!}
@@ -395,7 +435,6 @@ function TierCard({
       onClick={onSelect}
     >
       <CardContent className="p-3 flex flex-col gap-[15px]">
-        {/* Tier header */}
         <div className="flex items-start justify-between">
           <div>
             <h3 className="text-[13px] font-semibold leading-tight">
@@ -412,7 +451,6 @@ function TierCard({
 
         <hr className="border-border" />
 
-        {/* Stats */}
         <div className="space-y-1 text-[10px]">
           <div className="flex justify-between">
             <span className="text-muted-foreground">Players</span>
@@ -427,7 +465,6 @@ function TierCard({
             <span className="font-semibold">{preview.totalMatches}</span>
           </div>
         </div>
-
       </CardContent>
     </Card>
   );
@@ -509,7 +546,6 @@ function RankingsTab({
 
   return (
     <div className="space-y-6">
-      {/* Ranked players */}
       <div className="overflow-hidden">
         <div className="grid grid-cols-[2rem_1fr_3rem_4rem] gap-x-2 px-3 py-2 text-[11px] text-muted-foreground uppercase tracking-wider border-b">
           <span>#</span>
@@ -537,7 +573,6 @@ function RankingsTab({
         )}
       </div>
 
-      {/* Unranked / new players */}
       {unranked.length > 0 && (
         <div className="overflow-hidden">
           <p className="text-[11px] text-muted-foreground uppercase tracking-wider px-3 pb-2 border-b">
@@ -603,7 +638,6 @@ function ProposalsTab({
         <EmptyState text={readOnly ? "No proposals in this tier." : "No proposals in this tier. Create one!"} />
       ) : (
         <div className="space-y-6">
-          {/* Open proposals */}
           {open.length > 0 && (
             <div className="overflow-hidden">
               <div className="grid grid-cols-[1fr_5rem_4.5rem] gap-x-2 px-3 py-2 text-[11px] text-muted-foreground uppercase tracking-wider border-b">
@@ -682,7 +716,6 @@ function ProposalsTab({
             </div>
           )}
 
-          {/* Taken proposals */}
           {taken.length > 0 && (
             <div className="overflow-hidden">
               <p className="text-[11px] text-muted-foreground uppercase tracking-wider px-3 pb-2 border-b">
@@ -759,6 +792,135 @@ function ProposalsTab({
     </div>
   );
 }
+
+// --- Doubles Proposals Tab ---
+
+function DoublesProposalsTab({
+  proposals,
+  loading,
+  currentUserId,
+  onCreateNew,
+  onViewProposal,
+  readOnly,
+}: {
+  proposals: ProposalWithDetails[];
+  loading: boolean;
+  currentUserId: string;
+  onCreateNew: () => void;
+  onViewProposal: (id: string) => void;
+  readOnly: boolean;
+}) {
+  const [showAll, setShowAll] = useState(false);
+
+  // Fetch signup counts for all proposals
+  const proposalIds = proposals.map((p) => p.id);
+  const { counts } = useSignupCounts(proposalIds);
+
+  if (loading) return <LoadingState text="Loading doubles proposals..." />;
+
+  const active = proposals.filter((p) => ["open", "forming", "pairing"].includes(p.status));
+  const accepted = proposals.filter((p) => p.status === "accepted");
+  const visibleActive = showAll ? active : active.slice(0, INITIAL_SHOW);
+
+  const statusInfo: Record<string, { text: string; className: string }> = {
+    open: { text: "Open", className: "text-green-700 bg-green-50 border-green-200" },
+    forming: { text: "Forming", className: "text-blue-700 bg-blue-50 border-blue-200" },
+    pairing: { text: "Pairing", className: "text-amber-700 bg-amber-50 border-amber-200" },
+    accepted: { text: "Matched", className: "text-green-700 bg-green-50 border-green-200" },
+  };
+
+  return (
+    <div className="space-y-4">
+      {!readOnly && (
+        <Button onClick={onCreateNew} variant="outline" className="w-full border-green-300 text-green-700 hover:bg-green-50 hover:border-green-400">
+          Create Doubles Proposal
+        </Button>
+      )}
+
+      {active.length === 0 && accepted.length === 0 ? (
+        <EmptyState text={readOnly ? "No doubles proposals in this tier." : "No doubles proposals yet. Be the first!"} />
+      ) : (
+        <div className="space-y-6">
+          {active.length > 0 && (
+            <div className="overflow-hidden">
+              <div className="grid grid-cols-[1fr_3rem_4.5rem] gap-x-2 px-3 py-2 text-[11px] text-muted-foreground uppercase tracking-wider border-b">
+                <span>Organizer</span>
+                <span className="text-center">Slots</span>
+                <span className="text-right">Status</span>
+              </div>
+
+              {visibleActive.map((p) => {
+                const isYours = p.creator_id === currentUserId;
+                const count = counts[p.id] || 0;
+                const info = statusInfo[p.status] || statusInfo.open;
+
+                return (
+                  <button
+                    key={p.id}
+                    onClick={() => onViewProposal(p.id)}
+                    className={`w-full grid grid-cols-[1fr_3rem_4.5rem] gap-x-2 px-3 py-2.5 text-[13px] items-center border-b border-border/50 transition-colors text-left ${
+                      isYours ? "bg-green-50/60 hover:bg-green-50" : "hover:bg-muted/50"
+                    }`}
+                  >
+                    <div className="truncate">
+                      <span className="font-medium">
+                        {p.creator.username}
+                        {isYours && <span className="text-green-600 ml-1 text-[11px]">you</span>}
+                      </span>
+                      <span className="text-[11px] text-muted-foreground ml-1.5">
+                        {p.park.name}
+                      </span>
+                    </div>
+                    <span className="text-center font-semibold tabular-nums">
+                      {count}/4
+                    </span>
+                    <span className="text-right">
+                      <span className={`text-[10px] border rounded-full px-1.5 py-0.5 ${info.className}`}>
+                        {info.text}
+                      </span>
+                    </span>
+                  </button>
+                );
+              })}
+
+              {!showAll && active.length > INITIAL_SHOW && (
+                <button
+                  onClick={() => setShowAll(true)}
+                  className="w-full text-center text-[12px] text-muted-foreground hover:text-foreground py-2 transition-colors"
+                >
+                  Show {active.length - INITIAL_SHOW} more
+                </button>
+              )}
+            </div>
+          )}
+
+          {accepted.length > 0 && (
+            <div className="overflow-hidden">
+              <p className="text-[11px] text-muted-foreground uppercase tracking-wider px-3 pb-2 border-b">
+                Matched
+              </p>
+              {accepted.slice(0, 5).map((p) => (
+                <button
+                  key={p.id}
+                  onClick={() => onViewProposal(p.id)}
+                  className="w-full grid grid-cols-[1fr_3rem_4.5rem] gap-x-2 px-3 py-2.5 text-[13px] items-center border-b border-border/50 transition-colors text-left opacity-60 hover:bg-muted/50"
+                >
+                  <span className="font-medium truncate">{p.creator.username}</span>
+                  <span className="text-center font-semibold tabular-nums">4/4</span>
+                  <span className="text-right">
+                    <span className="text-[10px] text-green-700 bg-green-50 border border-green-200 rounded-full px-1.5 py-0.5">Matched</span>
+                  </span>
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// --- Singles Matches Tab ---
 
 function MatchesTab({
   matches,
@@ -859,6 +1021,88 @@ function MatchesTab({
     </div>
   );
 }
+
+// --- Doubles Matches Tab ---
+
+function DoublesMatchesTab({
+  matches,
+  loading,
+  currentUserId,
+  onViewMatch,
+}: {
+  matches: MatchWithDetails[];
+  loading: boolean;
+  currentUserId: string;
+  onViewMatch: (id: string) => void;
+}) {
+  const [showAll, setShowAll] = useState(false);
+
+  if (loading) return <LoadingState text="Loading doubles matches..." />;
+  if (matches.length === 0) return <EmptyState text="No doubles matches yet." />;
+
+  const visible = showAll ? matches : matches.slice(0, INITIAL_SHOW);
+
+  const statusBadge: Record<string, { text: string; className: string }> = {
+    pending: { text: "Pending", className: "text-amber-700 bg-amber-50 border-amber-200" },
+    score_submitted: { text: "Confirm", className: "text-blue-700 bg-blue-50 border-blue-200" },
+    confirmed: { text: "Done", className: "text-green-700 bg-green-50 border-green-200" },
+    disputed: { text: "Disputed", className: "text-red-700 bg-red-50 border-red-200" },
+  };
+
+  return (
+    <div className="overflow-hidden">
+      <div className="grid grid-cols-[1fr_4.5rem] gap-x-2 px-3 py-2 text-[11px] text-muted-foreground uppercase tracking-wider border-b">
+        <span>Teams</span>
+        <span className="text-right">Status</span>
+      </div>
+
+      {visible.map((m) => {
+        const badge = statusBadge[m.status] || statusBadge.pending;
+        const teamAIds = [m.player1_id, m.player2_id];
+        const isTeamA = teamAIds.includes(currentUserId);
+        const isWin = m.status === "confirmed" && (
+          (m.winning_team === "a" && isTeamA) || (m.winning_team === "b" && !isTeamA)
+        );
+        const isLoss = m.status === "confirmed" && m.winning_team && !isWin;
+
+        const teamANames = [m.player1.username, m.player2.username].join(" & ");
+        const teamBNames = [m.player3?.username || "?", m.player4?.username || "?"].join(" & ");
+
+        return (
+          <button
+            key={m.id}
+            onClick={() => onViewMatch(m.id)}
+            className={`w-full grid grid-cols-[1fr_4.5rem] gap-x-2 px-3 py-2.5 text-[13px] items-center border-b border-border/50 transition-colors text-left ${
+              isWin ? "bg-green-50/60 hover:bg-green-50" : isLoss ? "bg-red-50/30 hover:bg-red-50/50" : "hover:bg-muted/50"
+            }`}
+          >
+            <div className="truncate">
+              <span className="font-medium">{teamANames}</span>
+              <span className="text-muted-foreground mx-1.5">vs</span>
+              <span className="font-medium">{teamBNames}</span>
+              {isWin && <span className="text-green-600 ml-1 text-[11px] font-bold">W</span>}
+              {isLoss && <span className="text-red-500 ml-1 text-[11px] font-bold">L</span>}
+            </div>
+            <span className="text-right">
+              <span className={`text-[10px] border rounded-full px-1.5 py-0.5 ${badge.className}`}>{badge.text}</span>
+            </span>
+          </button>
+        );
+      })}
+
+      {!showAll && matches.length > INITIAL_SHOW && (
+        <button
+          onClick={() => setShowAll(true)}
+          className="w-full text-center text-[12px] text-muted-foreground hover:text-foreground py-2 transition-colors"
+        >
+          Show {matches.length - INITIAL_SHOW} more
+        </button>
+      )}
+    </div>
+  );
+}
+
+// --- Shared Components ---
 
 function DetailRow({ label, value, italic }: { label: string; value: string; italic?: boolean }) {
   return (

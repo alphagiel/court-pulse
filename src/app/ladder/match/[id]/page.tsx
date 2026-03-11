@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback, Suspense } from "react";
 import { useRouter, useParams, useSearchParams } from "next/navigation";
 import { useAuth } from "@/lib/auth-context";
 import { supabase } from "@/lib/supabase";
-import { calculateElo } from "@/lib/elo";
+import { calculateElo, calculateDoublesElo } from "@/lib/elo";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import type {
@@ -13,6 +13,7 @@ import type {
   Park,
   Proposal,
   LadderRating,
+  Team,
 } from "@/types/database";
 
 function formatDateTime(dateStr: string): string {
@@ -31,8 +32,12 @@ function formatDateTime(dateStr: string): string {
 interface MatchDetail extends Match {
   player1: Profile;
   player2: Profile;
+  player3: Profile | null;
+  player4: Profile | null;
   park: Park;
 }
+
+const defaultPark: Park = { id: "", name: "Unknown", address: null, lat: 0, lng: 0, court_count: 0, created_at: "" };
 
 export default function MatchPage() {
   return (
@@ -56,7 +61,7 @@ function MatchPageInner() {
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
 
-  // Score input: best of 3 games (pickleball to 11)
+  // Score input: best of 3 games — p1=Team A scores, p2=Team B scores (or player1/player2 for singles)
   const [scores, setScores] = useState<{ p1: string[]; p2: string[] }>({
     p1: ["", "", ""],
     p2: ["", "", ""],
@@ -69,10 +74,7 @@ function MatchPageInner() {
       .eq("id", matchId)
       .single();
 
-    if (!m) {
-      setLoading(false);
-      return;
-    }
+    if (!m) { setLoading(false); return; }
 
     const { data: proposal } = (await supabase
       .from("proposals")
@@ -80,24 +82,18 @@ function MatchPageInner() {
       .eq("id", m.proposal_id)
       .single()) as { data: (Proposal & { parks: Park }) | null };
 
-    const [p1Res, p2Res] = await Promise.all([
-      supabase.from("profiles").select("*").eq("id", m.player1_id).single(),
-      supabase.from("profiles").select("*").eq("id", m.player2_id).single(),
-    ]);
+    // Fetch all player profiles
+    const playerIds = [m.player1_id, m.player2_id, m.player3_id, m.player4_id].filter(Boolean) as string[];
+    const { data: profiles } = await supabase.from("profiles").select("*").in("id", playerIds);
+    const profileMap = new Map((profiles || []).map((p: Profile) => [p.id, p]));
 
     setMatch({
       ...m,
-      player1: p1Res.data!,
-      player2: p2Res.data!,
-      park: proposal?.parks || {
-        id: "",
-        name: "Unknown",
-        address: null,
-        lat: 0,
-        lng: 0,
-        court_count: 0,
-        created_at: "",
-      },
+      player1: profileMap.get(m.player1_id)!,
+      player2: profileMap.get(m.player2_id)!,
+      player3: m.player3_id ? profileMap.get(m.player3_id) || null : null,
+      player4: m.player4_id ? profileMap.get(m.player4_id) || null : null,
+      park: proposal?.parks || defaultPark,
     });
 
     if (m.player1_scores && m.player2_scores) {
@@ -110,15 +106,9 @@ function MatchPageInner() {
     setLoading(false);
   }, [matchId]);
 
-  useEffect(() => {
-    fetchMatch();
-  }, [fetchMatch]);
+  useEffect(() => { fetchMatch(); }, [fetchMatch]);
 
-  if (!authLoading && !user) {
-    router.replace("/login");
-    return null;
-  }
-
+  if (!authLoading && !user) { router.replace("/login"); return null; }
   if (loading || authLoading) {
     return (
       <main className="min-h-screen bg-background flex items-center justify-center">
@@ -126,7 +116,6 @@ function MatchPageInner() {
       </main>
     );
   }
-
   if (!match) {
     return (
       <main className="min-h-screen bg-background flex items-center justify-center">
@@ -135,14 +124,33 @@ function MatchPageInner() {
     );
   }
 
-  const isPlayer = userId === match.player1_id || userId === match.player2_id;
+  const isDoubles = match.mode === "doubles";
+  const allPlayerIds = [match.player1_id, match.player2_id, match.player3_id, match.player4_id].filter(Boolean);
+  const teamAIds = [match.player1_id, match.player2_id];
+  const teamBIds = [match.player3_id, match.player4_id].filter(Boolean) as string[];
+  const isPlayer = allPlayerIds.includes(userId || "");
+  const isTeamA = teamAIds.includes(userId || "");
   const isSubmitter = match.submitted_by === userId;
+
   const canSubmitScore = isPlayer && (match.status === "pending" || match.status === "disputed");
-  const canConfirm =
-    isPlayer && match.status === "score_submitted" && !isSubmitter;
+  // For doubles: anyone on the opposing team of the submitter can confirm
+  const canConfirm = (() => {
+    if (!isPlayer || match.status !== "score_submitted" || isSubmitter) return false;
+    if (!isDoubles) return true;
+    // Submitter's team shouldn't confirm — opponent team should
+    const submitterIsTeamA = teamAIds.includes(match.submitted_by || "");
+    return submitterIsTeamA ? !isTeamA : isTeamA;
+  })();
   const canCancel = isPlayer && match.status === "pending";
-  // player1 is always the proposal creator
   const isOwner = userId === match.player1_id;
+
+  // Team display names
+  const teamALabel = isDoubles
+    ? `${match.player1.username} & ${match.player2.username}`
+    : match.player1.username;
+  const teamBLabel = isDoubles
+    ? `${match.player3?.username || "?"} & ${match.player4?.username || "?"}`
+    : match.player2.username;
 
   const updateScore = (player: "p1" | "p2", game: number, value: string) => {
     const num = value.replace(/\D/g, "");
@@ -157,16 +165,23 @@ function MatchPageInner() {
   const determineWinner = (
     p1Scores: number[],
     p2Scores: number[],
-  ): string | null => {
+  ): { winnerId: string | null; winningTeam: Team | null } => {
     let p1Wins = 0;
     let p2Wins = 0;
     for (let i = 0; i < p1Scores.length; i++) {
       if (p1Scores[i] > p2Scores[i]) p1Wins++;
       else if (p2Scores[i] > p1Scores[i]) p2Wins++;
     }
-    if (p1Wins > p2Wins) return match.player1_id;
-    if (p2Wins > p1Wins) return match.player2_id;
-    return null;
+
+    if (isDoubles) {
+      if (p1Wins > p2Wins) return { winnerId: null, winningTeam: "a" };
+      if (p2Wins > p1Wins) return { winnerId: null, winningTeam: "b" };
+      return { winnerId: null, winningTeam: null };
+    }
+
+    if (p1Wins > p2Wins) return { winnerId: match.player1_id, winningTeam: null };
+    if (p2Wins > p1Wins) return { winnerId: match.player2_id, winningTeam: null };
+    return { winnerId: null, winningTeam: null };
   };
 
   const handleSubmitScore = async () => {
@@ -182,7 +197,7 @@ function MatchPageInner() {
         return;
       }
 
-      const winnerId = determineWinner(p1Scores, p2Scores);
+      const { winnerId, winningTeam } = determineWinner(p1Scores, p2Scores);
 
       await supabase
         .from("matches")
@@ -191,6 +206,7 @@ function MatchPageInner() {
           player2_scores: p2Scores,
           submitted_by: userId,
           winner_id: winnerId,
+          winning_team: winningTeam,
           status: "score_submitted",
           played_at: new Date().toISOString(),
         })
@@ -204,64 +220,100 @@ function MatchPageInner() {
     }
   };
 
-  const handleConfirm = async () => {
+  const handleConfirmSingles = async () => {
     if (!userId || !match.winner_id) return;
+
+    await supabase
+      .from("matches")
+      .update({ confirmed_by: userId, status: "confirmed" })
+      .eq("id", match.id);
+
+    const loserId = match.winner_id === match.player1_id ? match.player2_id : match.player1_id;
+
+    const [winnerRating, loserRating] = await Promise.all([
+      supabase.from("ladder_ratings").select("*").eq("user_id", match.winner_id).single(),
+      supabase.from("ladder_ratings").select("*").eq("user_id", loserId).single(),
+    ]);
+
+    if (winnerRating.data && loserRating.data) {
+      const { newWinnerRating, newLoserRating } = calculateElo(
+        winnerRating.data.elo_rating,
+        loserRating.data.elo_rating,
+      );
+      const now = new Date().toISOString();
+      await Promise.all([
+        supabase.from("ladder_ratings").update({
+          elo_rating: newWinnerRating,
+          wins: (winnerRating.data as LadderRating).wins + 1,
+          last_played: now, updated_at: now,
+        }).eq("user_id", match.winner_id),
+        supabase.from("ladder_ratings").update({
+          elo_rating: newLoserRating,
+          losses: (loserRating.data as LadderRating).losses + 1,
+          last_played: now, updated_at: now,
+        }).eq("user_id", loserId),
+      ]);
+    }
+  };
+
+  const handleConfirmDoubles = async () => {
+    if (!userId || !match.winning_team) return;
+
+    await supabase
+      .from("matches")
+      .update({ confirmed_by: userId, status: "confirmed" })
+      .eq("id", match.id);
+
+    const winnerIds = match.winning_team === "a" ? teamAIds : teamBIds;
+    const loserIds = match.winning_team === "a" ? teamBIds : teamAIds;
+
+    // Fetch all 4 ratings
+    const allIds = [...winnerIds, ...loserIds];
+    const { data: allRatings } = await supabase
+      .from("ladder_ratings")
+      .select("*")
+      .in("user_id", allIds);
+
+    if (!allRatings || allRatings.length < 4) return;
+
+    const ratingMap = new Map(allRatings.map((r: LadderRating) => [r.user_id, r]));
+    const w1 = ratingMap.get(winnerIds[0]);
+    const w2 = ratingMap.get(winnerIds[1]);
+    const l1 = ratingMap.get(loserIds[0]);
+    const l2 = ratingMap.get(loserIds[1]);
+
+    if (!w1 || !w2 || !l1 || !l2) return;
+
+    const { newWinnerRatings, newLoserRatings } = calculateDoublesElo(
+      [w1.elo_rating, w2.elo_rating],
+      [l1.elo_rating, l2.elo_rating],
+    );
+
+    const now = new Date().toISOString();
+    await Promise.all([
+      supabase.from("ladder_ratings").update({
+        elo_rating: newWinnerRatings[0], wins: w1.wins + 1, last_played: now, updated_at: now,
+      }).eq("user_id", winnerIds[0]),
+      supabase.from("ladder_ratings").update({
+        elo_rating: newWinnerRatings[1], wins: w2.wins + 1, last_played: now, updated_at: now,
+      }).eq("user_id", winnerIds[1]),
+      supabase.from("ladder_ratings").update({
+        elo_rating: newLoserRatings[0], losses: l1.losses + 1, last_played: now, updated_at: now,
+      }).eq("user_id", loserIds[0]),
+      supabase.from("ladder_ratings").update({
+        elo_rating: newLoserRatings[1], losses: l2.losses + 1, last_played: now, updated_at: now,
+      }).eq("user_id", loserIds[1]),
+    ]);
+  };
+
+  const handleConfirm = async () => {
     setSubmitting(true);
     try {
-      // Confirm the match
-      await supabase
-        .from("matches")
-        .update({ confirmed_by: userId, status: "confirmed" })
-        .eq("id", match.id);
-
-      // Update ELO ratings
-      const loserId =
-        match.winner_id === match.player1_id
-          ? match.player2_id
-          : match.player1_id;
-
-      const [winnerRating, loserRating] = await Promise.all([
-        supabase
-          .from("ladder_ratings")
-          .select("*")
-          .eq("user_id", match.winner_id)
-          .single(),
-        supabase
-          .from("ladder_ratings")
-          .select("*")
-          .eq("user_id", loserId)
-          .single(),
-      ]);
-
-      if (winnerRating.data && loserRating.data) {
-        const { newWinnerRating, newLoserRating } = calculateElo(
-          winnerRating.data.elo_rating,
-          loserRating.data.elo_rating,
-        );
-
-        const now = new Date().toISOString();
-        await Promise.all([
-          supabase
-            .from("ladder_ratings")
-            .update({
-              elo_rating: newWinnerRating,
-              wins: (winnerRating.data as LadderRating).wins + 1,
-              last_played: now,
-              updated_at: now,
-            })
-            .eq("user_id", match.winner_id),
-          supabase
-            .from("ladder_ratings")
-            .update({
-              elo_rating: newLoserRating,
-              losses: (loserRating.data as LadderRating).losses + 1,
-              last_played: now,
-              updated_at: now,
-            })
-            .eq("user_id", loserId),
-        ]);
+      if (isDoubles) {
+        await handleConfirmDoubles();
+      } else {
+        await handleConfirmSingles();
       }
-
       await fetchMatch();
     } catch (err) {
       console.error("Confirm error:", err);
@@ -274,25 +326,17 @@ function MatchPageInner() {
     if (!userId || !match) return;
     setSubmitting(true);
     try {
-      // Delete the match
       await supabase.from("matches").delete().eq("id", match.id);
 
       if (isOwner) {
-        // Owner cancels → kill the proposal entirely
-        await supabase
-          .from("proposals")
-          .update({ status: "cancelled" })
-          .eq("id", match.proposal_id);
+        await supabase.from("proposals").update({ status: "cancelled" }).eq("id", match.proposal_id);
+      } else if (isDoubles) {
+        // For doubles, revert to pairing so teams can reform
+        await supabase.from("proposals").update({ status: "pairing" }).eq("id", match.proposal_id);
       } else {
-        // Non-owner backs out → reopen the proposal for others
-        await supabase
-          .from("proposals")
-          .update({
-            status: "open",
-            accepted_by: null,
-            accepted_at: null,
-          })
-          .eq("id", match.proposal_id);
+        await supabase.from("proposals").update({
+          status: "open", accepted_by: null, accepted_at: null,
+        }).eq("id", match.proposal_id);
       }
 
       goBack();
@@ -307,10 +351,7 @@ function MatchPageInner() {
     if (!userId) return;
     setSubmitting(true);
     try {
-      await supabase
-        .from("matches")
-        .update({ status: "disputed" })
-        .eq("id", match.id);
+      await supabase.from("matches").update({ status: "disputed" }).eq("id", match.id);
       await fetchMatch();
     } catch (err) {
       console.error("Dispute error:", err);
@@ -318,6 +359,24 @@ function MatchPageInner() {
       setSubmitting(false);
     }
   };
+
+  // Find who submitted for the confirm prompt
+  const submitterName = (() => {
+    if (!match.submitted_by) return "Someone";
+    const all = [match.player1, match.player2, match.player3, match.player4].filter(Boolean) as Profile[];
+    return all.find((p) => p.id === match.submitted_by)?.username || "Someone";
+  })();
+
+  // Winner display
+  const winnerDisplay = (() => {
+    if (isDoubles && match.winning_team) {
+      return match.winning_team === "a" ? `Team A: ${teamALabel}` : `Team B: ${teamBLabel}`;
+    }
+    if (!isDoubles && match.winner_id) {
+      return match.winner_id === match.player1_id ? match.player1.username : match.player2.username;
+    }
+    return null;
+  })();
 
   const statusLabel: Record<string, string> = {
     pending: "Awaiting score",
@@ -344,10 +403,10 @@ function MatchPageInner() {
           >
             <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="m15 18-6-6 6-6"/></svg>Back
           </button>
-          <h1 className="text-[22px] font-bold tracking-[0.5px]">Match</h1>
-          <span
-            className={`inline-block text-[12px] px-2.5 py-0.5 rounded-full font-medium ${statusColor[match.status]}`}
-          >
+          <h1 className="text-[22px] font-bold tracking-[0.5px]">
+            {isDoubles ? "Doubles Match" : "Match"}
+          </h1>
+          <span className={`inline-block text-[12px] px-2.5 py-0.5 rounded-full font-medium ${statusColor[match.status]}`}>
             {statusLabel[match.status]}
           </span>
         </div>
@@ -355,27 +414,45 @@ function MatchPageInner() {
         {/* Players */}
         <Card>
           <CardContent className="pt-5 space-y-3">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-[15px] font-medium">
-                  {match.player1.username}
-                </p>
-                <p className="text-[12px] text-muted-foreground">
-                  {match.player1.skill_level}
-                </p>
+            {isDoubles ? (
+              <>
+                {/* Team A */}
+                <div>
+                  <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground mb-1.5">Team A</p>
+                  <div className="flex items-center gap-3">
+                    <PlayerBadge profile={match.player1} />
+                    <span className="text-[12px] text-muted-foreground">&</span>
+                    <PlayerBadge profile={match.player2} />
+                  </div>
+                </div>
+
+                <div className="text-center">
+                  <span className="text-[14px] font-bold text-muted-foreground">vs</span>
+                </div>
+
+                {/* Team B */}
+                <div>
+                  <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground mb-1.5">Team B</p>
+                  <div className="flex items-center gap-3">
+                    {match.player3 && <PlayerBadge profile={match.player3} />}
+                    <span className="text-[12px] text-muted-foreground">&</span>
+                    {match.player4 && <PlayerBadge profile={match.player4} />}
+                  </div>
+                </div>
+              </>
+            ) : (
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-[15px] font-medium">{match.player1.username}</p>
+                  <p className="text-[12px] text-muted-foreground">{match.player1.skill_level}</p>
+                </div>
+                <span className="text-[14px] font-bold text-muted-foreground">vs</span>
+                <div className="text-right">
+                  <p className="text-[15px] font-medium">{match.player2.username}</p>
+                  <p className="text-[12px] text-muted-foreground">{match.player2.skill_level}</p>
+                </div>
               </div>
-              <span className="text-[14px] font-bold text-muted-foreground">
-                vs
-              </span>
-              <div className="text-right">
-                <p className="text-[15px] font-medium">
-                  {match.player2.username}
-                </p>
-                <p className="text-[12px] text-muted-foreground">
-                  {match.player2.skill_level}
-                </p>
-              </div>
-            </div>
+            )}
             <div className="text-center text-[12px] text-muted-foreground">
               {match.park.name} &middot; {formatDateTime(match.created_at)}
             </div>
@@ -390,8 +467,7 @@ function MatchPageInner() {
                 ? "Resubmit Scores"
                 : canSubmitScore
                   ? "Enter Scores"
-                  : "Scores"
-              }
+                  : "Scores"}
             </h3>
 
             <div className="space-y-2">
@@ -403,10 +479,10 @@ function MatchPageInner() {
                 <span className="text-[11px] text-muted-foreground">G3</span>
               </div>
 
-              {/* Player 1 */}
+              {/* Team A / Player 1 */}
               <div className="grid grid-cols-[1fr_repeat(3,48px)] gap-4 items-center">
                 <span className="text-[13px] font-medium truncate">
-                  {match.player1.username}
+                  {isDoubles ? "Team A" : match.player1.username}
                 </span>
                 {[0, 1, 2].map((i) => (
                   <input
@@ -422,10 +498,10 @@ function MatchPageInner() {
                 ))}
               </div>
 
-              {/* Player 2 */}
+              {/* Team B / Player 2 */}
               <div className="grid grid-cols-[1fr_repeat(3,48px)] gap-4 items-center">
                 <span className="text-[13px] font-medium truncate">
-                  {match.player2.username}
+                  {isDoubles ? "Team B" : match.player2.username}
                 </span>
                 {[0, 1, 2].map((i) => (
                   <input
@@ -443,22 +519,15 @@ function MatchPageInner() {
             </div>
 
             {/* Winner display */}
-            {match.winner_id && match.status !== "pending" && (
+            {winnerDisplay && match.status !== "pending" && (
               <p className="text-center text-[13px] font-medium text-green-600">
-                Winner:{" "}
-                {match.winner_id === match.player1_id
-                  ? match.player1.username
-                  : match.player2.username}
+                Winner: {winnerDisplay}
               </p>
             )}
 
             {/* Actions */}
             {canSubmitScore && (
-              <Button
-                onClick={handleSubmitScore}
-                disabled={submitting}
-                className="w-full"
-              >
+              <Button onClick={handleSubmitScore} disabled={submitting} className="w-full">
                 {submitting ? "Submitting..." : "Submit Score"}
               </Button>
             )}
@@ -466,25 +535,13 @@ function MatchPageInner() {
             {canConfirm && (
               <div className="space-y-2">
                 <p className="text-[12px] text-muted-foreground text-center">
-                  {match.submitted_by === match.player1_id
-                    ? match.player1.username
-                    : match.player2.username}{" "}
-                  submitted this score. Please confirm or dispute.
+                  {submitterName} submitted this score. Please confirm or dispute.
                 </p>
                 <div className="flex gap-2">
-                  <Button
-                    onClick={handleConfirm}
-                    disabled={submitting}
-                    className="flex-1"
-                  >
+                  <Button onClick={handleConfirm} disabled={submitting} className="flex-1">
                     {submitting ? "..." : "Confirm"}
                   </Button>
-                  <Button
-                    onClick={handleDispute}
-                    disabled={submitting}
-                    variant="destructive"
-                    className="flex-1"
-                  >
+                  <Button onClick={handleDispute} disabled={submitting} variant="destructive" className="flex-1">
                     {submitting ? "..." : "Dispute"}
                   </Button>
                 </div>
@@ -500,7 +557,7 @@ function MatchPageInner() {
             {match.status === "disputed" && (
               <div className="space-y-2">
                 <p className="text-[12px] text-red-500 text-center">
-                  Score was disputed. Either player can correct and resubmit.
+                  Score was disputed. Any player can correct and resubmit.
                 </p>
                 <Button onClick={handleSubmitScore} disabled={submitting} className="w-full">
                   {submitting ? "Submitting..." : "Resubmit Score"}
@@ -527,5 +584,19 @@ function MatchPageInner() {
         )}
       </div>
     </main>
+  );
+}
+
+function PlayerBadge({ profile }: { profile: Profile }) {
+  return (
+    <div className="flex items-center gap-2">
+      <div className="w-7 h-7 rounded-full bg-green-100 text-green-700 flex items-center justify-center text-[12px] font-bold">
+        {profile.username.charAt(0).toUpperCase()}
+      </div>
+      <div>
+        <p className="text-[13px] font-medium leading-tight">{profile.username}</p>
+        <p className="text-[11px] text-muted-foreground leading-tight">{profile.skill_level}</p>
+      </div>
+    </div>
   );
 }
