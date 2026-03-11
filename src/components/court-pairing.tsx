@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useMemo } from "react";
+import { useState, useRef, useMemo, useCallback } from "react";
 import { autoBalanceTeams } from "@/lib/elo";
 import type { Profile } from "@/types/database";
 
@@ -30,19 +30,15 @@ export function CourtPairing({
 }: CourtPairingProps) {
   const isCreator = currentUserId === creatorId;
 
-  // Auto-balance on mount
-  const initialTeams = useMemo(() => {
-    return autoBalanceTeams(players.map((p) => ({ userId: p.userId, elo: p.elo })));
-  }, [players]);
+  // Auto-balance once on first render, then user controls from there
+  const initialTeams = useRef(
+    autoBalanceTeams(players.map((p) => ({ userId: p.userId, elo: p.elo })))
+  );
 
-  const [teamA, setTeamA] = useState<[string, string]>(initialTeams.teamA);
-  const [teamB, setTeamB] = useState<[string, string]>(initialTeams.teamB);
+  const [teamA, setTeamA] = useState<[string, string]>(initialTeams.current.teamA);
+  const [teamB, setTeamB] = useState<[string, string]>(initialTeams.current.teamB);
   const [selected, setSelected] = useState<string | null>(null);
-
-  // Notify parent when teams change
-  useEffect(() => {
-    onPairingChange(teamA, teamB);
-  }, [teamA, teamB, onPairingChange]);
+  const [hasSetInitialTeams, setHasSetInitialTeams] = useState(false);
 
   const playerMap = useMemo(() => {
     const map = new Map<string, PlayerInfo>();
@@ -62,6 +58,13 @@ export function CourtPairing({
 
   const allConfirmed = players.every((p) => p.confirmed);
   const currentConfirmed = players.find((p) => p.userId === currentUserId)?.confirmed;
+
+  // Save initial team assignments once (creator only)
+  const handleSetInitialTeams = useCallback(() => {
+    if (hasSetInitialTeams) return;
+    setHasSetInitialTeams(true);
+    onPairingChange(teamA, teamB);
+  }, [hasSetInitialTeams, onPairingChange, teamA, teamB]);
 
   const handlePlayerTap = (playerId: string) => {
     if (!isCreator || disabled) return;
@@ -97,6 +100,8 @@ export function CourtPairing({
       allSlots[toTeam][toIdx] = selected;
       setTeamA(allSlots.a);
       setTeamB(allSlots.b);
+      // Only notify parent on actual swap
+      onPairingChange(allSlots.a, allSlots.b);
     }
 
     setSelected(null);
@@ -213,10 +218,13 @@ export function CourtPairing({
         ))}
       </div>
 
-      {/* Confirm button */}
+      {/* Confirm button — first saves initial teams if not yet saved */}
       {!currentConfirmed && !disabled && (
         <button
-          onClick={() => onConfirm(currentUserId)}
+          onClick={() => {
+            handleSetInitialTeams();
+            onConfirm(currentUserId);
+          }}
           className="w-full py-2.5 rounded-lg bg-green-600 hover:bg-green-700 text-white text-[14px] font-medium transition-colors"
         >
           Confirm Pairings

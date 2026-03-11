@@ -9,6 +9,7 @@ import { autoBalanceTeams } from "@/lib/elo";
 import { CourtPairing } from "@/components/court-pairing";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
+import { AppHeader } from "@/components/app-header";
 import type {
   Proposal,
   Profile,
@@ -54,16 +55,22 @@ function ProposalDetailInner() {
   const fetchProposal = useCallback(async () => {
     const { data } = await supabase
       .from("proposals")
-      .select("*, profiles!proposals_creator_id_fkey(*), parks(*)")
+      .select("*")
       .eq("id", proposalId)
       .single();
 
     if (!data) { setLoading(false); return; }
 
+    // Fetch creator profile and park separately to avoid FK naming issues
+    const [creatorRes, parkRes] = await Promise.all([
+      supabase.from("profiles").select("*").eq("id", data.creator_id).single(),
+      supabase.from("parks").select("*").eq("id", data.park_id).single(),
+    ]);
+
     setProposal({
       ...data,
-      creator: (data as Record<string, unknown>).profiles as Profile,
-      park: (data as Record<string, unknown>).parks as Park,
+      creator: creatorRes.data!,
+      park: parkRes.data!,
     });
     setLoading(false);
   }, [proposalId]);
@@ -98,6 +105,21 @@ function ProposalDetailInner() {
         .eq("user_id", update.user_id);
     }
   }, [proposalId]);
+
+  // Auto-transition to pairing if we have 4 signups but status is still forming
+  useEffect(() => {
+    if (
+      signups.length >= 4 &&
+      proposal?.status === "forming" &&
+      proposal?.mode === "doubles"
+    ) {
+      supabase
+        .from("proposals")
+        .update({ status: "pairing" })
+        .eq("id", proposalId)
+        .then(() => fetchProposal());
+    }
+  }, [signups.length, proposal?.status, proposal?.mode, proposalId, fetchProposal]);
 
   useEffect(() => {
     fetchProposal();
@@ -134,6 +156,7 @@ function ProposalDetailInner() {
   const isSignedUp = signups.some((s) => s.user_id === userId);
   const signupCount = signups.length;
   const needsPartner = proposal.seeking_partner && !signups.some((s) => s.role === "partner");
+  const isInvitedPartner = userId === proposal.partner_id && !isSignedUp;
   const isPairing = proposal.status === "pairing";
 
   // Determine what role the current user would fill
@@ -145,6 +168,50 @@ function ProposalDetailInner() {
     return null;
   };
   const availableRole = getAvailableRole();
+
+  const handleAcceptPartner = async () => {
+    if (!userId) return;
+    setActionLoading(true);
+    try {
+      // Partner inserts their own signup (satisfies RLS: auth.uid() = user_id)
+      await supabase.from("proposal_signups").insert({
+        proposal_id: proposalId,
+        user_id: userId,
+        role: "partner",
+      });
+
+      // Clear seeking_partner since partner accepted
+      await supabase
+        .from("proposals")
+        .update({ seeking_partner: false })
+        .eq("id", proposalId);
+
+      refetchSignups();
+      fetchProposal();
+    } catch (err) {
+      console.error("Accept partner error:", err);
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  const handleDeclinePartner = async () => {
+    if (!userId) return;
+    setActionLoading(true);
+    try {
+      // Clear partner_id and set seeking_partner to true
+      await supabase
+        .from("proposals")
+        .update({ partner_id: null, seeking_partner: true })
+        .eq("id", proposalId);
+
+      fetchProposal();
+    } catch (err) {
+      console.error("Decline partner error:", err);
+    } finally {
+      setActionLoading(false);
+    }
+  };
 
   const handleJoin = async () => {
     if (!userId || !availableRole) return;
@@ -294,19 +361,15 @@ function ProposalDetailInner() {
   return (
     <main className="min-h-screen bg-background">
       <div className="max-w-lg mx-auto px-5 py-8 sm:px-6 space-y-6">
-        {/* Header */}
-        <div className="text-center space-y-1 relative">
-          <button
-            onClick={goBack}
-            className="absolute left-0 top-0 flex items-center gap-1 text-[13px] text-muted-foreground font-medium border border-border bg-muted/50 rounded-full px-3 py-1 hover:bg-muted hover:text-foreground transition-colors"
-          >
-            <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="m15 18-6-6 6-6"/></svg>Back
-          </button>
-          <h1 className="text-[22px] font-bold tracking-[0.5px]">Doubles</h1>
-          <span className={`inline-block text-[12px] px-2.5 py-0.5 rounded-full font-medium ${statusColor[proposal.status] || statusColor.open}`}>
-            {statusLabel[proposal.status] || proposal.status}
-          </span>
-        </div>
+        <AppHeader
+          title="Doubles"
+          badge={
+            <span className={`inline-block text-[12px] px-2.5 py-0.5 rounded-full font-medium ${statusColor[proposal.status] || statusColor.open}`}>
+              {statusLabel[proposal.status] || proposal.status}
+            </span>
+          }
+          onBack={goBack}
+        />
 
         {/* Proposal info */}
         <Card>
@@ -326,6 +389,39 @@ function ProposalDetailInner() {
             )}
           </CardContent>
         </Card>
+
+        {/* Partner invitation */}
+        {isInvitedPartner && proposal.status !== "accepted" && (
+          <Card className="border-green-300 bg-green-50/50">
+            <CardContent className="pt-5 space-y-3">
+              <div className="text-center space-y-1">
+                <p className="text-[15px] font-semibold text-green-800">
+                  You&apos;ve been invited as a partner
+                </p>
+                <p className="text-[13px] text-green-700">
+                  {proposal.creator.username} wants you on their team for doubles
+                </p>
+              </div>
+              <div className="flex gap-2">
+                <Button
+                  onClick={handleAcceptPartner}
+                  disabled={actionLoading}
+                  className="flex-1 bg-green-600 hover:bg-green-700 text-white"
+                >
+                  {actionLoading ? "Accepting..." : "Accept"}
+                </Button>
+                <Button
+                  onClick={handleDeclinePartner}
+                  disabled={actionLoading}
+                  variant="outline"
+                  className="flex-1 text-red-500 hover:text-red-600 hover:bg-red-50"
+                >
+                  Decline
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+        )}
 
         {/* Player slots (forming phase) */}
         {!isPairing && proposal.status !== "accepted" && (
@@ -348,8 +444,21 @@ function ProposalDetailInner() {
                   </div>
                 ))}
 
-                {/* Empty slots */}
-                {Array.from({ length: 4 - signupCount }).map((_, i) => (
+                {/* Pending partner invitation slot */}
+                {proposal.partner_id && !signups.some((s) => s.role === "partner") && (
+                  <div className="flex items-center gap-2 py-1.5">
+                    <div className="w-7 h-7 rounded-full border-2 border-dashed border-amber-400 bg-amber-50 flex items-center justify-center">
+                      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" className="text-amber-500" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M12 5v14M5 12h14"/></svg>
+                    </div>
+                    <div>
+                      <p className="text-[13px] font-medium text-amber-700">Partner invited</p>
+                      <p className="text-[11px] text-muted-foreground">Waiting for response...</p>
+                    </div>
+                  </div>
+                )}
+
+                {/* Empty slots (excluding pending partner slot) */}
+                {Array.from({ length: Math.max(0, 4 - signupCount - (proposal.partner_id && !signups.some((s) => s.role === "partner") ? 1 : 0)) }).map((_, i) => (
                   <div key={`empty-${i}`} className="flex items-center gap-2 py-1.5 opacity-40">
                     <div className="w-7 h-7 rounded-full border-2 border-dashed border-muted-foreground/40" />
                     <p className="text-[13px] text-muted-foreground">
@@ -359,8 +468,8 @@ function ProposalDetailInner() {
                 ))}
               </div>
 
-              {/* Join / Leave buttons */}
-              {!isSignedUp && availableRole && (
+              {/* Join / Leave buttons (hide if user is invited partner — they use accept/decline above) */}
+              {!isSignedUp && !isInvitedPartner && availableRole && (
                 <Button
                   onClick={handleJoin}
                   disabled={actionLoading}

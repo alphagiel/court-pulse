@@ -7,6 +7,7 @@ import { supabase } from "@/lib/supabase";
 import { calculateElo, calculateDoublesElo } from "@/lib/elo";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
+import { AppHeader } from "@/components/app-header";
 import type {
   Match,
   Profile,
@@ -395,21 +396,15 @@ function MatchPageInner() {
   return (
     <main className="min-h-screen bg-background">
       <div className="max-w-lg mx-auto px-5 py-8 sm:px-6 space-y-6">
-        {/* Header */}
-        <div className="text-center space-y-1 relative">
-          <button
-            onClick={goBack}
-            className="absolute left-0 top-0 flex items-center gap-1 text-[13px] text-muted-foreground font-medium border border-border bg-muted/50 rounded-full px-3 py-1 hover:bg-muted hover:text-foreground transition-colors"
-          >
-            <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="m15 18-6-6 6-6"/></svg>Back
-          </button>
-          <h1 className="text-[22px] font-bold tracking-[0.5px]">
-            {isDoubles ? "Doubles Match" : "Match"}
-          </h1>
-          <span className={`inline-block text-[12px] px-2.5 py-0.5 rounded-full font-medium ${statusColor[match.status]}`}>
-            {statusLabel[match.status]}
-          </span>
-        </div>
+        <AppHeader
+          title={isDoubles ? "Doubles Match" : "Match"}
+          badge={
+            <span className={`inline-block text-[12px] px-2.5 py-0.5 rounded-full font-medium ${statusColor[match.status]}`}>
+              {statusLabel[match.status]}
+            </span>
+          }
+          onBack={goBack}
+        />
 
         {/* Players */}
         <Card>

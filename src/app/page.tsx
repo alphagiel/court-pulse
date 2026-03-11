@@ -11,6 +11,7 @@ import {
 } from "@/lib/hooks";
 import { LetsPlayButton } from "@/components/lets-play-button";
 import { ParkCard } from "@/components/park-card";
+import { AppHeader } from "@/components/app-header";
 
 function formatHourLabel(targetTime: string | null): string {
   if (!targetTime) return "Now";
@@ -22,7 +23,7 @@ function formatHourLabel(targetTime: string | null): string {
 }
 
 export default function Home() {
-  const { user, profile, loading: authLoading, signOut } = useAuth();
+  const { user, profile, loading: authLoading } = useAuth();
   const router = useRouter();
   const { location, error: locationError } = useUserLocation();
   const { parks, checkIns, intents, loading } = useParkActivity();
@@ -238,27 +239,11 @@ export default function Home() {
   return (
     <main className="min-h-screen bg-background">
       <div className="max-w-lg mx-auto px-5 py-8 sm:px-6 space-y-8">
-        {/* Header */}
-        <div className="text-center space-y-1 relative">
-          <button
-            onClick={signOut}
-            className="absolute right-0 top-0 text-[12px] text-muted-foreground hover:text-foreground transition-colors"
-          >
-            Sign out
-          </button>
-          <h1 className="text-[27px] font-bold tracking-[0.5px]">
-            Court Pulse
-          </h1>
-          <p className="text-[14px] text-muted-foreground">
-            {profile.username} &middot; {profile.skill_level}
-          </p>
-          <button
-            onClick={() => router.push("/ladder")}
-            className="absolute left-0 top-0 text-[13px] text-green-700 font-medium border border-green-200 bg-green-50 rounded-full px-3 py-1 hover:bg-green-100 transition-colors"
-          >
-            Ladder
-          </button>
-        </div>
+        <AppHeader
+          title="Court Pulse"
+          subtitle={`${profile.skill_level}`}
+          showLadderLink
+        />
 
         {locationError && (
           <p className="text-[13px] text-amber-600 text-center">
