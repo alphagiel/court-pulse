@@ -33,7 +33,6 @@ export default function Home() {
       <div className="max-w-lg mx-auto px-5 py-8 sm:px-6 space-y-6">
         <AppHeader
           title="Court Pulse"
-          subtitle={`${profile.skill_level}`}
         />
 
         <div className="grid grid-cols-2 gap-3">
@@ -76,6 +75,13 @@ export default function Home() {
             {active === "pickup" ? "Go to Pickup" : "Go to Ladder"}
             <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="m9 18 6-6-6-6"/></svg>
           </button>
+        </div>
+
+        <div className="pt-6">
+          <hr className="border-border" />
+          <p className="text-center text-[11px] text-muted-foreground/60 pt-4">
+            &copy; 2026 Alpha DeAsis. All rights reserved.
+          </p>
         </div>
       </div>
     </main>
