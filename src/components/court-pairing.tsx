@@ -257,7 +257,7 @@ export function CourtPairing({
           {/* Court with net */}
           <div className="relative flex gap-0">
             {/* Team A side */}
-            <div className="flex-1 flex flex-col gap-2 pr-2">
+            <div className="flex-1 min-w-0 flex flex-col gap-2 pr-2">
               {teamA.map((id) => (
                 <PlayerChip
                   key={id}
@@ -278,7 +278,7 @@ export function CourtPairing({
             </div>
 
             {/* Team B side */}
-            <div className="flex-1 flex flex-col gap-2 pl-2">
+            <div className="flex-1 min-w-0 flex flex-col gap-2 pl-2">
               {teamB.map((id) => (
                 <PlayerChip
                   key={id}
@@ -343,7 +343,7 @@ const PlayerChip = forwardRef<
       onClick={onTap}
       disabled={!canInteract}
       className={`
-        relative flex items-center gap-1.5 px-2 py-1.5 rounded-lg border-2 text-left w-full
+        relative flex items-center gap-1.5 px-1.5 py-1.5 rounded-lg border-2 text-left w-full overflow-hidden
         ${canInteract ? "cursor-pointer active:scale-[0.97]" : "cursor-default"}
         ${isSelected
           ? "border-green-500 bg-green-50 shadow-sm shadow-green-200/50"
@@ -351,14 +351,14 @@ const PlayerChip = forwardRef<
         }
       `}
     >
-      <div className={`w-7 h-7 rounded-full flex items-center justify-center text-[12px] font-bold shrink-0 ${
+      <div className={`w-6 h-6 rounded-full flex items-center justify-center text-[11px] font-bold shrink-0 ${
         isSelected ? "bg-green-600 text-white" : "bg-muted text-muted-foreground"
       }`}>
         {player.profile.username.charAt(0).toUpperCase()}
       </div>
 
       <div className="min-w-0 flex-1">
-        <p className="text-[12px] font-semibold truncate leading-tight">
+        <p className="text-[11px] font-semibold truncate leading-tight">
           {player.profile.username}
         </p>
         <p className="text-[10px] text-muted-foreground leading-tight">
