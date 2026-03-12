@@ -80,7 +80,7 @@ function LadderPageInner() {
     tierFromUrl && ["beginner", "intermediate", "advanced"].includes(tierFromUrl) ? tierFromUrl : null
   );
   const [mode, setMode] = useState<MatchMode>(modeFromUrl === "doubles" ? "doubles" : "singles");
-  const [tab, setTab] = useState<Tab>(modeFromUrl === "doubles" ? "proposals" : "rankings");
+  const [tab, setTab] = useState<Tab>("rankings");
   const [registering, setRegistering] = useState(false);
   const [actionId, setActionId] = useState<string | null>(null);
 
@@ -307,7 +307,7 @@ function LadderPageInner() {
             Singles
           </button>
           <button
-            onClick={() => { setMode("doubles"); setTab("proposals"); }}
+            onClick={() => { setMode("doubles"); setTab("rankings"); }}
             className={`flex-1 py-2 text-[13px] font-medium transition-colors ${
               mode === "doubles"
                 ? "bg-green-600 text-white"
@@ -328,10 +328,7 @@ function LadderPageInner() {
 
         {/* Content tabs */}
         <div className="flex gap-1 bg-muted rounded-lg p-1">
-          {(isDoubles
-            ? (["proposals", "matches"] as Tab[])
-            : (["rankings", "proposals", "matches"] as Tab[])
-          ).map((t) => {
+          {(["rankings", "proposals", "matches"] as Tab[]).map((t) => {
             if (t === "matches" && isReadOnly) return null;
             return (
               <button
@@ -350,7 +347,7 @@ function LadderPageInner() {
         </div>
 
         {/* Tab content */}
-        {tab === "rankings" && !isDoubles && (
+        {tab === "rankings" && (
           <RankingsTab rankings={rankings} loading={rankingsLoading} currentUserId={userId} />
         )}
         {tab === "proposals" && !isDoubles && (
