@@ -25,10 +25,12 @@ function NewProposalPageInner() {
   const searchParams = useSearchParams();
   const tierParam = searchParams.get("tier");
   const modeParam = searchParams.get("mode") as MatchMode | null;
+  const tabParam = searchParams.get("tab");
   const goBack = () => {
     const params = new URLSearchParams();
     if (tierParam) params.set("tier", tierParam);
     if (mode === "doubles") params.set("mode", "doubles");
+    if (tabParam) params.set("tab", tabParam);
     router.push(`/ladder${params.toString() ? `?${params}` : ""}`);
   };
   const userId = user?.id;

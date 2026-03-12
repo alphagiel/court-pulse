@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef, useMemo, useCallback, useLayoutEffect, forwardRef } from "react";
+import { useState, useRef, useMemo, useCallback, useLayoutEffect, useEffect, forwardRef } from "react";
 import { autoBalanceTeams } from "@/lib/elo";
 import type { Profile } from "@/types/database";
 
@@ -50,6 +50,8 @@ export function CourtPairing({
   const [teamB, setTeamB] = useState<[string, string]>(computed.teamB);
   const [selected, setSelected] = useState<string | null>(null);
   const [autoBalanced, setAutoBalanced] = useState(!computed.fromDb);
+  const [hintIds, setHintIds] = useState<[string, string] | null>(null);
+  const hintRanRef = useRef(false);
 
   // FLIP animation refs
   const chipRefs = useRef<Map<string, HTMLButtonElement>>(new Map());
@@ -128,6 +130,78 @@ export function CourtPairing({
     }
     prevRectsRef.current = rects;
   }, [teamA, teamB]);
+
+  // Hint animation: phantom swap on mount for creator
+  useEffect(() => {
+    if (disabled || hintRanRef.current) return;
+    hintRanRef.current = true;
+
+    const hintA = teamA[1]; // bottom-left
+    const hintB = teamB[0]; // top-right
+
+    let cancelled = false;
+
+    const run = async () => {
+      // Wait for mount to settle
+      await new Promise((r) => setTimeout(r, 600));
+      if (cancelled) return;
+
+      // Phase 1: highlight the two players
+      setHintIds([hintA, hintB]);
+      await new Promise((r) => setTimeout(r, 400));
+      if (cancelled) return;
+
+      // Phase 2: swap them
+      snapshotPositions();
+      pendingSwapRef.current = [hintA, hintB];
+      setTeamA((prev) => {
+        const next = [...prev] as [string, string];
+        const idx = next.indexOf(hintA);
+        if (idx !== -1) next[idx] = hintB;
+        return next;
+      });
+      setTeamB((prev) => {
+        const next = [...prev] as [string, string];
+        const idx = next.indexOf(hintB);
+        if (idx !== -1) next[idx] = hintA;
+        return next;
+      });
+
+      await new Promise((r) => setTimeout(r, 500));
+      if (cancelled) return;
+
+      // Phase 3: swap back
+      snapshotPositions();
+      pendingSwapRef.current = [hintA, hintB];
+      setTeamA((prev) => {
+        const next = [...prev] as [string, string];
+        const idx = next.indexOf(hintB);
+        if (idx !== -1) next[idx] = hintA;
+        return next;
+      });
+      setTeamB((prev) => {
+        const next = [...prev] as [string, string];
+        const idx = next.indexOf(hintA);
+        if (idx !== -1) next[idx] = hintB;
+        return next;
+      });
+
+      await new Promise((r) => setTimeout(r, 300));
+      if (cancelled) return;
+      setHintIds(null);
+    };
+
+    run();
+    return () => {
+      cancelled = true;
+      hintRanRef.current = false;
+      setHintIds(null);
+      // Reset teams to original in case cleanup interrupts mid-swap
+      setTeamA(computed.teamA);
+      setTeamB(computed.teamB);
+    };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const handlePlayerTap = (playerId: string) => {
     // Everyone can swap locally to preview, but only creator saves
@@ -264,6 +338,7 @@ export function CourtPairing({
                   ref={(el) => setChipRef(id, el)}
                   player={getPlayer(id)}
                   isSelected={selected === id}
+                  isHinted={hintIds?.includes(id) ?? false}
                   canInteract={!disabled}
                   onTap={() => handlePlayerTap(id)}
                 />
@@ -285,6 +360,7 @@ export function CourtPairing({
                   ref={(el) => setChipRef(id, el)}
                   player={getPlayer(id)}
                   isSelected={selected === id}
+                  isHinted={hintIds?.includes(id) ?? false}
                   canInteract={!disabled}
                   onTap={() => handlePlayerTap(id)}
                 />
@@ -333,26 +409,28 @@ const PlayerChip = forwardRef<
   {
     player: PlayerInfo;
     isSelected: boolean;
+    isHinted: boolean;
     canInteract: boolean;
     onTap: () => void;
   }
->(function PlayerChip({ player, isSelected, canInteract, onTap }, ref) {
+>(function PlayerChip({ player, isSelected, isHinted, canInteract, onTap }, ref) {
+  const highlighted = isSelected || isHinted;
   return (
     <button
       ref={ref}
       onClick={onTap}
       disabled={!canInteract}
       className={`
-        relative flex items-center gap-1.5 px-1.5 py-1.5 rounded-lg border-2 text-left w-full overflow-hidden
+        relative flex items-center gap-1.5 px-1.5 py-1.5 rounded-lg border-2 text-left w-full overflow-hidden transition-colors duration-200
         ${canInteract ? "cursor-pointer active:scale-[0.97]" : "cursor-default"}
-        ${isSelected
+        ${highlighted
           ? "border-green-500 bg-green-50 shadow-sm shadow-green-200/50"
           : "border-border bg-card hover:border-muted-foreground/30"
         }
       `}
     >
-      <div className={`w-6 h-6 rounded-full flex items-center justify-center text-[11px] font-bold shrink-0 ${
-        isSelected ? "bg-green-600 text-white" : "bg-muted text-muted-foreground"
+      <div className={`w-6 h-6 rounded-full flex items-center justify-center text-[11px] font-bold shrink-0 transition-colors duration-200 ${
+        highlighted ? "bg-green-600 text-white" : "bg-muted text-muted-foreground"
       }`}>
         {player.profile.username.charAt(0).toUpperCase()}
       </div>

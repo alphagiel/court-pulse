@@ -54,7 +54,16 @@ function MatchPageInner() {
   const params = useParams();
   const searchParams = useSearchParams();
   const tierParam = searchParams.get("tier");
-  const goBack = () => tierParam ? router.push(`/ladder?tier=${tierParam}`) : router.push("/ladder");
+  const modeParam = searchParams.get("mode");
+  const tabParam = searchParams.get("tab");
+  const goBack = () => {
+    const p = new URLSearchParams();
+    if (tierParam) p.set("tier", tierParam);
+    if (modeParam) p.set("mode", modeParam);
+    if (tabParam) p.set("tab", tabParam);
+    const qs = p.toString();
+    router.push(`/ladder${qs ? `?${qs}` : ""}`);
+  };
   const matchId = params.id as string;
   const userId = user?.id;
 

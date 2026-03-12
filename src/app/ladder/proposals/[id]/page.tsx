@@ -40,9 +40,18 @@ function ProposalDetailInner() {
   const params = useParams();
   const searchParams = useSearchParams();
   const tierParam = searchParams.get("tier");
+  const modeParam = searchParams.get("mode");
+  const tabParam = searchParams.get("tab");
   const proposalId = params.id as string;
   const userId = user?.id;
-  const goBack = () => tierParam ? router.push(`/ladder?tier=${tierParam}&mode=doubles`) : router.push("/ladder");
+  const goBack = () => {
+    const params = new URLSearchParams();
+    if (tierParam) params.set("tier", tierParam);
+    if (modeParam) params.set("mode", modeParam);
+    if (tabParam) params.set("tab", tabParam);
+    const qs = params.toString();
+    router.push(`/ladder${qs ? `?${qs}` : ""}`);
+  };
 
   const [proposal, setProposal] = useState<(Proposal & { creator: Profile; park: Park }) | null>(null);
   const [ratings, setRatings] = useState<Map<string, LadderRating>>(new Map());
@@ -304,7 +313,11 @@ function ProposalDetailInner() {
       }).select().single();
 
       if (match) {
-        router.push(`/ladder/match/${match.id}?tier=${tierParam}`);
+        const navParams = new URLSearchParams();
+        if (tierParam) navParams.set("tier", tierParam);
+        if (modeParam) navParams.set("mode", modeParam);
+        navParams.set("tab", "matches");
+        router.push(`/ladder/match/${match.id}?${navParams.toString()}`);
       }
     } catch (err) {
       console.error("Start match error:", err);
