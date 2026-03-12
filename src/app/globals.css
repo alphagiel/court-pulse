@@ -129,3 +129,36 @@
     @apply font-sans;
   }
 }
+
+@keyframes fade-in-down {
+  from {
+    opacity: 0;
+    transform: translateY(-6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.animate-fade-in-up {
+  animation: fade-in-down 0.2s ease-in;
+}
+
+@keyframes unfold-down {
+  from {
+    opacity: 0;
+    transform: translateY(-4px);
+    max-height: 0;
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+    max-height: 300px;
+  }
+}
+
+.animate-unfold {
+  animation: unfold-down 0.2s ease-out;
+  overflow: hidden;
+}

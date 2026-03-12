@@ -283,16 +283,21 @@ function NewProposalPageInner() {
 
             {/* Message */}
             <div className="space-y-1.5">
-              <label className="text-[14px] font-medium">Message <span className="text-muted-foreground font-normal">(optional)</span></label>
+              <div className="flex items-baseline justify-between">
+                <label className="text-[14px] font-medium">Note <span className="text-muted-foreground font-normal">(optional)</span></label>
+                <span className={`text-[11px] tabular-nums ${message.length > 70 ? "text-amber-600" : "text-muted-foreground"}`}>
+                  {message.length}/80
+                </span>
+              </div>
               <textarea
                 value={message}
-                onChange={(e) => setMessage(e.target.value)}
+                onChange={(e) => { if (e.target.value.length <= 80) setMessage(e.target.value); }}
                 placeholder={mode === "doubles"
-                  ? "Looking for a fun doubles game..."
-                  : "Looking for a competitive match..."
+                  ? "e.g. Bringing a friend, need 2 more!"
+                  : "e.g. Down for a best of 3, any level welcome"
                 }
                 rows={2}
-                maxLength={200}
+                maxLength={80}
                 className="w-full rounded-md border border-input bg-background px-3 py-3 text-[16px] focus:outline-none focus:ring-2 focus:ring-ring resize-none"
               />
             </div>
