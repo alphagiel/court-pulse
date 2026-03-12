@@ -35,7 +35,7 @@ export function useTierPreviews() {
 
   const fetch = useCallback(async () => {
     const [ratingsRes, profilesRes, proposalsRes, matchesRes] = await Promise.all([
-      supabase.from("ladder_ratings").select("*").order("elo_rating", { ascending: false }),
+      supabase.from("ladder_ratings").select("*").eq("mode", "singles").order("elo_rating", { ascending: false }),
       supabase.from("profiles").select("*"),
       supabase.from("proposals").select("*").eq("status", "open").gte("expires_at", new Date().toISOString()),
       supabase.from("matches").select("*").in("status", ["pending", "score_submitted", "confirmed"]),
@@ -125,7 +125,7 @@ export function useLadderMembership(userId: string | undefined) {
   return { member, loading, refetch: fetch };
 }
 
-export function useLadderRankings(tier: SkillTier) {
+export function useLadderRankings(tier: SkillTier, mode: MatchMode = "singles") {
   const [rankings, setRankings] = useState<LadderRankEntry[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -134,6 +134,7 @@ export function useLadderRankings(tier: SkillTier) {
     const { data: ratings } = await supabase
       .from("ladder_ratings")
       .select("*")
+      .eq("mode", mode)
       .order("elo_rating", { ascending: false });
 
     if (!ratings || ratings.length === 0) {
@@ -173,7 +174,7 @@ export function useLadderRankings(tier: SkillTier) {
 
     setRankings(ranked);
     setLoading(false);
-  }, [tier]);
+  }, [tier, mode]);
 
   useEffect(() => { fetch(); }, [fetch]);
 

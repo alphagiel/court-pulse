@@ -232,8 +232,8 @@ function MatchPageInner() {
     const loserId = match.winner_id === match.player1_id ? match.player2_id : match.player1_id;
 
     const [winnerRating, loserRating] = await Promise.all([
-      supabase.from("ladder_ratings").select("*").eq("user_id", match.winner_id).single(),
-      supabase.from("ladder_ratings").select("*").eq("user_id", loserId).single(),
+      supabase.from("ladder_ratings").select("*").eq("user_id", match.winner_id).eq("mode", "singles").single(),
+      supabase.from("ladder_ratings").select("*").eq("user_id", loserId).eq("mode", "singles").single(),
     ]);
 
     if (winnerRating.data && loserRating.data) {
@@ -247,12 +247,12 @@ function MatchPageInner() {
           elo_rating: newWinnerRating,
           wins: (winnerRating.data as LadderRating).wins + 1,
           last_played: now, updated_at: now,
-        }).eq("user_id", match.winner_id),
+        }).eq("user_id", match.winner_id).eq("mode", "singles"),
         supabase.from("ladder_ratings").update({
           elo_rating: newLoserRating,
           losses: (loserRating.data as LadderRating).losses + 1,
           last_played: now, updated_at: now,
-        }).eq("user_id", loserId),
+        }).eq("user_id", loserId).eq("mode", "singles"),
       ]);
     }
   };
@@ -268,12 +268,13 @@ function MatchPageInner() {
     const winnerIds = match.winning_team === "a" ? teamAIds : teamBIds;
     const loserIds = match.winning_team === "a" ? teamBIds : teamAIds;
 
-    // Fetch all 4 ratings
+    // Fetch all 4 doubles ratings
     const allIds = [...winnerIds, ...loserIds];
     const { data: allRatings } = await supabase
       .from("ladder_ratings")
       .select("*")
-      .in("user_id", allIds);
+      .in("user_id", allIds)
+      .eq("mode", "doubles");
 
     if (!allRatings || allRatings.length < 4) return;
 
@@ -294,16 +295,16 @@ function MatchPageInner() {
     await Promise.all([
       supabase.from("ladder_ratings").update({
         elo_rating: newWinnerRatings[0], wins: w1.wins + 1, last_played: now, updated_at: now,
-      }).eq("user_id", winnerIds[0]),
+      }).eq("user_id", winnerIds[0]).eq("mode", "doubles"),
       supabase.from("ladder_ratings").update({
         elo_rating: newWinnerRatings[1], wins: w2.wins + 1, last_played: now, updated_at: now,
-      }).eq("user_id", winnerIds[1]),
+      }).eq("user_id", winnerIds[1]).eq("mode", "doubles"),
       supabase.from("ladder_ratings").update({
         elo_rating: newLoserRatings[0], losses: l1.losses + 1, last_played: now, updated_at: now,
-      }).eq("user_id", loserIds[0]),
+      }).eq("user_id", loserIds[0]).eq("mode", "doubles"),
       supabase.from("ladder_ratings").update({
         elo_rating: newLoserRatings[1], losses: l2.losses + 1, last_played: now, updated_at: now,
-      }).eq("user_id", loserIds[1]),
+      }).eq("user_id", loserIds[1]).eq("mode", "doubles"),
     ]);
   };
 
