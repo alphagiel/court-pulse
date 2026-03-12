@@ -500,6 +500,21 @@ function ProposalDetailInner() {
           </Card>
         )}
 
+        {/* Court pairing (accepted — read-only) */}
+        {proposal.status === "accepted" && courtPlayers.length === 4 && userId && (
+          <Card>
+            <CardContent className="pt-5">
+              <CourtPairing
+                players={courtPlayers}
+                creatorId={proposal.creator_id}
+                currentUserId={userId}
+                onStartMatch={() => {}}
+                disabled
+              />
+            </CardContent>
+          </Card>
+        )}
+
         {/* Cancel (creator only, not yet accepted) */}
         {isCreator && proposal.status !== "accepted" && (
           <Button

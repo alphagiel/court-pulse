@@ -474,3 +474,47 @@ export function useSignupCounts(proposalIds: string[]) {
 
   return { counts, loading, refetch: fetch };
 }
+
+// Fetch team names for matched (accepted) doubles proposals
+export function useSignupTeams(proposalIds: string[]) {
+  const [teams, setTeams] = useState<Record<string, { teamA: string[]; teamB: string[] }>>({});
+
+  const idsKey = proposalIds.sort().join(",");
+
+  const fetch = useCallback(async () => {
+    if (proposalIds.length === 0) {
+      setTeams({});
+      return;
+    }
+
+    const { data } = await supabase
+      .from("proposal_signups")
+      .select("proposal_id, user_id, team")
+      .in("proposal_id", proposalIds);
+
+    if (!data || data.length === 0) { setTeams({}); return; }
+
+    const userIds = [...new Set(data.map((r: { user_id: string }) => r.user_id))];
+    const { data: profiles } = await supabase
+      .from("profiles")
+      .select("id, username")
+      .in("id", userIds);
+
+    const nameMap = new Map((profiles || []).map((p: { id: string; username: string }) => [p.id, p.username]));
+
+    const result: Record<string, { teamA: string[]; teamB: string[] }> = {};
+    for (const row of data) {
+      if (!result[row.proposal_id]) result[row.proposal_id] = { teamA: [], teamB: [] };
+      const name = nameMap.get(row.user_id) || "?";
+      if (row.team === "a") result[row.proposal_id].teamA.push(name);
+      else if (row.team === "b") result[row.proposal_id].teamB.push(name);
+    }
+
+    setTeams(result);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [idsKey]);
+
+  useEffect(() => { fetch(); }, [fetch]);
+
+  return { teams };
+}
