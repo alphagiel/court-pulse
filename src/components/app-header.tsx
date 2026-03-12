@@ -99,6 +99,12 @@ export function AppHeader({
               >
                 Ladder
               </button>
+              <button
+                onClick={() => { setMenuOpen(false); router.push("/about"); }}
+                className="w-full text-left px-3 py-2 text-[13px] text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
+              >
+                About
+              </button>
               <div className="border-t border-border my-1" />
               <button
                 onClick={() => { setMenuOpen(false); signOut(); }}

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, Suspense } from "react";
+import { useState, useEffect, useRef, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useAuth } from "@/lib/auth-context";
 import { supabase } from "@/lib/supabase";
@@ -19,6 +19,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { AppHeader } from "@/components/app-header";
 import type {
   ProposalWithDetails,
+  Match,
   MatchWithDetails,
   LadderRankEntry,
   SkillTier,
@@ -379,7 +380,7 @@ function LadderPageInner() {
 
         {/* Tab content */}
         {tab === "rankings" && (
-          <RankingsTab rankings={rankings} loading={rankingsLoading} currentUserId={userId} />
+          <RankingsTab rankings={rankings} loading={rankingsLoading} currentUserId={userId} mode={mode} />
         )}
         {tab === "proposals" && !isDoubles && (
           <ProposalsTab
@@ -482,6 +483,136 @@ function TierCard({
 
 const MIN_MATCHES_TO_RANK = 3;
 
+function getSeasonRange(): { label: string; start: string; end: string } {
+  const now = new Date();
+  const year = now.getFullYear();
+  const month = now.getMonth(); // 0-indexed
+  if (month >= 2 && month <= 4) return { label: "Spring", start: `${year}-03-01`, end: `${year}-06-01` };
+  if (month >= 5 && month <= 7) return { label: "Summer", start: `${year}-06-01`, end: `${year}-09-01` };
+  if (month >= 8 && month <= 10) return { label: "Fall", start: `${year}-09-01`, end: `${year}-12-01` };
+  // Winter spans year boundary
+  const winterStart = month <= 1 ? `${year - 1}-12-01` : `${year}-12-01`;
+  const winterEnd = month <= 1 ? `${year}-03-01` : `${year + 1}-03-01`;
+  return { label: "Winter", start: winterStart, end: winterEnd };
+}
+
+interface RecentMatch {
+  opponentName: string;
+  opponentElo: number;
+  won: boolean;
+  date: string;
+}
+
+function usePlayerMatches(userId: string, mode: MatchMode, isExpanded: boolean) {
+  const [recent, setRecent] = useState<RecentMatch[]>([]);
+  const [bestWin, setBestWin] = useState<RecentMatch | null>(null);
+  const [loading, setLoading] = useState(false);
+  const fetchedRef = useRef<string | null>(null);
+
+  useEffect(() => {
+    if (!isExpanded || fetchedRef.current === userId) return;
+    fetchedRef.current = userId;
+    setLoading(true);
+
+    const season = getSeasonRange();
+
+    (async () => {
+      // Fetch last 5 confirmed matches
+      const { data: matches } = await supabase
+        .from("matches")
+        .select("*")
+        .eq("mode", mode)
+        .eq("status", "confirmed")
+        .or(`player1_id.eq.${userId},player2_id.eq.${userId}`)
+        .order("created_at", { ascending: false })
+        .limit(5);
+
+      if (!matches || matches.length === 0) {
+        setRecent([]);
+        setBestWin(null);
+        setLoading(false);
+        return;
+      }
+
+      // Gather opponent IDs
+      const opponentIds = [...new Set(matches.map((m: Match) =>
+        m.player1_id === userId ? m.player2_id : m.player1_id
+      ))];
+
+      const [profilesRes, ratingsRes] = await Promise.all([
+        supabase.from("profiles").select("id, username").in("id", opponentIds),
+        supabase.from("ladder_ratings").select("user_id, elo_rating").eq("mode", mode).in("user_id", opponentIds),
+      ]);
+
+      const profileMap = new Map((profilesRes.data || []).map((p: { id: string; username: string }) => [p.id, p.username]));
+      const ratingMap = new Map((ratingsRes.data || []).map((r: { user_id: string; elo_rating: number }) => [r.user_id, r.elo_rating]));
+
+      const recentList: RecentMatch[] = matches.map((m: Match) => {
+        const oppId = m.player1_id === userId ? m.player2_id : m.player1_id;
+        return {
+          opponentName: profileMap.get(oppId) || "Unknown",
+          opponentElo: ratingMap.get(oppId) || 1200,
+          won: m.winner_id === userId,
+          date: m.created_at,
+        };
+      });
+
+      setRecent(recentList);
+
+      // Best win this season — fetch separately for the full season window
+      const { data: seasonMatches } = await supabase
+        .from("matches")
+        .select("*")
+        .eq("mode", mode)
+        .eq("status", "confirmed")
+        .eq("winner_id", userId)
+        .or(`player1_id.eq.${userId},player2_id.eq.${userId}`)
+        .gte("created_at", season.start)
+        .lt("created_at", season.end)
+        .order("created_at", { ascending: false })
+        .limit(20);
+
+      if (seasonMatches && seasonMatches.length > 0) {
+        const seasonOppIds = [...new Set(seasonMatches.map((m: Match) =>
+          m.player1_id === userId ? m.player2_id : m.player1_id
+        ))];
+
+        // Fetch any opponent profiles/ratings we don't already have
+        const missingIds = seasonOppIds.filter((id) => !profileMap.has(id));
+        if (missingIds.length > 0) {
+          const [moreProfiles, moreRatings] = await Promise.all([
+            supabase.from("profiles").select("id, username").in("id", missingIds),
+            supabase.from("ladder_ratings").select("user_id, elo_rating").eq("mode", mode).in("user_id", missingIds),
+          ]);
+          for (const p of moreProfiles.data || []) profileMap.set(p.id, p.username);
+          for (const r of moreRatings.data || []) ratingMap.set(r.user_id, r.elo_rating);
+        }
+
+        let best: RecentMatch | null = null;
+        for (const m of seasonMatches) {
+          const oppId = m.player1_id === userId ? m.player2_id : m.player1_id;
+          const oppElo = ratingMap.get(oppId) || 1200;
+          if (!best || oppElo > best.opponentElo) {
+            best = {
+              opponentName: profileMap.get(oppId) || "Unknown",
+              opponentElo: oppElo,
+              won: true,
+              date: m.created_at,
+            };
+          }
+        }
+        setBestWin(best);
+      } else {
+        setBestWin(null);
+      }
+
+      setLoading(false);
+    })();
+  }, [isExpanded, userId, mode]);
+
+  return { recent, bestWin, loading, seasonLabel: getSeasonRange().label };
+}
+
 function RankingRow({
   entry,
   rank,
@@ -489,6 +620,7 @@ function RankingRow({
   isExpanded,
   onToggle,
   showRank,
+  mode,
 }: {
   entry: LadderRankEntry;
   rank?: number;
@@ -496,15 +628,20 @@ function RankingRow({
   isExpanded: boolean;
   onToggle: () => void;
   showRank: boolean;
+  mode: MatchMode;
 }) {
+  const { recent, bestWin, loading: matchesLoading, seasonLabel } = usePlayerMatches(entry.user_id, mode, isExpanded);
+
   return (
-    <div>
+    <div className={`transition-all ${isExpanded ? "rounded-lg border border-border shadow-sm my-1 overflow-hidden" : ""}`}>
       <button
         onClick={onToggle}
-        className={`w-full grid grid-cols-[2rem_1fr_3rem_4rem_1rem] gap-x-2 px-3 py-2.5 text-[13px] items-center border-b border-border/50 transition-all text-left hover:shadow-sm hover:-translate-y-[1px] ${
-          isYou
-            ? "bg-green-50/60 hover:bg-green-50"
-            : "hover:bg-muted/50"
+        className={`w-full grid grid-cols-[2rem_1fr_3rem_4rem_1rem] gap-x-2 px-3 py-2.5 text-[13px] items-center transition-all text-left ${
+          isExpanded
+            ? isYou ? "bg-green-100/80" : "bg-muted/80"
+            : isYou
+              ? "bg-green-50/60 hover:bg-green-50 border-b border-border/50 hover:shadow-sm hover:-translate-y-[1px]"
+              : "hover:bg-muted/50 border-b border-border/50 hover:shadow-sm hover:-translate-y-[1px]"
         }`}
       >
         <span className="text-muted-foreground font-medium">{showRank && rank ? rank : "—"}</span>
@@ -518,7 +655,7 @@ function RankingRow({
       </button>
 
       {isExpanded && (
-        <div className={`px-3 py-3 border-b border-border/50 animate-unfold ${isYou ? "bg-green-50/40" : "bg-muted/30"}`}>
+        <div className={`px-3 py-3 animate-unfold ${isYou ? "bg-green-50/40" : "bg-muted/30"}`}>
           <div className="space-y-1.5 text-[13px]">
             <DetailRow label="Skill" value={entry.skill_level} />
             <DetailRow label="Record" value={`${entry.wins}W – ${entry.losses}L`} />
@@ -530,6 +667,50 @@ function RankingRow({
               </p>
             )}
           </div>
+
+          {/* Recent Matches */}
+          <div className="mt-3 pt-3 border-t border-border/30">
+            <p className="text-[11px] text-muted-foreground uppercase tracking-wider mb-2">Recent Matches</p>
+            {matchesLoading ? (
+              <p className="text-[12px] text-muted-foreground">Loading...</p>
+            ) : recent.length === 0 ? (
+              <p className="text-[12px] text-muted-foreground">No confirmed matches yet</p>
+            ) : (
+              <div className="space-y-1">
+                {recent.map((m, i) => (
+                  <div key={i} className="flex items-center justify-between text-[12px]">
+                    <div className="flex items-center gap-1.5 min-w-0">
+                      <span className={`text-[10px] font-bold w-4 shrink-0 ${m.won ? "text-green-600" : "text-red-500"}`}>
+                        {m.won ? "W" : "L"}
+                      </span>
+                      <span className="truncate">
+                        vs {m.opponentName}
+                      </span>
+                      <span className="text-muted-foreground/60 text-[10px] shrink-0">
+                        {m.opponentElo}
+                      </span>
+                    </div>
+                    <span className="text-muted-foreground text-[11px] shrink-0 ml-2">
+                      {formatDate(m.date)}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {/* Best Win This Season */}
+          {!matchesLoading && bestWin && (
+            <div className="mt-3 pt-3 border-t border-border/30">
+              <p className="text-[11px] text-muted-foreground uppercase tracking-wider mb-1.5">Best Win — {seasonLabel}</p>
+              <p className="text-[12px]">
+                <span className="text-green-600 font-bold text-[10px]">W</span>
+                {" "}vs <span className="font-medium">{bestWin.opponentName}</span>
+                <span className="text-muted-foreground/60 text-[10px] ml-1">{bestWin.opponentElo} ELO</span>
+                <span className="text-muted-foreground text-[11px] ml-2">{formatDate(bestWin.date)}</span>
+              </p>
+            </div>
+          )}
         </div>
       )}
     </div>
@@ -540,10 +721,12 @@ function RankingsTab({
   rankings,
   loading,
   currentUserId,
+  mode,
 }: {
   rankings: LadderRankEntry[];
   loading: boolean;
   currentUserId: string | undefined;
+  mode: MatchMode;
 }) {
   const [expandedId, setExpandedId] = useState<string | null>(null);
 
@@ -578,6 +761,7 @@ function RankingsTab({
               isExpanded={expandedId === entry.user_id}
               onToggle={() => setExpandedId(expandedId === entry.user_id ? null : entry.user_id)}
               showRank
+              mode={mode}
             />
           ))
         )}
@@ -596,6 +780,7 @@ function RankingsTab({
               isExpanded={expandedId === entry.user_id}
               onToggle={() => setExpandedId(expandedId === entry.user_id ? null : entry.user_id)}
               showRank={false}
+              mode={mode}
             />
           ))}
         </div>
@@ -661,11 +846,15 @@ function ProposalsTab({
                 const isExpanded = expandedId === p.id;
                 const isYours = p.creator_id === currentUserId;
                 return (
-                  <div key={p.id}>
+                  <div key={p.id} className={`transition-all ${isExpanded ? "rounded-lg border border-border shadow-sm my-1 overflow-hidden" : ""}`}>
                     <button
                       onClick={() => setExpandedId(isExpanded ? null : p.id)}
-                      className={`w-full grid grid-cols-[1fr_5rem_4.5rem_1rem] gap-x-2 px-3 py-2.5 text-[13px] items-center border-b border-border/50 transition-all text-left hover:shadow-sm hover:-translate-y-[1px] ${
-                        isYours ? "bg-green-50/60 hover:bg-green-50" : "hover:bg-muted/50"
+                      className={`w-full grid grid-cols-[1fr_5rem_4.5rem_1rem] gap-x-2 px-3 py-2.5 text-[13px] items-center transition-all text-left ${
+                        isExpanded
+                          ? isYours ? "bg-green-100/80" : "bg-muted/80"
+                          : isYours
+                            ? "bg-green-50/60 hover:bg-green-50 border-b border-border/50 hover:shadow-sm hover:-translate-y-[1px]"
+                            : "hover:bg-muted/50 border-b border-border/50 hover:shadow-sm hover:-translate-y-[1px]"
                       }`}
                     >
                       <span className="font-medium truncate">
@@ -680,7 +869,7 @@ function ProposalsTab({
                     </button>
 
                     {isExpanded && (
-                      <div className={`px-3 py-3 border-b border-border/50 animate-unfold ${isYours ? "bg-green-50/40" : "bg-muted/30"}`}>
+                      <div className={`px-3 py-3 animate-unfold ${isYours ? "bg-green-50/40" : "bg-muted/30"}`}>
                         <div className="space-y-1.5 text-[13px]">
                           <DetailRow label="Skill" value={p.creator.skill_level} />
                           <DetailRow label="Park" value={p.park.name} />
@@ -740,11 +929,13 @@ function ProposalsTab({
                 const isAcceptor = p.accepted_by === currentUserId;
                 const isInvolved = isOwner || isAcceptor;
                 return (
-                  <div key={p.id}>
+                  <div key={p.id} className={`transition-all ${isExpanded ? "rounded-lg border border-border shadow-sm my-1 overflow-hidden opacity-100" : ""}`}>
                     <button
                       onClick={() => setExpandedId(isExpanded ? null : p.id)}
-                      className={`w-full grid grid-cols-[1fr_5rem_4.5rem_1rem] gap-x-2 px-3 py-2.5 text-[13px] items-center border-b border-border/50 transition-all text-left opacity-70 hover:shadow-sm hover:-translate-y-[1px] ${
-                        isInvolved ? "bg-green-50/40 hover:bg-green-50" : "hover:bg-muted/50"
+                      className={`w-full grid grid-cols-[1fr_5rem_4.5rem_1rem] gap-x-2 px-3 py-2.5 text-[13px] items-center transition-all text-left ${
+                        isExpanded
+                          ? isInvolved ? "bg-green-100/80" : "bg-muted/80"
+                          : `opacity-70 border-b border-border/50 hover:shadow-sm hover:-translate-y-[1px] ${isInvolved ? "bg-green-50/40 hover:bg-green-50" : "hover:bg-muted/50"}`
                       }`}
                     >
                       <span className="font-medium truncate">
@@ -759,7 +950,7 @@ function ProposalsTab({
                     </button>
 
                     {isExpanded && (
-                      <div className={`px-3 py-3 border-b border-border/50 animate-unfold ${isInvolved ? "bg-green-50/40" : "bg-muted/30"}`}>
+                      <div className={`px-3 py-3 animate-unfold ${isInvolved ? "bg-green-50/40" : "bg-muted/30"}`}>
                         <div className="space-y-1.5 text-[13px]">
                           <DetailRow label="Skill" value={p.creator.skill_level} />
                           <DetailRow label="Park" value={p.park.name} />
@@ -981,11 +1172,13 @@ function MatchesTab({
         const isLoss = m.status === "confirmed" && m.winner_id && m.winner_id !== currentUserId;
 
         return (
-          <div key={m.id}>
+          <div key={m.id} className={`transition-all ${isExpanded ? "rounded-lg border border-border shadow-sm my-1 overflow-hidden" : ""}`}>
             <button
               onClick={() => setExpandedId(isExpanded ? null : m.id)}
-              className={`w-full grid grid-cols-[1fr_5rem_4.5rem_1rem] gap-x-2 px-3 py-2.5 text-[13px] items-center border-b border-border/50 transition-all text-left hover:shadow-sm hover:-translate-y-[1px] ${
-                isWin ? "bg-green-50/60 hover:bg-green-50" : isLoss ? "bg-red-50/30 hover:bg-red-50/50" : "hover:bg-muted/50"
+              className={`w-full grid grid-cols-[1fr_5rem_4.5rem_1rem] gap-x-2 px-3 py-2.5 text-[13px] items-center transition-all text-left ${
+                isExpanded
+                  ? isWin ? "bg-green-100/80" : isLoss ? "bg-red-100/60" : "bg-muted/80"
+                  : `border-b border-border/50 hover:shadow-sm hover:-translate-y-[1px] ${isWin ? "bg-green-50/60 hover:bg-green-50" : isLoss ? "bg-red-50/30 hover:bg-red-50/50" : "hover:bg-muted/50"}`
               }`}
             >
               <span className="font-medium truncate">
@@ -1001,7 +1194,7 @@ function MatchesTab({
             </button>
 
             {isExpanded && (
-              <div className={`px-3 py-3 border-b border-border/50 animate-unfold ${isWin ? "bg-green-50/40" : isLoss ? "bg-red-50/20" : "bg-muted/30"}`}>
+              <div className={`px-3 py-3 animate-unfold ${isWin ? "bg-green-50/40" : isLoss ? "bg-red-50/20" : "bg-muted/30"}`}>
                 <div className="space-y-1.5 text-[13px]">
                   <DetailRow label="Park" value={m.park.name} />
                   <DetailRow label="Date" value={formatDateTime(m.created_at)} />
