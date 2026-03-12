@@ -12,6 +12,7 @@ import {
   useMyMatches,
   useTierPreviews,
   useSignupCounts,
+  useSignupTeams,
   type TierPreview,
 } from "@/lib/ladder-hooks";
 import { Button } from "@/components/ui/button";
@@ -1020,6 +1021,10 @@ function DoublesProposalsTab({
   const proposalIds = proposals.map((p) => p.id);
   const { counts } = useSignupCounts(proposalIds);
 
+  // Fetch team names for matched proposals
+  const acceptedIds = proposals.filter((p) => p.status === "accepted").map((p) => p.id);
+  const { teams } = useSignupTeams(acceptedIds);
+
   if (loading) return <LoadingState text="Loading doubles proposals..." />;
 
   const active = proposals.filter((p) => ["open", "forming", "pairing"].includes(p.status));
@@ -1105,20 +1110,33 @@ function DoublesProposalsTab({
               <p className="text-[11px] text-muted-foreground uppercase tracking-wider px-3 pb-2 border-b">
                 Matched
               </p>
-              {accepted.slice(0, 5).map((p) => (
-                <button
-                  key={p.id}
-                  onClick={() => onViewProposal(p.id)}
-                  className="w-full grid grid-cols-[1fr_3rem_4.5rem_1rem] gap-x-2 px-3 py-2.5 text-[13px] items-center border-b border-border/50 transition-all text-left opacity-60 hover:bg-muted/50 hover:shadow-sm hover:-translate-y-[1px]"
-                >
-                  <span className="font-medium truncate">{p.creator.username}</span>
-                  <span className="text-center font-semibold tabular-nums">4/4</span>
-                  <span className="text-right">
-                    <span className="text-[10px] text-green-700 bg-green-50 border border-green-200 rounded-full px-1.5 py-0.5">Matched</span>
-                  </span>
-                  <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-muted-foreground/50"><path d="m9 18 6-6-6-6"/></svg>
-                </button>
-              ))}
+              {accepted.slice(0, 5).map((p) => {
+                const t = teams[p.id];
+                const teamANames = t ? t.teamA.join(" & ") : p.creator.username;
+                const teamBNames = t ? t.teamB.join(" & ") : "";
+
+                return (
+                  <button
+                    key={p.id}
+                    onClick={() => onViewProposal(p.id)}
+                    className="w-full grid grid-cols-[1fr_4.5rem_1rem] gap-x-2 px-3 py-2.5 text-[13px] items-center border-b border-border/50 transition-all text-left opacity-60 hover:bg-muted/50 hover:shadow-sm hover:-translate-y-[1px]"
+                  >
+                    <div className="truncate">
+                      <span className="font-medium">{teamANames}</span>
+                      {teamBNames && (
+                        <>
+                          <span className="text-muted-foreground mx-1.5">vs</span>
+                          <span className="font-medium">{teamBNames}</span>
+                        </>
+                      )}
+                    </div>
+                    <span className="text-right">
+                      <span className="text-[10px] text-green-700 bg-green-50 border border-green-200 rounded-full px-1.5 py-0.5">Matched</span>
+                    </span>
+                    <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-muted-foreground/50"><path d="m9 18 6-6-6-6"/></svg>
+                  </button>
+                );
+              })}
             </div>
           )}
         </div>
