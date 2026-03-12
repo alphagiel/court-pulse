@@ -515,6 +515,38 @@ function ProposalDetailInner() {
           </Card>
         )}
 
+        {/* Contact info (pairing + accepted — only visible to participants) */}
+        {(isPairing || proposal.status === "accepted") && courtPlayers.length === 4 && isSignedUp && (
+          <Card>
+            <CardContent className="pt-5 space-y-3">
+              <div className="flex items-center gap-2">
+                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-muted-foreground"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"/></svg>
+                <h3 className="text-[14px] font-semibold">Contact Info</h3>
+              </div>
+              <p className="text-[11px] text-muted-foreground">Need to coordinate? Here&apos;s how to reach everyone.</p>
+              <div className="rounded-lg border border-border bg-muted/30 divide-y divide-border">
+                {signups.map((s) => (
+                  <div key={s.id} className="flex items-center justify-between px-3 py-2">
+                    <div className="flex items-center gap-2">
+                      <div className="w-6 h-6 rounded-full bg-green-100 text-green-700 flex items-center justify-center text-[10px] font-bold">
+                        {s.profile.username.charAt(0).toUpperCase()}
+                      </div>
+                      <span className="text-[13px] font-medium">{s.profile.username}</span>
+                    </div>
+                    {s.profile.email ? (
+                      <a href={`mailto:${s.profile.email}`} className="text-[12px] text-green-700 hover:underline">
+                        {s.profile.email}
+                      </a>
+                    ) : (
+                      <span className="text-[11px] text-muted-foreground italic">No email</span>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </CardContent>
+          </Card>
+        )}
+
         {/* Cancel (creator only, not yet accepted) */}
         {isCreator && proposal.status !== "accepted" && (
           <Button

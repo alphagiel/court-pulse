@@ -56,6 +56,7 @@ export default function SetupPage() {
     const { error: insertError } = await supabase.from("profiles").insert({
       id: user.id,
       username: trimmed,
+      email: user.email || null,
       skill_level: skillLevel,
     });
 
