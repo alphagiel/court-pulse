@@ -176,7 +176,18 @@ export function useLadderRankings(tier: SkillTier, mode: MatchMode = "singles") 
     setLoading(false);
   }, [tier, mode]);
 
-  useEffect(() => { fetch(); }, [fetch]);
+  useEffect(() => {
+    fetch();
+
+    const channel = supabase
+      .channel(`rankings_changes_${mode}`)
+      .on("postgres_changes", { event: "*", schema: "public", table: "ladder_ratings" }, () => {
+        fetch();
+      })
+      .subscribe();
+
+    return () => { supabase.removeChannel(channel); };
+  }, [fetch, mode]);
 
   return { rankings, loading, refetch: fetch };
 }

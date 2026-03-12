@@ -76,13 +76,45 @@ function LadderPageInner() {
   // State
   const tierFromUrl = searchParams.get("tier") as SkillTier | null;
   const modeFromUrl = searchParams.get("mode") as MatchMode | null;
+  const tabFromUrl = searchParams.get("tab") as Tab | null;
   const [selectedTier, setSelectedTier] = useState<SkillTier | null>(
     tierFromUrl && ["beginner", "intermediate", "advanced"].includes(tierFromUrl) ? tierFromUrl : null
   );
   const [mode, setMode] = useState<MatchMode>(modeFromUrl === "doubles" ? "doubles" : "singles");
-  const [tab, setTab] = useState<Tab>("rankings");
+  const [tab, setTab] = useState<Tab>(
+    tabFromUrl && ["rankings", "proposals", "matches"].includes(tabFromUrl) ? tabFromUrl : "rankings"
+  );
   const [registering, setRegistering] = useState(false);
   const [actionId, setActionId] = useState<string | null>(null);
+
+  // Sync URL with current state (replace, not push, to avoid polluting history)
+  const updateUrl = (newTier: SkillTier | null, newMode: MatchMode, newTab: Tab) => {
+    const params = new URLSearchParams();
+    if (newTier) params.set("tier", newTier);
+    if (newMode !== "singles") params.set("mode", newMode);
+    if (newTier && newTab !== "rankings") params.set("tab", newTab);
+    const qs = params.toString();
+    router.replace(`/ladder${qs ? `?${qs}` : ""}`, { scroll: false });
+  };
+
+  const handleSetTier = (tier: SkillTier | null, defaultTab?: Tab) => {
+    const newTab = defaultTab || "rankings";
+    setSelectedTier(tier);
+    setTab(newTab);
+    updateUrl(tier, mode, newTab);
+  };
+
+  const handleSetMode = (newMode: MatchMode, defaultTab?: Tab) => {
+    const newTab = defaultTab || "rankings";
+    setMode(newMode);
+    setTab(newTab);
+    updateUrl(selectedTier, newMode, newTab);
+  };
+
+  const handleSetTab = (newTab: Tab) => {
+    setTab(newTab);
+    updateUrl(selectedTier, mode, newTab);
+  };
 
   // Hooks — mode-aware
   const activeTier = selectedTier || userTier;
@@ -233,7 +265,7 @@ function LadderPageInner() {
           {/* Mode selection */}
           <div className="grid grid-cols-2 gap-3">
             <button
-              onClick={() => setMode("singles")}
+              onClick={() => handleSetMode("singles")}
               className={`flex flex-col items-center gap-1.5 rounded-xl border p-4 shadow-sm transition-colors ${
                 mode === "singles"
                   ? "border-green-400 bg-green-50 dark:bg-green-950/20"
@@ -245,7 +277,7 @@ function LadderPageInner() {
               <span className="text-[12px] text-muted-foreground">1 v 1</span>
             </button>
             <button
-              onClick={() => setMode("doubles")}
+              onClick={() => handleSetMode("doubles")}
               className={`flex flex-col items-center gap-1.5 rounded-xl border p-4 shadow-sm transition-colors ${
                 mode === "doubles"
                   ? "border-green-400 bg-green-50 dark:bg-green-950/20"
@@ -269,8 +301,7 @@ function LadderPageInner() {
                   preview={preview}
                   isUserTier={preview.tier === userTier}
                   onSelect={() => {
-                    setSelectedTier(preview.tier);
-                    setTab(isDoubles ? "proposals" : "rankings");
+                    handleSetTier(preview.tier, isDoubles ? "proposals" : "rankings");
                   }}
                 />
               ))}
@@ -291,13 +322,13 @@ function LadderPageInner() {
             ? `${rankings.find(r => r.user_id === userId)?.elo_rating || "—"} ELO`
             : `${TIER_RANGE[selectedTier]} · View only`
           }
-          onBack={() => setSelectedTier(null)}
+          onBack={() => handleSetTier(null)}
         />
 
         {/* Mode toggle (compact) */}
         <div className="flex rounded-lg border border-border overflow-hidden">
           <button
-            onClick={() => { setMode("singles"); setTab("rankings"); }}
+            onClick={() => handleSetMode("singles")}
             className={`flex-1 py-2 text-[13px] font-medium transition-colors ${
               mode === "singles"
                 ? "bg-green-600 text-white"
@@ -307,7 +338,7 @@ function LadderPageInner() {
             Singles
           </button>
           <button
-            onClick={() => { setMode("doubles"); setTab("rankings"); }}
+            onClick={() => handleSetMode("doubles")}
             className={`flex-1 py-2 text-[13px] font-medium transition-colors ${
               mode === "doubles"
                 ? "bg-green-600 text-white"
@@ -333,7 +364,7 @@ function LadderPageInner() {
             return (
               <button
                 key={t}
-                onClick={() => setTab(t)}
+                onClick={() => handleSetTab(t)}
                 className={`flex-1 text-[13px] font-medium py-2 rounded-md transition-colors capitalize ${
                   tab === t
                     ? "bg-background text-foreground shadow-sm"
@@ -358,7 +389,7 @@ function LadderPageInner() {
             onAccept={handleAcceptProposal}
             onCancel={handleCancelProposal}
             actionId={actionId}
-            onCreateNew={() => router.push(`/ladder/proposals/new?tier=${selectedTier}`)}
+            onCreateNew={() => router.push(`/ladder/proposals/new?tier=${selectedTier}&tab=proposals`)}
             readOnly={isReadOnly}
           />
         )}
@@ -367,8 +398,8 @@ function LadderPageInner() {
             proposals={proposals}
             loading={proposalsLoading}
             currentUserId={userId!}
-            onCreateNew={() => router.push(`/ladder/proposals/new?tier=${selectedTier}&mode=doubles`)}
-            onViewProposal={(id) => router.push(`/ladder/proposals/${id}?tier=${selectedTier}`)}
+            onCreateNew={() => router.push(`/ladder/proposals/new?tier=${selectedTier}&mode=doubles&tab=proposals`)}
+            onViewProposal={(id) => router.push(`/ladder/proposals/${id}?tier=${selectedTier}&mode=doubles&tab=proposals`)}
             readOnly={isReadOnly}
           />
         )}
@@ -377,7 +408,7 @@ function LadderPageInner() {
             matches={matches}
             loading={matchesLoading}
             currentUserId={userId!}
-            onViewMatch={(id) => router.push(`/ladder/match/${id}?tier=${selectedTier}`)}
+            onViewMatch={(id) => router.push(`/ladder/match/${id}?tier=${selectedTier}&tab=matches`)}
           />
         )}
         {tab === "matches" && !isReadOnly && isDoubles && (
@@ -385,7 +416,7 @@ function LadderPageInner() {
             matches={matches}
             loading={matchesLoading}
             currentUserId={userId!}
-            onViewMatch={(id) => router.push(`/ladder/match/${id}?tier=${selectedTier}`)}
+            onViewMatch={(id) => router.push(`/ladder/match/${id}?tier=${selectedTier}&mode=doubles&tab=matches`)}
           />
         )}
       </div>
