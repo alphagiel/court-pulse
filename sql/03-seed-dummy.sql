@@ -286,119 +286,237 @@ SELECT
 FROM generate_series(1, 90) AS i
 ON CONFLICT (user_id) DO NOTHING;
 
--- Beginner 2.5: ELO 650-900
-INSERT INTO ladder_ratings (user_id, elo_rating, wins, losses, last_played, season) VALUES
-  ('00000000-0000-0000-0000-000000000001', 880, 8, 4, NOW() - interval '1 day', '2026-spring'),
-  ('00000000-0000-0000-0000-000000000002', 850, 7, 5, NOW() - interval '2 days', '2026-spring'),
-  ('00000000-0000-0000-0000-000000000003', 720, 3, 6, NOW() - interval '3 days', '2026-spring'),
-  ('00000000-0000-0000-0000-000000000004', 810, 6, 4, NOW() - interval '1 day', '2026-spring'),
-  ('00000000-0000-0000-0000-000000000005', 760, 4, 5, NOW() - interval '5 days', '2026-spring'),
-  ('00000000-0000-0000-0000-000000000006', 690, 2, 7, NOW() - interval '4 days', '2026-spring'),
-  ('00000000-0000-0000-0000-000000000007', 830, 7, 3, NOW() - interval '2 days', '2026-spring'),
-  ('00000000-0000-0000-0000-000000000008', 770, 5, 5, NOW() - interval '6 days', '2026-spring'),
-  ('00000000-0000-0000-0000-000000000009', 900, 9, 2, NOW() - interval '1 day', '2026-spring'),
-  ('00000000-0000-0000-0000-000000000010', 740, 3, 4, NOW() - interval '3 days', '2026-spring'),
-  ('00000000-0000-0000-0000-000000000011', 680, 1, 5, NULL, '2026-spring'),
-  ('00000000-0000-0000-0000-000000000012', 800, 5, 3, NOW() - interval '2 days', '2026-spring'),
-  ('00000000-0000-0000-0000-000000000013', 860, 8, 3, NOW() - interval '1 day', '2026-spring'),
-  ('00000000-0000-0000-0000-000000000014', 790, 4, 4, NOW() - interval '7 days', '2026-spring'),
-  ('00000000-0000-0000-0000-000000000015', 650, 1, 8, NOW() - interval '5 days', '2026-spring')
-ON CONFLICT (user_id) DO NOTHING;
+-- Beginner 2.5: ELO 650-900 (singles)
+INSERT INTO ladder_ratings (user_id, elo_rating, wins, losses, last_played, season, mode) VALUES
+  ('00000000-0000-0000-0000-000000000001', 880, 8, 4, NOW() - interval '1 day', '2026-spring', 'singles'),
+  ('00000000-0000-0000-0000-000000000002', 850, 7, 5, NOW() - interval '2 days', '2026-spring', 'singles'),
+  ('00000000-0000-0000-0000-000000000003', 720, 3, 6, NOW() - interval '3 days', '2026-spring', 'singles'),
+  ('00000000-0000-0000-0000-000000000004', 810, 6, 4, NOW() - interval '1 day', '2026-spring', 'singles'),
+  ('00000000-0000-0000-0000-000000000005', 760, 4, 5, NOW() - interval '5 days', '2026-spring', 'singles'),
+  ('00000000-0000-0000-0000-000000000006', 690, 2, 7, NOW() - interval '4 days', '2026-spring', 'singles'),
+  ('00000000-0000-0000-0000-000000000007', 830, 7, 3, NOW() - interval '2 days', '2026-spring', 'singles'),
+  ('00000000-0000-0000-0000-000000000008', 770, 5, 5, NOW() - interval '6 days', '2026-spring', 'singles'),
+  ('00000000-0000-0000-0000-000000000009', 900, 9, 2, NOW() - interval '1 day', '2026-spring', 'singles'),
+  ('00000000-0000-0000-0000-000000000010', 740, 3, 4, NOW() - interval '3 days', '2026-spring', 'singles'),
+  ('00000000-0000-0000-0000-000000000011', 680, 1, 5, NULL, '2026-spring', 'singles'),
+  ('00000000-0000-0000-0000-000000000012', 800, 5, 3, NOW() - interval '2 days', '2026-spring', 'singles'),
+  ('00000000-0000-0000-0000-000000000013', 860, 8, 3, NOW() - interval '1 day', '2026-spring', 'singles'),
+  ('00000000-0000-0000-0000-000000000014', 790, 4, 4, NOW() - interval '7 days', '2026-spring', 'singles'),
+  ('00000000-0000-0000-0000-000000000015', 650, 1, 8, NOW() - interval '5 days', '2026-spring', 'singles')
+ON CONFLICT (user_id, mode) DO NOTHING;
 
--- Beginner 3.0: ELO 900-1100
-INSERT INTO ladder_ratings (user_id, elo_rating, wins, losses, last_played, season) VALUES
-  ('00000000-0000-0000-0000-000000000016', 1080, 10, 3, NOW() - interval '1 day', '2026-spring'),
-  ('00000000-0000-0000-0000-000000000017', 1050, 9, 4, NOW() - interval '2 days', '2026-spring'),
-  ('00000000-0000-0000-0000-000000000018', 980, 6, 5, NOW() - interval '1 day', '2026-spring'),
-  ('00000000-0000-0000-0000-000000000019', 1020, 8, 4, NOW() - interval '3 days', '2026-spring'),
-  ('00000000-0000-0000-0000-000000000020', 940, 5, 6, NOW() - interval '4 days', '2026-spring'),
-  ('00000000-0000-0000-0000-000000000021', 1100, 12, 2, NOW() - interval '1 day', '2026-spring'),
-  ('00000000-0000-0000-0000-000000000022', 960, 7, 6, NOW() - interval '2 days', '2026-spring'),
-  ('00000000-0000-0000-0000-000000000023', 910, 4, 5, NOW() - interval '5 days', '2026-spring'),
-  ('00000000-0000-0000-0000-000000000024', 1000, 7, 4, NOW() - interval '2 days', '2026-spring'),
-  ('00000000-0000-0000-0000-000000000025', 970, 6, 5, NOW() - interval '3 days', '2026-spring'),
-  ('00000000-0000-0000-0000-000000000026', 930, 4, 4, NOW() - interval '6 days', '2026-spring'),
-  ('00000000-0000-0000-0000-000000000027', 1060, 9, 3, NOW() - interval '1 day', '2026-spring'),
-  ('00000000-0000-0000-0000-000000000028', 900, 3, 5, NOW() - interval '4 days', '2026-spring'),
-  ('00000000-0000-0000-0000-000000000029', 1040, 8, 3, NOW() - interval '2 days', '2026-spring'),
-  ('00000000-0000-0000-0000-000000000030', 990, 6, 4, NOW() - interval '3 days', '2026-spring')
-ON CONFLICT (user_id) DO NOTHING;
+-- Beginner 3.0: ELO 900-1100 (singles)
+INSERT INTO ladder_ratings (user_id, elo_rating, wins, losses, last_played, season, mode) VALUES
+  ('00000000-0000-0000-0000-000000000016', 1080, 10, 3, NOW() - interval '1 day', '2026-spring', 'singles'),
+  ('00000000-0000-0000-0000-000000000017', 1050, 9, 4, NOW() - interval '2 days', '2026-spring', 'singles'),
+  ('00000000-0000-0000-0000-000000000018', 980, 6, 5, NOW() - interval '1 day', '2026-spring', 'singles'),
+  ('00000000-0000-0000-0000-000000000019', 1020, 8, 4, NOW() - interval '3 days', '2026-spring', 'singles'),
+  ('00000000-0000-0000-0000-000000000020', 940, 5, 6, NOW() - interval '4 days', '2026-spring', 'singles'),
+  ('00000000-0000-0000-0000-000000000021', 1100, 12, 2, NOW() - interval '1 day', '2026-spring', 'singles'),
+  ('00000000-0000-0000-0000-000000000022', 960, 7, 6, NOW() - interval '2 days', '2026-spring', 'singles'),
+  ('00000000-0000-0000-0000-000000000023', 910, 4, 5, NOW() - interval '5 days', '2026-spring', 'singles'),
+  ('00000000-0000-0000-0000-000000000024', 1000, 7, 4, NOW() - interval '2 days', '2026-spring', 'singles'),
+  ('00000000-0000-0000-0000-000000000025', 970, 6, 5, NOW() - interval '3 days', '2026-spring', 'singles'),
+  ('00000000-0000-0000-0000-000000000026', 930, 4, 4, NOW() - interval '6 days', '2026-spring', 'singles'),
+  ('00000000-0000-0000-0000-000000000027', 1060, 9, 3, NOW() - interval '1 day', '2026-spring', 'singles'),
+  ('00000000-0000-0000-0000-000000000028', 900, 3, 5, NOW() - interval '4 days', '2026-spring', 'singles'),
+  ('00000000-0000-0000-0000-000000000029', 1040, 8, 3, NOW() - interval '2 days', '2026-spring', 'singles'),
+  ('00000000-0000-0000-0000-000000000030', 990, 6, 4, NOW() - interval '3 days', '2026-spring', 'singles')
+ON CONFLICT (user_id, mode) DO NOTHING;
 
--- Intermediate 3.5: ELO 1100-1350
-INSERT INTO ladder_ratings (user_id, elo_rating, wins, losses, last_played, season) VALUES
-  ('00000000-0000-0000-0000-000000000031', 1320, 14, 4, NOW() - interval '1 day', '2026-spring'),
-  ('00000000-0000-0000-0000-000000000032', 1280, 12, 5, NOW() - interval '1 day', '2026-spring'),
-  ('00000000-0000-0000-0000-000000000033', 1200, 8, 6, NOW() - interval '2 days', '2026-spring'),
-  ('00000000-0000-0000-0000-000000000034', 1250, 10, 5, NOW() - interval '3 days', '2026-spring'),
-  ('00000000-0000-0000-0000-000000000035', 1180, 7, 5, NOW() - interval '2 days', '2026-spring'),
-  ('00000000-0000-0000-0000-000000000036', 1150, 6, 6, NOW() - interval '4 days', '2026-spring'),
-  ('00000000-0000-0000-0000-000000000037', 1300, 13, 4, NOW() - interval '1 day', '2026-spring'),
-  ('00000000-0000-0000-0000-000000000038', 1220, 9, 5, NOW() - interval '2 days', '2026-spring'),
-  ('00000000-0000-0000-0000-000000000039', 1130, 5, 5, NOW() - interval '5 days', '2026-spring'),
-  ('00000000-0000-0000-0000-000000000040', 1260, 11, 4, NOW() - interval '1 day', '2026-spring'),
-  ('00000000-0000-0000-0000-000000000041', 1170, 7, 6, NOW() - interval '3 days', '2026-spring'),
-  ('00000000-0000-0000-0000-000000000042', 1350, 15, 3, NOW() - interval '1 day', '2026-spring'),
-  ('00000000-0000-0000-0000-000000000043', 1190, 8, 5, NOW() - interval '4 days', '2026-spring'),
-  ('00000000-0000-0000-0000-000000000044', 1240, 10, 6, NOW() - interval '2 days', '2026-spring'),
-  ('00000000-0000-0000-0000-000000000045', 1100, 4, 6, NOW() - interval '6 days', '2026-spring')
-ON CONFLICT (user_id) DO NOTHING;
+-- Intermediate 3.5: ELO 1100-1350 (singles)
+INSERT INTO ladder_ratings (user_id, elo_rating, wins, losses, last_played, season, mode) VALUES
+  ('00000000-0000-0000-0000-000000000031', 1320, 14, 4, NOW() - interval '1 day', '2026-spring', 'singles'),
+  ('00000000-0000-0000-0000-000000000032', 1280, 12, 5, NOW() - interval '1 day', '2026-spring', 'singles'),
+  ('00000000-0000-0000-0000-000000000033', 1200, 8, 6, NOW() - interval '2 days', '2026-spring', 'singles'),
+  ('00000000-0000-0000-0000-000000000034', 1250, 10, 5, NOW() - interval '3 days', '2026-spring', 'singles'),
+  ('00000000-0000-0000-0000-000000000035', 1180, 7, 5, NOW() - interval '2 days', '2026-spring', 'singles'),
+  ('00000000-0000-0000-0000-000000000036', 1150, 6, 6, NOW() - interval '4 days', '2026-spring', 'singles'),
+  ('00000000-0000-0000-0000-000000000037', 1300, 13, 4, NOW() - interval '1 day', '2026-spring', 'singles'),
+  ('00000000-0000-0000-0000-000000000038', 1220, 9, 5, NOW() - interval '2 days', '2026-spring', 'singles'),
+  ('00000000-0000-0000-0000-000000000039', 1130, 5, 5, NOW() - interval '5 days', '2026-spring', 'singles'),
+  ('00000000-0000-0000-0000-000000000040', 1260, 11, 4, NOW() - interval '1 day', '2026-spring', 'singles'),
+  ('00000000-0000-0000-0000-000000000041', 1170, 7, 6, NOW() - interval '3 days', '2026-spring', 'singles'),
+  ('00000000-0000-0000-0000-000000000042', 1350, 15, 3, NOW() - interval '1 day', '2026-spring', 'singles'),
+  ('00000000-0000-0000-0000-000000000043', 1190, 8, 5, NOW() - interval '4 days', '2026-spring', 'singles'),
+  ('00000000-0000-0000-0000-000000000044', 1240, 10, 6, NOW() - interval '2 days', '2026-spring', 'singles'),
+  ('00000000-0000-0000-0000-000000000045', 1100, 4, 6, NOW() - interval '6 days', '2026-spring', 'singles')
+ON CONFLICT (user_id, mode) DO NOTHING;
 
--- Intermediate 4.0: ELO 1300-1550
-INSERT INTO ladder_ratings (user_id, elo_rating, wins, losses, last_played, season) VALUES
-  ('00000000-0000-0000-0000-000000000046', 1520, 16, 3, NOW() - interval '1 day', '2026-spring'),
-  ('00000000-0000-0000-0000-000000000047', 1480, 14, 4, NOW() - interval '1 day', '2026-spring'),
-  ('00000000-0000-0000-0000-000000000048', 1440, 13, 5, NOW() - interval '2 days', '2026-spring'),
-  ('00000000-0000-0000-0000-000000000049', 1400, 11, 5, NOW() - interval '2 days', '2026-spring'),
-  ('00000000-0000-0000-0000-000000000050', 1380, 10, 5, NOW() - interval '3 days', '2026-spring'),
-  ('00000000-0000-0000-0000-000000000051', 1550, 18, 2, NOW() - interval '1 day', '2026-spring'),
-  ('00000000-0000-0000-0000-000000000052', 1360, 9, 5, NOW() - interval '4 days', '2026-spring'),
-  ('00000000-0000-0000-0000-000000000053', 1420, 12, 4, NOW() - interval '2 days', '2026-spring'),
-  ('00000000-0000-0000-0000-000000000054', 1340, 8, 6, NOW() - interval '3 days', '2026-spring'),
-  ('00000000-0000-0000-0000-000000000055', 1460, 14, 4, NOW() - interval '1 day', '2026-spring'),
-  ('00000000-0000-0000-0000-000000000056', 1500, 15, 3, NOW() - interval '1 day', '2026-spring'),
-  ('00000000-0000-0000-0000-000000000057', 1300, 7, 6, NOW() - interval '5 days', '2026-spring'),
-  ('00000000-0000-0000-0000-000000000058', 1380, 10, 5, NOW() - interval '2 days', '2026-spring'),
-  ('00000000-0000-0000-0000-000000000059', 1320, 8, 5, NOW() - interval '4 days', '2026-spring'),
-  ('00000000-0000-0000-0000-000000000060', 1440, 12, 4, NOW() - interval '2 days', '2026-spring')
-ON CONFLICT (user_id) DO NOTHING;
+-- Intermediate 4.0: ELO 1300-1550 (singles)
+INSERT INTO ladder_ratings (user_id, elo_rating, wins, losses, last_played, season, mode) VALUES
+  ('00000000-0000-0000-0000-000000000046', 1520, 16, 3, NOW() - interval '1 day', '2026-spring', 'singles'),
+  ('00000000-0000-0000-0000-000000000047', 1480, 14, 4, NOW() - interval '1 day', '2026-spring', 'singles'),
+  ('00000000-0000-0000-0000-000000000048', 1440, 13, 5, NOW() - interval '2 days', '2026-spring', 'singles'),
+  ('00000000-0000-0000-0000-000000000049', 1400, 11, 5, NOW() - interval '2 days', '2026-spring', 'singles'),
+  ('00000000-0000-0000-0000-000000000050', 1380, 10, 5, NOW() - interval '3 days', '2026-spring', 'singles'),
+  ('00000000-0000-0000-0000-000000000051', 1550, 18, 2, NOW() - interval '1 day', '2026-spring', 'singles'),
+  ('00000000-0000-0000-0000-000000000052', 1360, 9, 5, NOW() - interval '4 days', '2026-spring', 'singles'),
+  ('00000000-0000-0000-0000-000000000053', 1420, 12, 4, NOW() - interval '2 days', '2026-spring', 'singles'),
+  ('00000000-0000-0000-0000-000000000054', 1340, 8, 6, NOW() - interval '3 days', '2026-spring', 'singles'),
+  ('00000000-0000-0000-0000-000000000055', 1460, 14, 4, NOW() - interval '1 day', '2026-spring', 'singles'),
+  ('00000000-0000-0000-0000-000000000056', 1500, 15, 3, NOW() - interval '1 day', '2026-spring', 'singles'),
+  ('00000000-0000-0000-0000-000000000057', 1300, 7, 6, NOW() - interval '5 days', '2026-spring', 'singles'),
+  ('00000000-0000-0000-0000-000000000058', 1380, 10, 5, NOW() - interval '2 days', '2026-spring', 'singles'),
+  ('00000000-0000-0000-0000-000000000059', 1320, 8, 5, NOW() - interval '4 days', '2026-spring', 'singles'),
+  ('00000000-0000-0000-0000-000000000060', 1440, 12, 4, NOW() - interval '2 days', '2026-spring', 'singles')
+ON CONFLICT (user_id, mode) DO NOTHING;
 
--- Advanced 4.5: ELO 1500-1750
-INSERT INTO ladder_ratings (user_id, elo_rating, wins, losses, last_played, season) VALUES
-  ('00000000-0000-0000-0000-000000000061', 1720, 20, 3, NOW() - interval '1 day', '2026-spring'),
-  ('00000000-0000-0000-0000-000000000062', 1680, 18, 4, NOW() - interval '1 day', '2026-spring'),
-  ('00000000-0000-0000-0000-000000000063', 1650, 16, 5, NOW() - interval '2 days', '2026-spring'),
-  ('00000000-0000-0000-0000-000000000064', 1600, 14, 5, NOW() - interval '2 days', '2026-spring'),
-  ('00000000-0000-0000-0000-000000000065', 1580, 13, 5, NOW() - interval '3 days', '2026-spring'),
-  ('00000000-0000-0000-0000-000000000066', 1750, 22, 2, NOW() - interval '1 day', '2026-spring'),
-  ('00000000-0000-0000-0000-000000000067', 1560, 12, 6, NOW() - interval '4 days', '2026-spring'),
-  ('00000000-0000-0000-0000-000000000068', 1620, 15, 4, NOW() - interval '2 days', '2026-spring'),
-  ('00000000-0000-0000-0000-000000000069', 1540, 11, 5, NOW() - interval '3 days', '2026-spring'),
-  ('00000000-0000-0000-0000-000000000070', 1700, 19, 3, NOW() - interval '1 day', '2026-spring'),
-  ('00000000-0000-0000-0000-000000000071', 1500, 10, 7, NOW() - interval '5 days', '2026-spring'),
-  ('00000000-0000-0000-0000-000000000072', 1640, 16, 4, NOW() - interval '1 day', '2026-spring'),
-  ('00000000-0000-0000-0000-000000000073', 1570, 13, 5, NOW() - interval '3 days', '2026-spring'),
-  ('00000000-0000-0000-0000-000000000074', 1520, 11, 6, NOW() - interval '4 days', '2026-spring'),
-  ('00000000-0000-0000-0000-000000000075', 1610, 15, 5, NOW() - interval '2 days', '2026-spring')
-ON CONFLICT (user_id) DO NOTHING;
+-- Advanced 4.5: ELO 1500-1750 (singles)
+INSERT INTO ladder_ratings (user_id, elo_rating, wins, losses, last_played, season, mode) VALUES
+  ('00000000-0000-0000-0000-000000000061', 1720, 20, 3, NOW() - interval '1 day', '2026-spring', 'singles'),
+  ('00000000-0000-0000-0000-000000000062', 1680, 18, 4, NOW() - interval '1 day', '2026-spring', 'singles'),
+  ('00000000-0000-0000-0000-000000000063', 1650, 16, 5, NOW() - interval '2 days', '2026-spring', 'singles'),
+  ('00000000-0000-0000-0000-000000000064', 1600, 14, 5, NOW() - interval '2 days', '2026-spring', 'singles'),
+  ('00000000-0000-0000-0000-000000000065', 1580, 13, 5, NOW() - interval '3 days', '2026-spring', 'singles'),
+  ('00000000-0000-0000-0000-000000000066', 1750, 22, 2, NOW() - interval '1 day', '2026-spring', 'singles'),
+  ('00000000-0000-0000-0000-000000000067', 1560, 12, 6, NOW() - interval '4 days', '2026-spring', 'singles'),
+  ('00000000-0000-0000-0000-000000000068', 1620, 15, 4, NOW() - interval '2 days', '2026-spring', 'singles'),
+  ('00000000-0000-0000-0000-000000000069', 1540, 11, 5, NOW() - interval '3 days', '2026-spring', 'singles'),
+  ('00000000-0000-0000-0000-000000000070', 1700, 19, 3, NOW() - interval '1 day', '2026-spring', 'singles'),
+  ('00000000-0000-0000-0000-000000000071', 1500, 10, 7, NOW() - interval '5 days', '2026-spring', 'singles'),
+  ('00000000-0000-0000-0000-000000000072', 1640, 16, 4, NOW() - interval '1 day', '2026-spring', 'singles'),
+  ('00000000-0000-0000-0000-000000000073', 1570, 13, 5, NOW() - interval '3 days', '2026-spring', 'singles'),
+  ('00000000-0000-0000-0000-000000000074', 1520, 11, 6, NOW() - interval '4 days', '2026-spring', 'singles'),
+  ('00000000-0000-0000-0000-000000000075', 1610, 15, 5, NOW() - interval '2 days', '2026-spring', 'singles')
+ON CONFLICT (user_id, mode) DO NOTHING;
 
--- Advanced 5.0: ELO 1700-1950
-INSERT INTO ladder_ratings (user_id, elo_rating, wins, losses, last_played, season) VALUES
-  ('00000000-0000-0000-0000-000000000076', 1920, 24, 2, NOW() - interval '1 day', '2026-spring'),
-  ('00000000-0000-0000-0000-000000000077', 1880, 22, 3, NOW() - interval '1 day', '2026-spring'),
-  ('00000000-0000-0000-0000-000000000078', 1950, 26, 1, NOW() - interval '1 day', '2026-spring'),
-  ('00000000-0000-0000-0000-000000000079', 1850, 20, 4, NOW() - interval '2 days', '2026-spring'),
-  ('00000000-0000-0000-0000-000000000080', 1820, 19, 4, NOW() - interval '2 days', '2026-spring'),
-  ('00000000-0000-0000-0000-000000000081', 1780, 17, 5, NOW() - interval '3 days', '2026-spring'),
-  ('00000000-0000-0000-0000-000000000082', 1900, 23, 2, NOW() - interval '1 day', '2026-spring'),
-  ('00000000-0000-0000-0000-000000000083', 1760, 16, 5, NOW() - interval '3 days', '2026-spring'),
-  ('00000000-0000-0000-0000-000000000084', 1840, 20, 3, NOW() - interval '2 days', '2026-spring'),
-  ('00000000-0000-0000-0000-000000000085', 1800, 18, 4, NOW() - interval '2 days', '2026-spring'),
-  ('00000000-0000-0000-0000-000000000086', 1700, 14, 6, NOW() - interval '5 days', '2026-spring'),
-  ('00000000-0000-0000-0000-000000000087', 1740, 15, 5, NOW() - interval '4 days', '2026-spring'),
-  ('00000000-0000-0000-0000-000000000088', 1860, 21, 3, NOW() - interval '1 day', '2026-spring'),
-  ('00000000-0000-0000-0000-000000000089', 1720, 15, 6, NOW() - interval '3 days', '2026-spring'),
-  ('00000000-0000-0000-0000-000000000090', 1790, 17, 4, NOW() - interval '2 days', '2026-spring')
-ON CONFLICT (user_id) DO NOTHING;
+-- Advanced 5.0: ELO 1700-1950 (singles)
+INSERT INTO ladder_ratings (user_id, elo_rating, wins, losses, last_played, season, mode) VALUES
+  ('00000000-0000-0000-0000-000000000076', 1920, 24, 2, NOW() - interval '1 day', '2026-spring', 'singles'),
+  ('00000000-0000-0000-0000-000000000077', 1880, 22, 3, NOW() - interval '1 day', '2026-spring', 'singles'),
+  ('00000000-0000-0000-0000-000000000078', 1950, 26, 1, NOW() - interval '1 day', '2026-spring', 'singles'),
+  ('00000000-0000-0000-0000-000000000079', 1850, 20, 4, NOW() - interval '2 days', '2026-spring', 'singles'),
+  ('00000000-0000-0000-0000-000000000080', 1820, 19, 4, NOW() - interval '2 days', '2026-spring', 'singles'),
+  ('00000000-0000-0000-0000-000000000081', 1780, 17, 5, NOW() - interval '3 days', '2026-spring', 'singles'),
+  ('00000000-0000-0000-0000-000000000082', 1900, 23, 2, NOW() - interval '1 day', '2026-spring', 'singles'),
+  ('00000000-0000-0000-0000-000000000083', 1760, 16, 5, NOW() - interval '3 days', '2026-spring', 'singles'),
+  ('00000000-0000-0000-0000-000000000084', 1840, 20, 3, NOW() - interval '2 days', '2026-spring', 'singles'),
+  ('00000000-0000-0000-0000-000000000085', 1800, 18, 4, NOW() - interval '2 days', '2026-spring', 'singles'),
+  ('00000000-0000-0000-0000-000000000086', 1700, 14, 6, NOW() - interval '5 days', '2026-spring', 'singles'),
+  ('00000000-0000-0000-0000-000000000087', 1740, 15, 5, NOW() - interval '4 days', '2026-spring', 'singles'),
+  ('00000000-0000-0000-0000-000000000088', 1860, 21, 3, NOW() - interval '1 day', '2026-spring', 'singles'),
+  ('00000000-0000-0000-0000-000000000089', 1720, 15, 6, NOW() - interval '3 days', '2026-spring', 'singles'),
+  ('00000000-0000-0000-0000-000000000090', 1790, 17, 4, NOW() - interval '2 days', '2026-spring', 'singles')
+ON CONFLICT (user_id, mode) DO NOTHING;
+
+-- ============================================================
+-- B3b. Doubles ratings (different ELO/wins/losses from singles)
+-- ============================================================
+
+-- Beginner 2.5: Doubles ELO 700-950
+INSERT INTO ladder_ratings (user_id, elo_rating, wins, losses, last_played, season, mode) VALUES
+  ('00000000-0000-0000-0000-000000000001', 920, 6, 2, NOW() - interval '2 days', '2026-spring', 'doubles'),
+  ('00000000-0000-0000-0000-000000000002', 810, 4, 4, NOW() - interval '3 days', '2026-spring', 'doubles'),
+  ('00000000-0000-0000-0000-000000000003', 750, 2, 4, NOW() - interval '4 days', '2026-spring', 'doubles'),
+  ('00000000-0000-0000-0000-000000000004', 870, 5, 3, NOW() - interval '2 days', '2026-spring', 'doubles'),
+  ('00000000-0000-0000-0000-000000000005', 790, 3, 3, NOW() - interval '5 days', '2026-spring', 'doubles'),
+  ('00000000-0000-0000-0000-000000000006', 710, 1, 5, NOW() - interval '6 days', '2026-spring', 'doubles'),
+  ('00000000-0000-0000-0000-000000000007', 880, 5, 2, NOW() - interval '3 days', '2026-spring', 'doubles'),
+  ('00000000-0000-0000-0000-000000000008', 820, 4, 3, NOW() - interval '4 days', '2026-spring', 'doubles'),
+  ('00000000-0000-0000-0000-000000000009', 950, 7, 1, NOW() - interval '1 day', '2026-spring', 'doubles'),
+  ('00000000-0000-0000-0000-000000000010', 770, 2, 3, NOW() - interval '5 days', '2026-spring', 'doubles'),
+  ('00000000-0000-0000-0000-000000000011', 700, 0, 4, NULL, '2026-spring', 'doubles'),
+  ('00000000-0000-0000-0000-000000000012', 840, 4, 2, NOW() - interval '3 days', '2026-spring', 'doubles'),
+  ('00000000-0000-0000-0000-000000000013', 890, 6, 2, NOW() - interval '2 days', '2026-spring', 'doubles'),
+  ('00000000-0000-0000-0000-000000000014', 830, 3, 3, NOW() - interval '5 days', '2026-spring', 'doubles'),
+  ('00000000-0000-0000-0000-000000000015', 720, 1, 5, NOW() - interval '6 days', '2026-spring', 'doubles')
+ON CONFLICT (user_id, mode) DO NOTHING;
+
+-- Beginner 3.0: Doubles ELO 950-1150
+INSERT INTO ladder_ratings (user_id, elo_rating, wins, losses, last_played, season, mode) VALUES
+  ('00000000-0000-0000-0000-000000000016', 1120, 8, 2, NOW() - interval '2 days', '2026-spring', 'doubles'),
+  ('00000000-0000-0000-0000-000000000017', 1080, 7, 3, NOW() - interval '3 days', '2026-spring', 'doubles'),
+  ('00000000-0000-0000-0000-000000000018', 1010, 5, 4, NOW() - interval '2 days', '2026-spring', 'doubles'),
+  ('00000000-0000-0000-0000-000000000019', 1060, 6, 3, NOW() - interval '4 days', '2026-spring', 'doubles'),
+  ('00000000-0000-0000-0000-000000000020', 980, 4, 5, NOW() - interval '5 days', '2026-spring', 'doubles'),
+  ('00000000-0000-0000-0000-000000000021', 1150, 9, 1, NOW() - interval '1 day', '2026-spring', 'doubles'),
+  ('00000000-0000-0000-0000-000000000022', 990, 5, 4, NOW() - interval '3 days', '2026-spring', 'doubles'),
+  ('00000000-0000-0000-0000-000000000023', 950, 3, 4, NOW() - interval '6 days', '2026-spring', 'doubles'),
+  ('00000000-0000-0000-0000-000000000024', 1040, 6, 3, NOW() - interval '3 days', '2026-spring', 'doubles'),
+  ('00000000-0000-0000-0000-000000000025', 1000, 5, 4, NOW() - interval '4 days', '2026-spring', 'doubles'),
+  ('00000000-0000-0000-0000-000000000026', 970, 3, 3, NOW() - interval '5 days', '2026-spring', 'doubles'),
+  ('00000000-0000-0000-0000-000000000027', 1100, 7, 2, NOW() - interval '2 days', '2026-spring', 'doubles'),
+  ('00000000-0000-0000-0000-000000000028', 960, 2, 4, NOW() - interval '5 days', '2026-spring', 'doubles'),
+  ('00000000-0000-0000-0000-000000000029', 1090, 7, 2, NOW() - interval '3 days', '2026-spring', 'doubles'),
+  ('00000000-0000-0000-0000-000000000030', 1030, 5, 3, NOW() - interval '4 days', '2026-spring', 'doubles')
+ON CONFLICT (user_id, mode) DO NOTHING;
+
+-- Intermediate 3.5: Doubles ELO 1150-1400
+INSERT INTO ladder_ratings (user_id, elo_rating, wins, losses, last_played, season, mode) VALUES
+  ('00000000-0000-0000-0000-000000000031', 1370, 10, 3, NOW() - interval '2 days', '2026-spring', 'doubles'),
+  ('00000000-0000-0000-0000-000000000032', 1320, 9, 4, NOW() - interval '2 days', '2026-spring', 'doubles'),
+  ('00000000-0000-0000-0000-000000000033', 1240, 6, 5, NOW() - interval '3 days', '2026-spring', 'doubles'),
+  ('00000000-0000-0000-0000-000000000034', 1290, 8, 4, NOW() - interval '4 days', '2026-spring', 'doubles'),
+  ('00000000-0000-0000-0000-000000000035', 1210, 5, 4, NOW() - interval '3 days', '2026-spring', 'doubles'),
+  ('00000000-0000-0000-0000-000000000036', 1180, 4, 5, NOW() - interval '5 days', '2026-spring', 'doubles'),
+  ('00000000-0000-0000-0000-000000000037', 1350, 10, 3, NOW() - interval '2 days', '2026-spring', 'doubles'),
+  ('00000000-0000-0000-0000-000000000038', 1260, 7, 4, NOW() - interval '3 days', '2026-spring', 'doubles'),
+  ('00000000-0000-0000-0000-000000000039', 1170, 4, 4, NOW() - interval '6 days', '2026-spring', 'doubles'),
+  ('00000000-0000-0000-0000-000000000040', 1300, 9, 3, NOW() - interval '2 days', '2026-spring', 'doubles'),
+  ('00000000-0000-0000-0000-000000000041', 1200, 5, 5, NOW() - interval '4 days', '2026-spring', 'doubles'),
+  ('00000000-0000-0000-0000-000000000042', 1400, 12, 2, NOW() - interval '1 day', '2026-spring', 'doubles'),
+  ('00000000-0000-0000-0000-000000000043', 1230, 6, 4, NOW() - interval '5 days', '2026-spring', 'doubles'),
+  ('00000000-0000-0000-0000-000000000044', 1280, 8, 5, NOW() - interval '3 days', '2026-spring', 'doubles'),
+  ('00000000-0000-0000-0000-000000000045', 1150, 3, 5, NOW() - interval '5 days', '2026-spring', 'doubles')
+ON CONFLICT (user_id, mode) DO NOTHING;
+
+-- Intermediate 4.0: Doubles ELO 1350-1600
+INSERT INTO ladder_ratings (user_id, elo_rating, wins, losses, last_played, season, mode) VALUES
+  ('00000000-0000-0000-0000-000000000046', 1560, 12, 2, NOW() - interval '2 days', '2026-spring', 'doubles'),
+  ('00000000-0000-0000-0000-000000000047', 1520, 11, 3, NOW() - interval '2 days', '2026-spring', 'doubles'),
+  ('00000000-0000-0000-0000-000000000048', 1480, 10, 4, NOW() - interval '3 days', '2026-spring', 'doubles'),
+  ('00000000-0000-0000-0000-000000000049', 1440, 9, 4, NOW() - interval '3 days', '2026-spring', 'doubles'),
+  ('00000000-0000-0000-0000-000000000050', 1420, 8, 4, NOW() - interval '4 days', '2026-spring', 'doubles'),
+  ('00000000-0000-0000-0000-000000000051', 1600, 14, 1, NOW() - interval '1 day', '2026-spring', 'doubles'),
+  ('00000000-0000-0000-0000-000000000052', 1400, 7, 4, NOW() - interval '5 days', '2026-spring', 'doubles'),
+  ('00000000-0000-0000-0000-000000000053', 1460, 10, 3, NOW() - interval '3 days', '2026-spring', 'doubles'),
+  ('00000000-0000-0000-0000-000000000054', 1380, 6, 5, NOW() - interval '4 days', '2026-spring', 'doubles'),
+  ('00000000-0000-0000-0000-000000000055', 1500, 11, 3, NOW() - interval '2 days', '2026-spring', 'doubles'),
+  ('00000000-0000-0000-0000-000000000056', 1540, 12, 2, NOW() - interval '2 days', '2026-spring', 'doubles'),
+  ('00000000-0000-0000-0000-000000000057', 1350, 5, 5, NOW() - interval '6 days', '2026-spring', 'doubles'),
+  ('00000000-0000-0000-0000-000000000058', 1420, 8, 4, NOW() - interval '3 days', '2026-spring', 'doubles'),
+  ('00000000-0000-0000-0000-000000000059', 1370, 6, 4, NOW() - interval '5 days', '2026-spring', 'doubles'),
+  ('00000000-0000-0000-0000-000000000060', 1480, 10, 3, NOW() - interval '3 days', '2026-spring', 'doubles')
+ON CONFLICT (user_id, mode) DO NOTHING;
+
+-- Advanced 4.5: Doubles ELO 1550-1800
+INSERT INTO ladder_ratings (user_id, elo_rating, wins, losses, last_played, season, mode) VALUES
+  ('00000000-0000-0000-0000-000000000061', 1770, 16, 2, NOW() - interval '2 days', '2026-spring', 'doubles'),
+  ('00000000-0000-0000-0000-000000000062', 1730, 14, 3, NOW() - interval '2 days', '2026-spring', 'doubles'),
+  ('00000000-0000-0000-0000-000000000063', 1700, 13, 4, NOW() - interval '3 days', '2026-spring', 'doubles'),
+  ('00000000-0000-0000-0000-000000000064', 1650, 11, 4, NOW() - interval '3 days', '2026-spring', 'doubles'),
+  ('00000000-0000-0000-0000-000000000065', 1630, 10, 4, NOW() - interval '4 days', '2026-spring', 'doubles'),
+  ('00000000-0000-0000-0000-000000000066', 1800, 18, 1, NOW() - interval '1 day', '2026-spring', 'doubles'),
+  ('00000000-0000-0000-0000-000000000067', 1610, 9, 5, NOW() - interval '5 days', '2026-spring', 'doubles'),
+  ('00000000-0000-0000-0000-000000000068', 1670, 12, 3, NOW() - interval '3 days', '2026-spring', 'doubles'),
+  ('00000000-0000-0000-0000-000000000069', 1590, 8, 4, NOW() - interval '4 days', '2026-spring', 'doubles'),
+  ('00000000-0000-0000-0000-000000000070', 1750, 15, 2, NOW() - interval '2 days', '2026-spring', 'doubles'),
+  ('00000000-0000-0000-0000-000000000071', 1550, 7, 6, NOW() - interval '6 days', '2026-spring', 'doubles'),
+  ('00000000-0000-0000-0000-000000000072', 1690, 13, 3, NOW() - interval '2 days', '2026-spring', 'doubles'),
+  ('00000000-0000-0000-0000-000000000073', 1620, 10, 4, NOW() - interval '4 days', '2026-spring', 'doubles'),
+  ('00000000-0000-0000-0000-000000000074', 1570, 8, 5, NOW() - interval '5 days', '2026-spring', 'doubles'),
+  ('00000000-0000-0000-0000-000000000075', 1660, 12, 4, NOW() - interval '3 days', '2026-spring', 'doubles')
+ON CONFLICT (user_id, mode) DO NOTHING;
+
+-- Advanced 5.0: Doubles ELO 1750-2000
+INSERT INTO ladder_ratings (user_id, elo_rating, wins, losses, last_played, season, mode) VALUES
+  ('00000000-0000-0000-0000-000000000076', 1970, 20, 1, NOW() - interval '2 days', '2026-spring', 'doubles'),
+  ('00000000-0000-0000-0000-000000000077', 1930, 18, 2, NOW() - interval '2 days', '2026-spring', 'doubles'),
+  ('00000000-0000-0000-0000-000000000078', 2000, 22, 0, NOW() - interval '1 day', '2026-spring', 'doubles'),
+  ('00000000-0000-0000-0000-000000000079', 1900, 16, 3, NOW() - interval '3 days', '2026-spring', 'doubles'),
+  ('00000000-0000-0000-0000-000000000080', 1870, 15, 3, NOW() - interval '3 days', '2026-spring', 'doubles'),
+  ('00000000-0000-0000-0000-000000000081', 1830, 14, 4, NOW() - interval '4 days', '2026-spring', 'doubles'),
+  ('00000000-0000-0000-0000-000000000082', 1950, 19, 1, NOW() - interval '2 days', '2026-spring', 'doubles'),
+  ('00000000-0000-0000-0000-000000000083', 1810, 13, 4, NOW() - interval '4 days', '2026-spring', 'doubles'),
+  ('00000000-0000-0000-0000-000000000084', 1890, 17, 2, NOW() - interval '3 days', '2026-spring', 'doubles'),
+  ('00000000-0000-0000-0000-000000000085', 1850, 15, 3, NOW() - interval '3 days', '2026-spring', 'doubles'),
+  ('00000000-0000-0000-0000-000000000086', 1750, 11, 5, NOW() - interval '6 days', '2026-spring', 'doubles'),
+  ('00000000-0000-0000-0000-000000000087', 1790, 12, 4, NOW() - interval '5 days', '2026-spring', 'doubles'),
+  ('00000000-0000-0000-0000-000000000088', 1910, 18, 2, NOW() - interval '2 days', '2026-spring', 'doubles'),
+  ('00000000-0000-0000-0000-000000000089', 1770, 12, 5, NOW() - interval '4 days', '2026-spring', 'doubles'),
+  ('00000000-0000-0000-0000-000000000090', 1840, 14, 3, NOW() - interval '3 days', '2026-spring', 'doubles')
+ON CONFLICT (user_id, mode) DO NOTHING;
 
 -- ============================================================
 -- B4. Proposals (open + accepted across tiers)
@@ -593,3 +711,241 @@ FROM proposals p
 WHERE p.creator_id = '00000000-0000-0000-0000-000000000031'
   AND p.accepted_by = '00000000-0000-0000-0000-000000000048'
 LIMIT 1;
+
+
+-- ############################################################
+-- SECTION C: DOUBLES DUMMY DATA
+-- ############################################################
+
+-- ============================================================
+-- C1. Doubles proposals (open, with signups)
+-- ============================================================
+
+-- Beginner doubles proposal (open, 2 signups so far)
+INSERT INTO proposals (creator_id, park_id, proposed_time, message, status, expires_at, mode)
+SELECT '00000000-0000-0000-0000-000000000009', p.id, NOW() + interval '2 days',
+  'Doubles anyone? Need 3 more!', 'open', NOW() + interval '48 hours', 'doubles'
+FROM parks p ORDER BY random() LIMIT 1;
+
+INSERT INTO proposal_signups (proposal_id, user_id, role, joined_at)
+SELECT p.id, '00000000-0000-0000-0000-000000000009', 'creator', p.created_at
+FROM proposals p WHERE p.creator_id = '00000000-0000-0000-0000-000000000009' AND p.mode = 'doubles' LIMIT 1;
+
+INSERT INTO proposal_signups (proposal_id, user_id, role, joined_at)
+SELECT p.id, '00000000-0000-0000-0000-000000000004', 'opponent', NOW() - interval '1 hour'
+FROM proposals p WHERE p.creator_id = '00000000-0000-0000-0000-000000000009' AND p.mode = 'doubles' LIMIT 1;
+
+-- Beginner doubles proposal (open, 3 signups)
+INSERT INTO proposals (creator_id, park_id, proposed_time, message, status, expires_at, mode)
+SELECT '00000000-0000-0000-0000-000000000016', p.id, NOW() + interval '1 day',
+  'Saturday doubles!', 'open', NOW() + interval '48 hours', 'doubles'
+FROM parks p ORDER BY random() LIMIT 1;
+
+INSERT INTO proposal_signups (proposal_id, user_id, role, joined_at)
+SELECT p.id, '00000000-0000-0000-0000-000000000016', 'creator', p.created_at
+FROM proposals p WHERE p.creator_id = '00000000-0000-0000-0000-000000000016' AND p.mode = 'doubles' LIMIT 1;
+
+INSERT INTO proposal_signups (proposal_id, user_id, role, joined_at)
+SELECT p.id, '00000000-0000-0000-0000-000000000021', 'opponent', NOW() - interval '2 hours'
+FROM proposals p WHERE p.creator_id = '00000000-0000-0000-0000-000000000016' AND p.mode = 'doubles' LIMIT 1;
+
+INSERT INTO proposal_signups (proposal_id, user_id, role, joined_at)
+SELECT p.id, '00000000-0000-0000-0000-000000000027', 'opponent_partner', NOW() - interval '30 minutes'
+FROM proposals p WHERE p.creator_id = '00000000-0000-0000-0000-000000000016' AND p.mode = 'doubles' LIMIT 1;
+
+-- Intermediate doubles proposal (open, 1 signup — just creator)
+INSERT INTO proposals (creator_id, park_id, proposed_time, message, status, expires_at, mode)
+SELECT '00000000-0000-0000-0000-000000000042', p.id, NOW() + interval '2 days',
+  'Looking for doubles partners!', 'open', NOW() + interval '48 hours', 'doubles'
+FROM parks p ORDER BY random() LIMIT 1;
+
+INSERT INTO proposal_signups (proposal_id, user_id, role, joined_at)
+SELECT p.id, '00000000-0000-0000-0000-000000000042', 'creator', p.created_at
+FROM proposals p WHERE p.creator_id = '00000000-0000-0000-0000-000000000042' AND p.mode = 'doubles' AND p.status = 'open' LIMIT 1;
+
+-- Intermediate doubles proposal (pairing, 4 signups with teams assigned)
+INSERT INTO proposals (creator_id, park_id, proposed_time, message, status, expires_at, mode)
+SELECT '00000000-0000-0000-0000-000000000046', p.id, NOW() + interval '1 day',
+  'Competitive doubles', 'pairing', NOW() + interval '48 hours', 'doubles'
+FROM parks p ORDER BY random() LIMIT 1;
+
+INSERT INTO proposal_signups (proposal_id, user_id, role, team, joined_at)
+SELECT p.id, '00000000-0000-0000-0000-000000000046', 'creator', 'a', p.created_at
+FROM proposals p WHERE p.creator_id = '00000000-0000-0000-0000-000000000046' AND p.mode = 'doubles' LIMIT 1;
+
+INSERT INTO proposal_signups (proposal_id, user_id, role, team, joined_at)
+SELECT p.id, '00000000-0000-0000-0000-000000000054', 'opponent', 'b', NOW() - interval '3 hours'
+FROM proposals p WHERE p.creator_id = '00000000-0000-0000-0000-000000000046' AND p.mode = 'doubles' LIMIT 1;
+
+INSERT INTO proposal_signups (proposal_id, user_id, role, team, joined_at)
+SELECT p.id, '00000000-0000-0000-0000-000000000051', 'opponent', 'a', NOW() - interval '2 hours'
+FROM proposals p WHERE p.creator_id = '00000000-0000-0000-0000-000000000046' AND p.mode = 'doubles' LIMIT 1;
+
+INSERT INTO proposal_signups (proposal_id, user_id, role, team, joined_at)
+SELECT p.id, '00000000-0000-0000-0000-000000000038', 'opponent_partner', 'b', NOW() - interval '1 hour'
+FROM proposals p WHERE p.creator_id = '00000000-0000-0000-0000-000000000046' AND p.mode = 'doubles' LIMIT 1;
+
+-- Advanced doubles proposal (open, 2 signups)
+INSERT INTO proposals (creator_id, park_id, proposed_time, message, status, expires_at, mode)
+SELECT '00000000-0000-0000-0000-000000000066', p.id, NOW() + interval '3 days',
+  'Elite doubles showdown', 'open', NOW() + interval '48 hours', 'doubles'
+FROM parks p ORDER BY random() LIMIT 1;
+
+INSERT INTO proposal_signups (proposal_id, user_id, role, joined_at)
+SELECT p.id, '00000000-0000-0000-0000-000000000066', 'creator', p.created_at
+FROM proposals p WHERE p.creator_id = '00000000-0000-0000-0000-000000000066' AND p.mode = 'doubles' LIMIT 1;
+
+INSERT INTO proposal_signups (proposal_id, user_id, role, joined_at)
+SELECT p.id, '00000000-0000-0000-0000-000000000072', 'opponent', NOW() - interval '1 hour'
+FROM proposals p WHERE p.creator_id = '00000000-0000-0000-0000-000000000066' AND p.mode = 'doubles' LIMIT 1;
+
+-- Advanced doubles proposal (open, 4 signups)
+INSERT INTO proposals (creator_id, park_id, proposed_time, message, status, expires_at, mode)
+SELECT '00000000-0000-0000-0000-000000000076', p.id, NOW() + interval '1 day',
+  'Top dogs doubles', 'open', NOW() + interval '48 hours', 'doubles'
+FROM parks p ORDER BY random() LIMIT 1;
+
+INSERT INTO proposal_signups (proposal_id, user_id, role, joined_at)
+SELECT p.id, '00000000-0000-0000-0000-000000000076', 'creator', p.created_at
+FROM proposals p WHERE p.creator_id = '00000000-0000-0000-0000-000000000076' AND p.mode = 'doubles' LIMIT 1;
+
+INSERT INTO proposal_signups (proposal_id, user_id, role, joined_at)
+SELECT p.id, '00000000-0000-0000-0000-000000000078', 'opponent', NOW() - interval '4 hours'
+FROM proposals p WHERE p.creator_id = '00000000-0000-0000-0000-000000000076' AND p.mode = 'doubles' LIMIT 1;
+
+INSERT INTO proposal_signups (proposal_id, user_id, role, joined_at)
+SELECT p.id, '00000000-0000-0000-0000-000000000082', 'opponent', NOW() - interval '2 hours'
+FROM proposals p WHERE p.creator_id = '00000000-0000-0000-0000-000000000076' AND p.mode = 'doubles' LIMIT 1;
+
+INSERT INTO proposal_signups (proposal_id, user_id, role, joined_at)
+SELECT p.id, '00000000-0000-0000-0000-000000000088', 'opponent_partner', NOW() - interval '30 minutes'
+FROM proposals p WHERE p.creator_id = '00000000-0000-0000-0000-000000000076' AND p.mode = 'doubles' LIMIT 1;
+
+-- ============================================================
+-- C2. Doubles matches (historical confirmed + pending)
+-- ============================================================
+
+-- Historical confirmed doubles match (beginner) — Team A wins
+INSERT INTO proposals (creator_id, park_id, proposed_time, message, status, expires_at, mode)
+SELECT '00000000-0000-0000-0000-000000000001', p.id, NOW() - interval '4 days', NULL,
+  'accepted', NOW() - interval '2 days', 'doubles'
+FROM parks p ORDER BY random() LIMIT 1;
+
+INSERT INTO proposal_signups (proposal_id, user_id, role, team, joined_at)
+SELECT p.id, '00000000-0000-0000-0000-000000000001', 'creator', 'a', p.created_at
+FROM proposals p WHERE p.creator_id = '00000000-0000-0000-0000-000000000001' AND p.mode = 'doubles' LIMIT 1;
+
+INSERT INTO proposal_signups (proposal_id, user_id, role, team, joined_at)
+SELECT p.id, '00000000-0000-0000-0000-000000000013', 'opponent', 'a', p.created_at + interval '1 hour'
+FROM proposals p WHERE p.creator_id = '00000000-0000-0000-0000-000000000001' AND p.mode = 'doubles' LIMIT 1;
+
+INSERT INTO proposal_signups (proposal_id, user_id, role, team, joined_at)
+SELECT p.id, '00000000-0000-0000-0000-000000000007', 'opponent', 'b', p.created_at + interval '2 hours'
+FROM proposals p WHERE p.creator_id = '00000000-0000-0000-0000-000000000001' AND p.mode = 'doubles' LIMIT 1;
+
+INSERT INTO proposal_signups (proposal_id, user_id, role, team, joined_at)
+SELECT p.id, '00000000-0000-0000-0000-000000000012', 'opponent_partner', 'b', p.created_at + interval '3 hours'
+FROM proposals p WHERE p.creator_id = '00000000-0000-0000-0000-000000000001' AND p.mode = 'doubles' LIMIT 1;
+
+INSERT INTO matches (proposal_id, player1_id, player2_id, player3_id, player4_id,
+  player1_scores, player2_scores, submitted_by, confirmed_by, status, winning_team, played_at, mode)
+SELECT p.id,
+  '00000000-0000-0000-0000-000000000001', '00000000-0000-0000-0000-000000000013',
+  '00000000-0000-0000-0000-000000000007', '00000000-0000-0000-0000-000000000012',
+  ARRAY[11, 9, 11], ARRAY[8, 11, 7],
+  '00000000-0000-0000-0000-000000000001', '00000000-0000-0000-0000-000000000007',
+  'confirmed', 'a', NOW() - interval '4 days', 'doubles'
+FROM proposals p WHERE p.creator_id = '00000000-0000-0000-0000-000000000001' AND p.mode = 'doubles' LIMIT 1;
+
+-- Historical confirmed doubles match (intermediate) — Team B wins
+INSERT INTO proposals (creator_id, park_id, proposed_time, message, status, expires_at, mode)
+SELECT '00000000-0000-0000-0000-000000000042', p.id, NOW() - interval '3 days', NULL,
+  'accepted', NOW() - interval '1 day', 'doubles'
+FROM parks p ORDER BY random() LIMIT 1;
+
+INSERT INTO proposal_signups (proposal_id, user_id, role, team, joined_at)
+SELECT p.id, '00000000-0000-0000-0000-000000000042', 'creator', 'a', p.created_at
+FROM proposals p WHERE p.creator_id = '00000000-0000-0000-0000-000000000042' AND p.mode = 'doubles' AND p.status = 'accepted' LIMIT 1;
+
+INSERT INTO proposal_signups (proposal_id, user_id, role, team, joined_at)
+SELECT p.id, '00000000-0000-0000-0000-000000000055', 'opponent', 'a', p.created_at + interval '1 hour'
+FROM proposals p WHERE p.creator_id = '00000000-0000-0000-0000-000000000042' AND p.mode = 'doubles' AND p.status = 'accepted' LIMIT 1;
+
+INSERT INTO proposal_signups (proposal_id, user_id, role, team, joined_at)
+SELECT p.id, '00000000-0000-0000-0000-000000000047', 'opponent', 'b', p.created_at + interval '2 hours'
+FROM proposals p WHERE p.creator_id = '00000000-0000-0000-0000-000000000042' AND p.mode = 'doubles' AND p.status = 'accepted' LIMIT 1;
+
+INSERT INTO proposal_signups (proposal_id, user_id, role, team, joined_at)
+SELECT p.id, '00000000-0000-0000-0000-000000000037', 'opponent_partner', 'b', p.created_at + interval '3 hours'
+FROM proposals p WHERE p.creator_id = '00000000-0000-0000-0000-000000000042' AND p.mode = 'doubles' AND p.status = 'accepted' LIMIT 1;
+
+INSERT INTO matches (proposal_id, player1_id, player2_id, player3_id, player4_id,
+  player1_scores, player2_scores, submitted_by, confirmed_by, status, winning_team, played_at, mode)
+SELECT p.id,
+  '00000000-0000-0000-0000-000000000042', '00000000-0000-0000-0000-000000000055',
+  '00000000-0000-0000-0000-000000000047', '00000000-0000-0000-0000-000000000037',
+  ARRAY[7, 11, 8], ARRAY[11, 9, 11],
+  '00000000-0000-0000-0000-000000000042', '00000000-0000-0000-0000-000000000047',
+  'confirmed', 'b', NOW() - interval '3 days', 'doubles'
+FROM proposals p WHERE p.creator_id = '00000000-0000-0000-0000-000000000042' AND p.mode = 'doubles' AND p.status = 'accepted' LIMIT 1;
+
+-- Historical confirmed doubles match (advanced) — Team A wins
+INSERT INTO proposals (creator_id, park_id, proposed_time, message, status, expires_at, mode)
+SELECT '00000000-0000-0000-0000-000000000078', p.id, NOW() - interval '2 days', NULL,
+  'accepted', NOW(), 'doubles'
+FROM parks p ORDER BY random() LIMIT 1;
+
+INSERT INTO proposal_signups (proposal_id, user_id, role, team, joined_at)
+SELECT p.id, '00000000-0000-0000-0000-000000000078', 'creator', 'a', p.created_at
+FROM proposals p WHERE p.creator_id = '00000000-0000-0000-0000-000000000078' AND p.mode = 'doubles' LIMIT 1;
+
+INSERT INTO proposal_signups (proposal_id, user_id, role, team, joined_at)
+SELECT p.id, '00000000-0000-0000-0000-000000000086', 'opponent', 'a', p.created_at + interval '1 hour'
+FROM proposals p WHERE p.creator_id = '00000000-0000-0000-0000-000000000078' AND p.mode = 'doubles' LIMIT 1;
+
+INSERT INTO proposal_signups (proposal_id, user_id, role, team, joined_at)
+SELECT p.id, '00000000-0000-0000-0000-000000000077', 'opponent', 'b', p.created_at + interval '2 hours'
+FROM proposals p WHERE p.creator_id = '00000000-0000-0000-0000-000000000078' AND p.mode = 'doubles' LIMIT 1;
+
+INSERT INTO proposal_signups (proposal_id, user_id, role, team, joined_at)
+SELECT p.id, '00000000-0000-0000-0000-000000000082', 'opponent_partner', 'b', p.created_at + interval '3 hours'
+FROM proposals p WHERE p.creator_id = '00000000-0000-0000-0000-000000000078' AND p.mode = 'doubles' LIMIT 1;
+
+INSERT INTO matches (proposal_id, player1_id, player2_id, player3_id, player4_id,
+  player1_scores, player2_scores, submitted_by, confirmed_by, status, winning_team, played_at, mode)
+SELECT p.id,
+  '00000000-0000-0000-0000-000000000078', '00000000-0000-0000-0000-000000000086',
+  '00000000-0000-0000-0000-000000000077', '00000000-0000-0000-0000-000000000082',
+  ARRAY[11, 11], ARRAY[8, 9],
+  '00000000-0000-0000-0000-000000000078', '00000000-0000-0000-0000-000000000077',
+  'confirmed', 'a', NOW() - interval '2 days', 'doubles'
+FROM proposals p WHERE p.creator_id = '00000000-0000-0000-0000-000000000078' AND p.mode = 'doubles' LIMIT 1;
+
+-- Pending doubles match (intermediate) — score not yet submitted
+INSERT INTO proposals (creator_id, park_id, proposed_time, message, status, expires_at, mode)
+SELECT '00000000-0000-0000-0000-000000000050', p.id, NOW() - interval '1 day', NULL,
+  'accepted', NOW() + interval '1 day', 'doubles'
+FROM parks p ORDER BY random() LIMIT 1;
+
+INSERT INTO proposal_signups (proposal_id, user_id, role, team, joined_at)
+SELECT p.id, '00000000-0000-0000-0000-000000000050', 'creator', 'a', p.created_at
+FROM proposals p WHERE p.creator_id = '00000000-0000-0000-0000-000000000050' AND p.mode = 'doubles' LIMIT 1;
+
+INSERT INTO proposal_signups (proposal_id, user_id, role, team, joined_at)
+SELECT p.id, '00000000-0000-0000-0000-000000000057', 'opponent', 'a', p.created_at + interval '1 hour'
+FROM proposals p WHERE p.creator_id = '00000000-0000-0000-0000-000000000050' AND p.mode = 'doubles' LIMIT 1;
+
+INSERT INTO proposal_signups (proposal_id, user_id, role, team, joined_at)
+SELECT p.id, '00000000-0000-0000-0000-000000000048', 'opponent', 'b', p.created_at + interval '2 hours'
+FROM proposals p WHERE p.creator_id = '00000000-0000-0000-0000-000000000050' AND p.mode = 'doubles' LIMIT 1;
+
+INSERT INTO proposal_signups (proposal_id, user_id, role, team, joined_at)
+SELECT p.id, '00000000-0000-0000-0000-000000000034', 'opponent_partner', 'b', p.created_at + interval '3 hours'
+FROM proposals p WHERE p.creator_id = '00000000-0000-0000-0000-000000000050' AND p.mode = 'doubles' LIMIT 1;
+
+INSERT INTO matches (proposal_id, player1_id, player2_id, player3_id, player4_id, status, mode)
+SELECT p.id,
+  '00000000-0000-0000-0000-000000000050', '00000000-0000-0000-0000-000000000057',
+  '00000000-0000-0000-0000-000000000048', '00000000-0000-0000-0000-000000000034',
+  'pending', 'doubles'
+FROM proposals p WHERE p.creator_id = '00000000-0000-0000-0000-000000000050' AND p.mode = 'doubles' LIMIT 1;

@@ -28,6 +28,11 @@ DELETE FROM matches WHERE player1_id IN (
   SELECT id FROM profiles WHERE id::text LIKE '00000000-0000-0000-0000-%'
 );
 
+-- Proposal signups (FK to proposals + profiles)
+DELETE FROM proposal_signups WHERE user_id IN (
+  SELECT id FROM profiles WHERE id::text LIKE '00000000-0000-0000-0000-%'
+);
+
 -- Proposals (FK to profiles)
 DELETE FROM proposals WHERE creator_id IN (
   SELECT id FROM profiles WHERE id::text LIKE '00000000-0000-0000-0000-%'

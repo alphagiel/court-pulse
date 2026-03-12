@@ -86,7 +86,7 @@ function LadderPageInner() {
 
   // Hooks — mode-aware
   const activeTier = selectedTier || userTier;
-  const { rankings, loading: rankingsLoading, refetch: refetchRankings } = useLadderRankings(activeTier);
+  const { rankings, loading: rankingsLoading, refetch: refetchRankings } = useLadderRankings(activeTier, mode);
   const { proposals, loading: proposalsLoading, refetch: refetchProposals } = useProposals(activeTier, mode);
   const { matches, loading: matchesLoading, refetch: refetchMatches } = useMyMatches(userId, activeTier, mode);
 
@@ -103,10 +103,11 @@ function LadderPageInner() {
     setRegistering(true);
     try {
       await supabase.from("ladder_members").insert({ user_id: userId });
-      await supabase.from("ladder_ratings").insert({
-        user_id: userId,
-        elo_rating: skillToElo(profile.skill_level),
-      });
+      const initialElo = skillToElo(profile.skill_level);
+      await supabase.from("ladder_ratings").insert([
+        { user_id: userId, elo_rating: initialElo, mode: "singles" },
+        { user_id: userId, elo_rating: initialElo, mode: "doubles" },
+      ]);
       await refetchMember();
       await refetchRankings();
     } catch (err) {

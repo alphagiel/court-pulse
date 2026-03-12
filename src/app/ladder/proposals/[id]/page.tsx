@@ -74,7 +74,7 @@ function ProposalDetailInner() {
     setLoading(false);
   }, [proposalId]);
 
-  // Fetch ELO ratings for all signed-up players
+  // Fetch doubles ELO ratings for all signed-up players
   useEffect(() => {
     if (signups.length === 0) return;
     const ids = signups.map((s) => s.user_id);
@@ -82,6 +82,7 @@ function ProposalDetailInner() {
       .from("ladder_ratings")
       .select("*")
       .in("user_id", ids)
+      .eq("mode", "doubles")
       .then(({ data }) => {
         const map = new Map<string, LadderRating>();
         for (const r of data || []) map.set(r.user_id, r);

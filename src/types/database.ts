@@ -165,6 +165,7 @@ export interface LadderRating {
   losses: number;
   last_played: string | null;
   season: string;
+  mode: MatchMode;
   updated_at: string;
 }
 
