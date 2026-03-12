@@ -13,6 +13,7 @@ export interface Park {
 export interface Profile {
   id: string;
   username: string;
+  email: string | null;
   skill_level: SkillLevel;
   preferred_park_id: string | null;
   created_at: string;
