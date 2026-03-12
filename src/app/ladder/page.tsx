@@ -226,7 +226,7 @@ function LadderPageInner() {
         <div className="max-w-lg mx-auto px-4 py-8 sm:px-6 space-y-8">
           <AppHeader
             title="Ladder"
-            subtitle="Competitive pickleball rankings"
+            subtitle="Compete & climb the rankings"
             backHref="/"
           />
 
@@ -501,7 +501,7 @@ function RankingRow({
     <div>
       <button
         onClick={onToggle}
-        className={`w-full grid grid-cols-[2rem_1fr_3rem_4rem] gap-x-2 px-3 py-2.5 text-[13px] items-center border-b border-border/50 transition-colors text-left ${
+        className={`w-full grid grid-cols-[2rem_1fr_3rem_4rem_1rem] gap-x-2 px-3 py-2.5 text-[13px] items-center border-b border-border/50 transition-all text-left hover:shadow-sm hover:-translate-y-[1px] ${
           isYou
             ? "bg-green-50/60 hover:bg-green-50"
             : "hover:bg-muted/50"
@@ -514,10 +514,11 @@ function RankingRow({
         </span>
         <span className="text-center text-muted-foreground tabular-nums">{entry.wins}-{entry.losses}</span>
         <span className="text-right font-semibold tabular-nums">{entry.elo_rating}</span>
+        <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={`text-muted-foreground/50 transition-transform ${isExpanded ? "rotate-180" : ""}`}><path d="m6 9 6 6 6-6"/></svg>
       </button>
 
       {isExpanded && (
-        <div className={`px-3 py-3 border-b border-border/50 ${isYou ? "bg-green-50/40" : "bg-muted/30"}`}>
+        <div className={`px-3 py-3 border-b border-border/50 animate-unfold ${isYou ? "bg-green-50/40" : "bg-muted/30"}`}>
           <div className="space-y-1.5 text-[13px]">
             <DetailRow label="Skill" value={entry.skill_level} />
             <DetailRow label="Record" value={`${entry.wins}W – ${entry.losses}L`} />
@@ -555,11 +556,12 @@ function RankingsTab({
   return (
     <div className="space-y-6">
       <div className="overflow-hidden">
-        <div className="grid grid-cols-[2rem_1fr_3rem_4rem] gap-x-2 px-3 py-2 text-[11px] text-muted-foreground uppercase tracking-wider border-b">
+        <div className="grid grid-cols-[2rem_1fr_3rem_4rem_1rem] gap-x-2 px-3 py-2 text-[11px] text-muted-foreground uppercase tracking-wider border-b">
           <span>#</span>
           <span>Player</span>
           <span className="text-center">W-L</span>
           <span className="text-right">ELO</span>
+          <span></span>
         </div>
 
         {ranked.length === 0 ? (
@@ -648,10 +650,11 @@ function ProposalsTab({
         <div className="space-y-6">
           {open.length > 0 && (
             <div className="overflow-hidden">
-              <div className="grid grid-cols-[1fr_5rem_4.5rem] gap-x-2 px-3 py-2 text-[11px] text-muted-foreground uppercase tracking-wider border-b">
+              <div className="grid grid-cols-[1fr_5rem_4.5rem_1rem] gap-x-2 px-3 py-2 text-[11px] text-muted-foreground uppercase tracking-wider border-b">
                 <span>Player</span>
                 <span className="text-center">When</span>
                 <span className="text-right">Status</span>
+                <span></span>
               </div>
 
               {visibleOpen.map((p) => {
@@ -661,7 +664,7 @@ function ProposalsTab({
                   <div key={p.id}>
                     <button
                       onClick={() => setExpandedId(isExpanded ? null : p.id)}
-                      className={`w-full grid grid-cols-[1fr_5rem_4.5rem] gap-x-2 px-3 py-2.5 text-[13px] items-center border-b border-border/50 transition-colors text-left ${
+                      className={`w-full grid grid-cols-[1fr_5rem_4.5rem_1rem] gap-x-2 px-3 py-2.5 text-[13px] items-center border-b border-border/50 transition-all text-left hover:shadow-sm hover:-translate-y-[1px] ${
                         isYours ? "bg-green-50/60 hover:bg-green-50" : "hover:bg-muted/50"
                       }`}
                     >
@@ -673,10 +676,11 @@ function ProposalsTab({
                       <span className="text-right">
                         <span className="text-[10px] text-green-700 bg-green-50 border border-green-200 rounded-full px-1.5 py-0.5">Open</span>
                       </span>
+                      <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={`text-muted-foreground/50 transition-transform ${isExpanded ? "rotate-180" : ""}`}><path d="m6 9 6 6 6-6"/></svg>
                     </button>
 
                     {isExpanded && (
-                      <div className={`px-3 py-3 border-b border-border/50 ${isYours ? "bg-green-50/40" : "bg-muted/30"}`}>
+                      <div className={`px-3 py-3 border-b border-border/50 animate-unfold ${isYours ? "bg-green-50/40" : "bg-muted/30"}`}>
                         <div className="space-y-1.5 text-[13px]">
                           <DetailRow label="Skill" value={p.creator.skill_level} />
                           <DetailRow label="Park" value={p.park.name} />
@@ -739,7 +743,7 @@ function ProposalsTab({
                   <div key={p.id}>
                     <button
                       onClick={() => setExpandedId(isExpanded ? null : p.id)}
-                      className={`w-full grid grid-cols-[1fr_5rem_4.5rem] gap-x-2 px-3 py-2.5 text-[13px] items-center border-b border-border/50 transition-colors text-left opacity-70 ${
+                      className={`w-full grid grid-cols-[1fr_5rem_4.5rem_1rem] gap-x-2 px-3 py-2.5 text-[13px] items-center border-b border-border/50 transition-all text-left opacity-70 hover:shadow-sm hover:-translate-y-[1px] ${
                         isInvolved ? "bg-green-50/40 hover:bg-green-50" : "hover:bg-muted/50"
                       }`}
                     >
@@ -751,10 +755,11 @@ function ProposalsTab({
                       <span className="text-right">
                         <span className="text-[10px] text-amber-700 bg-amber-50 border border-amber-200 rounded-full px-1.5 py-0.5">Taken</span>
                       </span>
+                      <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={`text-muted-foreground/50 transition-transform ${isExpanded ? "rotate-180" : ""}`}><path d="m6 9 6 6 6-6"/></svg>
                     </button>
 
                     {isExpanded && (
-                      <div className={`px-3 py-3 border-b border-border/50 ${isInvolved ? "bg-green-50/40" : "bg-muted/30"}`}>
+                      <div className={`px-3 py-3 border-b border-border/50 animate-unfold ${isInvolved ? "bg-green-50/40" : "bg-muted/30"}`}>
                         <div className="space-y-1.5 text-[13px]">
                           <DetailRow label="Skill" value={p.creator.skill_level} />
                           <DetailRow label="Park" value={p.park.name} />
@@ -851,10 +856,11 @@ function DoublesProposalsTab({
         <div className="space-y-6">
           {active.length > 0 && (
             <div className="overflow-hidden">
-              <div className="grid grid-cols-[1fr_3rem_4.5rem] gap-x-2 px-3 py-2 text-[11px] text-muted-foreground uppercase tracking-wider border-b">
+              <div className="grid grid-cols-[1fr_3rem_4.5rem_1rem] gap-x-2 px-3 py-2 text-[11px] text-muted-foreground uppercase tracking-wider border-b">
                 <span>Organizer</span>
                 <span className="text-center">Slots</span>
                 <span className="text-right">Status</span>
+                <span></span>
               </div>
 
               {visibleActive.map((p) => {
@@ -866,7 +872,7 @@ function DoublesProposalsTab({
                   <button
                     key={p.id}
                     onClick={() => onViewProposal(p.id)}
-                    className={`w-full grid grid-cols-[1fr_3rem_4.5rem] gap-x-2 px-3 py-2.5 text-[13px] items-center border-b border-border/50 transition-colors text-left ${
+                    className={`w-full grid grid-cols-[1fr_3rem_4.5rem_1rem] gap-x-2 px-3 py-2.5 text-[13px] items-center border-b border-border/50 transition-all text-left hover:shadow-sm hover:-translate-y-[1px] ${
                       isYours ? "bg-green-50/60 hover:bg-green-50" : "hover:bg-muted/50"
                     }`}
                   >
@@ -887,6 +893,7 @@ function DoublesProposalsTab({
                         {info.text}
                       </span>
                     </span>
+                    <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-muted-foreground/50"><path d="m9 18 6-6-6-6"/></svg>
                   </button>
                 );
               })}
@@ -911,13 +918,14 @@ function DoublesProposalsTab({
                 <button
                   key={p.id}
                   onClick={() => onViewProposal(p.id)}
-                  className="w-full grid grid-cols-[1fr_3rem_4.5rem] gap-x-2 px-3 py-2.5 text-[13px] items-center border-b border-border/50 transition-colors text-left opacity-60 hover:bg-muted/50"
+                  className="w-full grid grid-cols-[1fr_3rem_4.5rem_1rem] gap-x-2 px-3 py-2.5 text-[13px] items-center border-b border-border/50 transition-all text-left opacity-60 hover:bg-muted/50 hover:shadow-sm hover:-translate-y-[1px]"
                 >
                   <span className="font-medium truncate">{p.creator.username}</span>
                   <span className="text-center font-semibold tabular-nums">4/4</span>
                   <span className="text-right">
                     <span className="text-[10px] text-green-700 bg-green-50 border border-green-200 rounded-full px-1.5 py-0.5">Matched</span>
                   </span>
+                  <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-muted-foreground/50"><path d="m9 18 6-6-6-6"/></svg>
                 </button>
               ))}
             </div>
@@ -958,10 +966,11 @@ function MatchesTab({
 
   return (
     <div className="overflow-hidden">
-      <div className="grid grid-cols-[1fr_5rem_4.5rem] gap-x-2 px-3 py-2 text-[11px] text-muted-foreground uppercase tracking-wider border-b">
+      <div className="grid grid-cols-[1fr_5rem_4.5rem_1rem] gap-x-2 px-3 py-2 text-[11px] text-muted-foreground uppercase tracking-wider border-b">
         <span>Opponent</span>
         <span className="text-center">Date</span>
         <span className="text-right">Status</span>
+        <span></span>
       </div>
 
       {visible.map((m) => {
@@ -975,7 +984,7 @@ function MatchesTab({
           <div key={m.id}>
             <button
               onClick={() => setExpandedId(isExpanded ? null : m.id)}
-              className={`w-full grid grid-cols-[1fr_5rem_4.5rem] gap-x-2 px-3 py-2.5 text-[13px] items-center border-b border-border/50 transition-colors text-left ${
+              className={`w-full grid grid-cols-[1fr_5rem_4.5rem_1rem] gap-x-2 px-3 py-2.5 text-[13px] items-center border-b border-border/50 transition-all text-left hover:shadow-sm hover:-translate-y-[1px] ${
                 isWin ? "bg-green-50/60 hover:bg-green-50" : isLoss ? "bg-red-50/30 hover:bg-red-50/50" : "hover:bg-muted/50"
               }`}
             >
@@ -988,10 +997,11 @@ function MatchesTab({
               <span className="text-right">
                 <span className={`text-[10px] border rounded-full px-1.5 py-0.5 ${badge.className}`}>{badge.text}</span>
               </span>
+              <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={`text-muted-foreground/50 transition-transform ${isExpanded ? "rotate-180" : ""}`}><path d="m6 9 6 6 6-6"/></svg>
             </button>
 
             {isExpanded && (
-              <div className={`px-3 py-3 border-b border-border/50 ${isWin ? "bg-green-50/40" : isLoss ? "bg-red-50/20" : "bg-muted/30"}`}>
+              <div className={`px-3 py-3 border-b border-border/50 animate-unfold ${isWin ? "bg-green-50/40" : isLoss ? "bg-red-50/20" : "bg-muted/30"}`}>
                 <div className="space-y-1.5 text-[13px]">
                   <DetailRow label="Park" value={m.park.name} />
                   <DetailRow label="Date" value={formatDateTime(m.created_at)} />
@@ -1059,9 +1069,10 @@ function DoublesMatchesTab({
 
   return (
     <div className="overflow-hidden">
-      <div className="grid grid-cols-[1fr_4.5rem] gap-x-2 px-3 py-2 text-[11px] text-muted-foreground uppercase tracking-wider border-b">
+      <div className="grid grid-cols-[1fr_4.5rem_1rem] gap-x-2 px-3 py-2 text-[11px] text-muted-foreground uppercase tracking-wider border-b">
         <span>Teams</span>
         <span className="text-right">Status</span>
+        <span></span>
       </div>
 
       {visible.map((m) => {
@@ -1080,7 +1091,7 @@ function DoublesMatchesTab({
           <button
             key={m.id}
             onClick={() => onViewMatch(m.id)}
-            className={`w-full grid grid-cols-[1fr_4.5rem] gap-x-2 px-3 py-2.5 text-[13px] items-center border-b border-border/50 transition-colors text-left ${
+            className={`w-full grid grid-cols-[1fr_4.5rem_1rem] gap-x-2 px-3 py-2.5 text-[13px] items-center border-b border-border/50 transition-all text-left hover:shadow-sm hover:-translate-y-[1px] ${
               isWin ? "bg-green-50/60 hover:bg-green-50" : isLoss ? "bg-red-50/30 hover:bg-red-50/50" : "hover:bg-muted/50"
             }`}
           >
@@ -1094,6 +1105,7 @@ function DoublesMatchesTab({
             <span className="text-right">
               <span className={`text-[10px] border rounded-full px-1.5 py-0.5 ${badge.className}`}>{badge.text}</span>
             </span>
+            <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-muted-foreground/50"><path d="m9 18 6-6-6-6"/></svg>
           </button>
         );
       })}
@@ -1114,10 +1126,10 @@ function DoublesMatchesTab({
 
 function DetailRow({ label, value, italic }: { label: string; value: string; italic?: boolean }) {
   return (
-    <div className="flex items-baseline gap-1">
+    <div className="flex items-baseline gap-1 min-w-0">
       <span className="text-muted-foreground shrink-0">{label}</span>
       <span className="flex-1 border-b border-dotted border-muted-foreground/30 min-w-4 relative top-[-2px]" />
-      <span className={`font-medium shrink-0 ${italic ? "italic" : ""}`}>{value}</span>
+      <span className={`font-medium max-w-[60%] truncate ${italic ? "italic" : ""}`}>{value}</span>
     </div>
   );
 }
