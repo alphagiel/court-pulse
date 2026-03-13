@@ -303,7 +303,7 @@ export default function PickupPage() {
               No courts found. Check back soon!
             </div>
           ) : (
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               {parkActivities.map((activity) => (
                 <ParkCard
                   key={activity.park.id}
