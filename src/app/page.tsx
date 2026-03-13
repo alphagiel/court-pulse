@@ -30,6 +30,7 @@ export default function Home() {
       <div className="max-w-lg mx-auto px-5 py-8 sm:px-6 space-y-6">
         <AppHeader
           title="Court Pulse"
+          subtitle="Pickleball — let's run it back."
         />
 
         <div className="grid grid-cols-2 gap-3">
