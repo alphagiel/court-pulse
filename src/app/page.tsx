@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/lib/auth-context";
 import { AppHeader } from "@/components/app-header";
+import { Loader } from "@/components/loader";
 
 type Route = "pickup" | "ladder";
 
@@ -21,11 +22,7 @@ export default function Home() {
   }, [authLoading, user, profile, router]);
 
   if (authLoading || !user || !profile) {
-    return (
-      <main className="min-h-screen bg-background flex items-center justify-center">
-        <p className="text-[14px] text-muted-foreground">Loading...</p>
-      </main>
-    );
+    return <Loader />;
   }
 
   return (

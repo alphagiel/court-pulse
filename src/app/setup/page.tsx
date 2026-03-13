@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import type { SkillLevel } from "@/types/database";
+import { Loader } from "@/components/loader";
 
 const SKILL_LEVELS: { value: SkillLevel; label: string }[] = [
   { value: "2.5", label: "2.5 — Beginner" },
@@ -75,11 +76,7 @@ export default function SetupPage() {
   };
 
   if (loading || !user) {
-    return (
-      <main className="min-h-screen bg-background flex items-center justify-center">
-        <p className="text-[14px] text-muted-foreground">Loading...</p>
-      </main>
-    );
+    return <Loader />;
   }
 
   return (

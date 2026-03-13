@@ -16,6 +16,7 @@ import type {
   Park,
   LadderRating,
 } from "@/types/database";
+import { Loader } from "@/components/loader";
 
 function formatDateTime(dateStr: string): string {
   const d = new Date(dateStr);
@@ -28,7 +29,7 @@ function formatDateTime(dateStr: string): string {
 
 export default function ProposalDetailPage() {
   return (
-    <Suspense fallback={<main className="min-h-screen bg-background flex items-center justify-center"><p className="text-[14px] text-muted-foreground">Loading...</p></main>}>
+    <Suspense fallback={<Loader />}>
       <ProposalDetailInner />
     </Suspense>
   );
@@ -149,11 +150,7 @@ function ProposalDetailInner() {
   if (!authLoading && !user) return null;
 
   if (loading || authLoading || signupsLoading) {
-    return (
-      <main className="min-h-screen bg-background flex items-center justify-center">
-        <p className="text-[14px] text-muted-foreground">Loading...</p>
-      </main>
-    );
+    return <Loader />;
   }
 
   if (!proposal) {

@@ -27,6 +27,7 @@ import type {
   MatchMode,
 } from "@/types/database";
 import { getSkillTier, SKILL_TIER_LABELS } from "@/types/database";
+import { Loader } from "@/components/loader";
 
 function formatDate(dateStr: string): string {
   const d = new Date(dateStr);
@@ -58,7 +59,7 @@ const TIER_RANGE: Record<SkillTier, string> = {
 
 export default function LadderPage() {
   return (
-    <Suspense fallback={<main className="min-h-screen bg-background flex items-center justify-center"><p className="text-[14px] text-muted-foreground">Loading...</p></main>}>
+    <Suspense fallback={<Loader />}>
       <LadderPageInner />
     </Suspense>
   );
@@ -214,11 +215,7 @@ function LadderPageInner() {
   };
 
   if (authLoading || memberLoading || !profile) {
-    return (
-      <main className="min-h-screen bg-background flex items-center justify-center">
-        <p className="text-[14px] text-muted-foreground">Loading...</p>
-      </main>
-    );
+    return <Loader />;
   }
 
   // Registration gate
@@ -294,7 +291,7 @@ function LadderPageInner() {
 
           {/* Tier cards */}
           {previewsLoading ? (
-            <p className="text-center py-12 text-[14px] text-muted-foreground">Loading...</p>
+            <Loader variant="inline" />
           ) : (
             <div className="grid grid-cols-1 min-[360px]:grid-cols-3 gap-2.5">
               {previews.map((preview) => (
@@ -673,7 +670,7 @@ function RankingRow({
           <div className="mt-3 pt-3 border-t border-border/30">
             <p className="text-[11px] text-muted-foreground uppercase tracking-wider mb-2">Recent Matches</p>
             {matchesLoading ? (
-              <p className="text-[12px] text-muted-foreground">Loading...</p>
+              <Loader variant="inline" />
             ) : recent.length === 0 ? (
               <p className="text-[12px] text-muted-foreground">No confirmed matches yet</p>
             ) : (
