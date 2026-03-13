@@ -4,7 +4,11 @@
       "Bash(curl -s -X POST \"https://opztiobihdphdwpbbkyy.supabase.co/rest/v1/rpc\" \\\\\n  -H \"apikey: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im9wenRpb2JpaGRwaGR3cGJia3l5Iiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc3MjkyMDk0NywiZXhwIjoyMDg4NDk2OTQ3fQ.qb0uGz5YTZMaU7IaYb75yF0qp8WgftFkn5ygUH94BfE\" \\\\\n  -H \"Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im9wenRpb2JpaGRwaGR3cGJia3l5Iiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc3MjkyMDk0NywiZXhwIjoyMDg4NDk2OTQ3fQ.qb0uGz5YTZMaU7IaYb75yF0qp8WgftFkn5ygUH94BfE\" \\\\\n  -H \"Content-Type: application/json\" 2>&1 | head -5)",
       "Bash(cd \"C:\\\\Users\\\\lfage\\\\Sandbox\\\\full-stack\\\\court-pulse\" && export SUPABASE_ACCESS_TOKEN=sbp_48cda45be8c814269b77bb920f20fc0b78ce3f5b && npx supabase functions deploy send-email --project-ref opztiobihdphdwpbbkyy 2>&1)",
       "Bash(source .env.local && npx supabase functions deploy send-email --project-ref opztiobihdphdwpbbkyy 2>&1)",
-      "Bash(export SUPABASE_ACCESS_TOKEN=sbp_48cda45be8c814269b77bb920f20fc0b78ce3f5b && npx supabase functions deploy send-email --project-ref opztiobihdphdwpbbkyy 2>&1)"
+      "Bash(export SUPABASE_ACCESS_TOKEN=sbp_48cda45be8c814269b77bb920f20fc0b78ce3f5b && npx supabase functions deploy send-email --project-ref opztiobihdphdwpbbkyy 2>&1)",
+      "Bash(find /c/Users/lfage/Documents -iname \"*dahil*\" -o -iname \"*bulaklak*\" -o -iname \"*florante*\" 2>/dev/null | head -20)",
+      "Bash(find /c/Users/lfage/Downloads -iname \"*dahil*\" -o -iname \"*bulaklak*\" -o -iname \"*florante*\" 2>/dev/null | head -20)",
+      "Bash(find /c/Users/lfage/Desktop -iname \"*dahil*\" -o -iname \"*bulaklak*\" -o -iname \"*florante*\" 2>/dev/null | head -20)",
+      "Bash(find /c/Users/lfage/Music -iname \"*dahil*\" -o -iname \"*bulaklak*\" -o -iname \"*florante*\" 2>/dev/null | head -20)"
     ]
   }
 }
