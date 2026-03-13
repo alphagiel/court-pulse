@@ -96,10 +96,17 @@ export function useUserLocation() {
   return { location, error };
 }
 
+export interface PlayerProfile {
+  username: string;
+  skillLevel: SkillLevel;
+  elo: number | null;
+}
+
 export function useParkActivity() {
   const [parks, setParks] = useState<Park[]>([]);
   const [checkIns, setCheckIns] = useState<CheckIn[]>([]);
   const [intents, setIntents] = useState<Intent[]>([]);
+  const [playerProfiles, setPlayerProfiles] = useState<Record<string, PlayerProfile>>({});
   const [loading, setLoading] = useState(true);
 
   const fetchAll = useCallback(async () => {
@@ -114,6 +121,37 @@ export function useParkActivity() {
     if (parksRes.data) setParks(parksRes.data);
     if (checkInsRes.data) setCheckIns(checkInsRes.data);
     if (intentsRes.data) setIntents(intentsRes.data);
+
+    // Build player profiles lookup from active user_ids
+    const userIds = new Set<string>();
+    if (checkInsRes.data) for (const ci of checkInsRes.data) userIds.add(ci.user_id);
+    if (intentsRes.data) for (const i of intentsRes.data) userIds.add(i.user_id);
+
+    if (userIds.size > 0) {
+      const ids = Array.from(userIds);
+      const [profilesRes, ratingsRes] = await Promise.all([
+        supabase.from("profiles").select("id, username, skill_level").in("id", ids),
+        supabase.from("ladder_ratings").select("user_id, elo_rating").eq("mode", "singles").in("user_id", ids),
+      ]);
+
+      const eloMap: Record<string, number> = {};
+      if (ratingsRes.data) {
+        for (const r of ratingsRes.data) eloMap[r.user_id] = r.elo_rating;
+      }
+
+      const profiles: Record<string, PlayerProfile> = {};
+      if (profilesRes.data) {
+        for (const p of profilesRes.data) {
+          profiles[p.id] = {
+            username: p.username,
+            skillLevel: p.skill_level,
+            elo: eloMap[p.id] ?? null,
+          };
+        }
+      }
+      setPlayerProfiles(profiles);
+    }
+
     setLoading(false);
   }, []);
 
@@ -141,7 +179,7 @@ export function useParkActivity() {
     };
   }, [fetchAll]);
 
-  return { parks, checkIns, intents, loading, refetch: fetchAll };
+  return { parks, checkIns, intents, playerProfiles, loading, refetch: fetchAll };
 }
 
 export function buildParkActivities(

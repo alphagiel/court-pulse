@@ -16,6 +16,7 @@ import type {
   LadderRating,
   Team,
 } from "@/types/database";
+import { Loader } from "@/components/loader";
 
 function formatDateTime(dateStr: string): string {
   const d = new Date(dateStr);
@@ -42,7 +43,7 @@ const defaultPark: Park = { id: "", name: "Unknown", address: null, lat: 0, lng:
 
 export default function MatchPage() {
   return (
-    <Suspense fallback={<main className="min-h-screen bg-background flex items-center justify-center"><p className="text-[14px] text-muted-foreground">Loading...</p></main>}>
+    <Suspense fallback={<Loader />}>
       <MatchPageInner />
     </Suspense>
   );
@@ -120,11 +121,7 @@ function MatchPageInner() {
 
   if (!authLoading && !user) { router.replace("/login"); return null; }
   if (loading || authLoading) {
-    return (
-      <main className="min-h-screen bg-background flex items-center justify-center">
-        <p className="text-[14px] text-muted-foreground">Loading...</p>
-      </main>
-    );
+    return <Loader />;
   }
   if (!match) {
     return (

@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import Link from "next/link";
+import { Loader } from "@/components/loader";
 
 type Mode = "signin" | "signup";
 
@@ -35,11 +36,7 @@ export default function LoginPage() {
   }, [user, profile, loading, router]);
 
   if (loading) {
-    return (
-      <main className="min-h-screen bg-background flex items-center justify-center">
-        <p className="text-[14px] text-muted-foreground">Loading...</p>
-      </main>
-    );
+    return <Loader />;
   }
 
   const handleEmailSubmit = async (e: React.FormEvent) => {

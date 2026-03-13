@@ -10,10 +10,11 @@ import { Card, CardContent } from "@/components/ui/card";
 import { AppHeader } from "@/components/app-header";
 import type { Park, Profile, MatchMode, SkillLevel } from "@/types/database";
 import { SKILL_TIER_LEVELS, getSkillTier } from "@/types/database";
+import { Loader } from "@/components/loader";
 
 export default function NewProposalPage() {
   return (
-    <Suspense fallback={<main className="min-h-screen bg-background flex items-center justify-center"><p className="text-[14px] text-muted-foreground">Loading...</p></main>}>
+    <Suspense fallback={<Loader />}>
       <NewProposalPageInner />
     </Suspense>
   );
@@ -104,11 +105,7 @@ function NewProposalPageInner() {
   if (!memberLoading && !member) { router.replace("/ladder"); return null; }
 
   if (authLoading || memberLoading) {
-    return (
-      <main className="min-h-screen bg-background flex items-center justify-center">
-        <p className="text-[14px] text-muted-foreground">Loading...</p>
-      </main>
-    );
+    return <Loader />;
   }
 
   const handleSubmit = async () => {
