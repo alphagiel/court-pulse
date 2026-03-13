@@ -140,50 +140,46 @@ export function ParkCard({
     >
       <div className="px-3 pt-3 pb-2.5 space-y-2">
         {/* Header */}
-        <div className="flex items-center gap-2">
-          <div className="min-w-0 flex-1">
-            <div className="flex items-center gap-1.5">
-              <h3 className="font-semibold text-[13px] leading-tight truncate">
-                {park.name}
-              </h3>
-              {park.court_count > 0 && (
-                <span className="text-[10px] text-muted-foreground shrink-0">
-                  {park.court_count}ct
-                </span>
-              )}
-            </div>
-            <p className="text-[10px] text-muted-foreground mt-0.5 truncate">
+        <div>
+          <div className="flex items-center gap-1.5">
+            <h3 className="font-semibold text-[13px] leading-tight">
+              {park.name}
+            </h3>
+            {park.court_count > 0 && (
+              <span className="text-[10px] text-muted-foreground shrink-0">
+                {park.court_count}ct
+              </span>
+            )}
+          </div>
+          <div className="flex items-center gap-2 mt-0.5">
+            <span className="text-[10px] text-muted-foreground">
               {distanceMiles !== null
                 ? `${distanceMiles} mi`
                 : park.address || ""}
-            </p>
+            </span>
+            {totalPlayers > 0 && (
+              <span className="text-[10px] font-semibold text-green-600 dark:text-green-400">
+                {totalPlayers} here
+              </span>
+            )}
+            {totalInterested > 0 && (
+              <span className="text-[10px] font-semibold text-blue-600 dark:text-blue-400">
+                {totalInterested} going
+              </span>
+            )}
           </div>
-          {(totalPlayers > 0 || totalInterested > 0) && (
-            <div className="flex items-center gap-2 shrink-0">
-              {totalPlayers > 0 && (
-                <span className="text-[11px] font-semibold text-green-600 dark:text-green-400">
-                  {totalPlayers} here
-                </span>
-              )}
-              {totalInterested > 0 && (
-                <span className="text-[11px] font-semibold text-blue-600 dark:text-blue-400">
-                  {totalInterested} going
-                </span>
-              )}
-            </div>
-          )}
         </div>
 
         {/* Dot chart grid */}
         <div className="overflow-visible">
           {/* Column headers */}
-          <div className="grid grid-cols-[32px_1fr_1px_1fr_1px_1fr] gap-0">
+          <div className="grid grid-cols-[24px_1fr_1px_1fr_1px_1fr] gap-0">
             <div />
             {SKILL_BUCKETS.map((col, i) => (
               <div key={col.key} className="contents">
                 {i > 0 && <div className="bg-border/60" />}
-                <div className="text-center py-1">
-                  <span className="text-[10px] text-muted-foreground font-medium">
+                <div className="text-center py-0.5">
+                  <span className="text-[9px] text-muted-foreground font-medium">
                     {col.label}
                   </span>
                 </div>
@@ -196,9 +192,9 @@ export function ParkCard({
             <div key={row.key}>
               <div className="h-px bg-border/60" />
 
-              <div className="grid grid-cols-[32px_1fr_1px_1fr_1px_1fr] gap-0">
-                <div className="flex items-center justify-center py-2">
-                  <span className="text-[10px] text-muted-foreground font-medium">
+              <div className="grid grid-cols-[24px_1fr_1px_1fr_1px_1fr] gap-0">
+                <div className="flex items-center justify-center py-1.5">
+                  <span className="text-[9px] text-muted-foreground font-medium">
                     {row.label}
                   </span>
                 </div>
@@ -208,7 +204,7 @@ export function ParkCard({
                   return (
                     <div key={col.key} className="contents">
                       {colIdx > 0 && <div className="bg-border/60" />}
-                      <div className="flex flex-wrap gap-1 items-center justify-center py-2 px-1 min-h-[28px]">
+                      <div className="flex flex-wrap gap-[3px] items-center justify-center py-1.5 px-0.5 min-h-[22px]">
                         {cellDots.map((dot) => {
                           const profile = playerProfiles[dot.userId];
                           return (
@@ -219,7 +215,7 @@ export function ParkCard({
                               onMouseLeave={() => setHoveredDot(null)}
                             >
                               <span
-                                className={`block w-2.5 h-2.5 rounded-full shrink-0 transition-all ${
+                                className={`block w-2 h-2 rounded-full shrink-0 transition-all ${
                                   dot.isHere
                                     ? "bg-green-500 dark:bg-green-400"
                                     : "bg-blue-400 dark:bg-blue-500"
