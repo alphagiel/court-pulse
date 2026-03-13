@@ -37,7 +37,7 @@ export function useTierPreviews() {
     const [ratingsRes, profilesRes, proposalsRes, matchesRes] = await Promise.all([
       supabase.from("ladder_ratings").select("*").eq("mode", "singles").order("elo_rating", { ascending: false }),
       supabase.from("profiles").select("*"),
-      supabase.from("proposals").select("*").eq("status", "open").gte("expires_at", new Date().toISOString()),
+      supabase.from("proposals").select("*").eq("status", "open").gte("expires_at", new Date().toISOString()).gte("proposed_time", new Date().toISOString()),
       supabase.from("matches").select("*").in("status", ["pending", "score_submitted", "confirmed"]),
     ]);
 
@@ -213,6 +213,7 @@ export function useProposals(tier: SkillTier, mode: MatchMode = "singles") {
       .in("status", activeStatuses)
       .gte("created_at", oneWeekAgo)
       .gte("expires_at", now)
+      .gte("proposed_time", now)
       .order("proposed_time", { ascending: true });
 
     if (!data || data.length === 0) {
