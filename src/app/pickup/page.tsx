@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback, useEffect, useMemo } from "react";
+import { useState, useCallback, useEffect, useMemo, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase";
 import { useAuth } from "@/lib/auth-context";
@@ -14,6 +14,7 @@ import { AppHeader } from "@/components/app-header";
 import { Button } from "@/components/ui/button";
 import type { Park } from "@/types/database";
 import { Loader } from "@/components/loader";
+import { theme } from "@/lib/theme";
 
 function formatHourLabel(targetTime: string | null): string {
   if (!targetTime) return "Now";
@@ -66,11 +67,24 @@ export default function PickupPage() {
   );
   const [intentParkId, setIntentParkId] = useState<string | null>(null);
   const [actionLoading, setActionLoading] = useState(false);
+  const [sortMode, setSortMode] = useState<"closest" | "busiest">(location ? "closest" : "busiest");
   const [paddleLoading, setPaddleLoading] = useState<string | null>(null);
   const [userCheckIns, setUserCheckIns] = useState<Record<string, string>>({});
 
   // Modal state
   const [modalParkId, setModalParkId] = useState<string | null>(null);
+
+  // Add court state
+  const [showAddCourt, setShowAddCourt] = useState(false);
+  const [courtSearch, setCourtSearch] = useState("");
+  const [courtResults, setCourtResults] = useState<{ name: string; address: string }[]>([]);
+  const [courtSearching, setCourtSearching] = useState(false);
+  const [courtName, setCourtName] = useState("");
+  const [courtAddress, setCourtAddress] = useState("");
+  const [courtCount, setCourtCount] = useState("2");
+  const [courtSubmitting, setCourtSubmitting] = useState(false);
+  const [courtSubmitted, setCourtSubmitted] = useState(false);
+  const searchTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
     if (!authLoading && !user) {
@@ -90,13 +104,31 @@ export default function PickupPage() {
     location,
   );
 
+  const hasLocation = !!location;
+  const [topN, setTopN] = useState(3);
+
   const parkActivities = useMemo(() => {
-    if (!intentParkId) return parkActivitiesBase;
-    return [
-      ...parkActivitiesBase.filter((a) => a.park.id === intentParkId),
-      ...parkActivitiesBase.filter((a) => a.park.id !== intentParkId),
-    ];
-  }, [parkActivitiesBase, intentParkId]);
+    const effectiveSort = !hasLocation ? "busiest" : sortMode;
+    const sorted = [...parkActivitiesBase].sort((a, b) => {
+      if (effectiveSort === "closest") {
+        return (a.distanceMiles ?? 999) - (b.distanceMiles ?? 999);
+      }
+      return (b.totalPlayers + b.totalInterested) - (a.totalPlayers + a.totalInterested);
+    });
+    const top = sorted.slice(0, topN);
+    // If user has an active intent park, make sure it's included at the top
+    if (intentParkId && !top.some((a) => a.park.id === intentParkId)) {
+      const intentPark = parkActivitiesBase.find((a) => a.park.id === intentParkId);
+      if (intentPark) return [intentPark, ...top.slice(0, topN - 1)];
+    }
+    if (intentParkId) {
+      return [
+        ...top.filter((a) => a.park.id === intentParkId),
+        ...top.filter((a) => a.park.id !== intentParkId),
+      ];
+    }
+    return top;
+  }, [parkActivitiesBase, intentParkId, sortMode, hasLocation, topN]);
 
   const syncUserState = useCallback(() => {
     if (!userId) return;
@@ -265,7 +297,8 @@ export default function PickupPage() {
         )}
 
         <p className="text-[13px] text-muted-foreground text-center">
-          Tap a court to signal you&apos;re down to play.
+          Tap a court to signal you&apos;re down to play, or{" "}
+          <button onClick={() => setShowAddCourt(true)} className="text-green-700 font-medium hover:underline">add a court</button>.
         </p>
 
         {/* Active intent banner */}
@@ -292,9 +325,46 @@ export default function PickupPage() {
           </div>
         )}
 
-        {/* Court cards — 2-col grid */}
+        {/* Sort toggle + Court cards */}
         <div>
-          <h2 className="text-[16px] font-semibold mb-3">Nearby Courts</h2>
+          <div className="flex items-center gap-3 mb-4">
+            <span className="text-[13px] font-medium text-muted-foreground">Top</span>
+            <select
+              value={topN}
+              onChange={(e) => setTopN(parseInt(e.target.value))}
+              className="appearance-none bg-muted/60 border border-border rounded-lg px-2 py-1.5 text-[13px] font-semibold text-center cursor-pointer focus:outline-none focus:ring-1 focus:ring-ring w-11"
+            >
+              {[3, 5, 7, 10].map((n) => (
+                <option key={n} value={n}>{n}</option>
+              ))}
+            </select>
+            <div className="flex bg-muted rounded-lg p-1 gap-0.5">
+              <button
+                onClick={() => hasLocation && setSortMode("closest")}
+                className={`flex items-center gap-1.5 text-[13px] font-medium px-3 py-1.5 rounded-md transition-colors ${
+                  (hasLocation ? sortMode : "busiest") === "closest"
+                    ? "bg-green-600 text-white shadow-sm"
+                    : hasLocation
+                      ? "text-muted-foreground hover:text-foreground"
+                      : "text-muted-foreground/40 cursor-not-allowed"
+                }`}
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z"/><circle cx="12" cy="10" r="3"/></svg>
+                Closest
+              </button>
+              <button
+                onClick={() => setSortMode("busiest")}
+                className={`flex items-center gap-1.5 text-[13px] font-medium px-3 py-1.5 rounded-md transition-colors ${
+                  (hasLocation ? sortMode : "busiest") === "busiest"
+                    ? "bg-green-600 text-white shadow-sm"
+                    : "text-muted-foreground hover:text-foreground"
+                }`}
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+                Busiest
+              </button>
+            </div>
+          </div>
 
           {loading ? (
             <Loader variant="inline" />
@@ -331,6 +401,7 @@ export default function PickupPage() {
             <span>Going</span>
           </div>
         </div>
+
       </div>
 
       {/* Court modal — centered popup */}
@@ -352,6 +423,214 @@ export default function PickupPage() {
           onCheckIn={handlePaddleDown}
           onClose={() => setModalParkId(null)}
         />
+      )}
+
+      {/* Add Court modal */}
+      {showAddCourt && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4"
+          onClick={(e) => { if (e.target === e.currentTarget) { setShowAddCourt(false); setCourtName(""); setCourtAddress(""); setCourtSearch(""); setCourtResults([]); setCourtSubmitted(false); } }}
+        >
+          <div className="bg-background w-full max-w-md rounded-2xl shadow-2xl animate-in zoom-in-95 fade-in duration-200 max-h-[85vh] overflow-y-auto">
+            <div className="px-5 py-5 space-y-4">
+              {/* Header */}
+              <div className="flex items-start justify-between">
+                <div>
+                  <h2 className="text-[18px] font-bold">Add a Court</h2>
+                  <p className="text-[13px] text-muted-foreground mt-0.5">
+                    Know a court that could benefit from Court Pulse? Add it here.
+                  </p>
+                </div>
+                <button
+                  onClick={() => { setShowAddCourt(false); setCourtName(""); setCourtAddress(""); setCourtSearch(""); setCourtResults([]); setCourtSubmitted(false); }}
+                  className="text-muted-foreground hover:text-foreground transition-colors p-1 -mr-1 -mt-1"
+                >
+                  <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12"/></svg>
+                </button>
+              </div>
+
+              {courtSubmitted ? (
+                /* Success state */
+                <div className="text-center py-4 space-y-2">
+                  <div className="w-12 h-12 rounded-full bg-green-100 flex items-center justify-center mx-auto">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className="text-green-600"><path d="M20 6 9 17l-5-5"/></svg>
+                  </div>
+                  <p className="text-[15px] font-semibold">Court Submitted!</p>
+                  <p className="text-[13px] text-muted-foreground">
+                    Our team will review and add your court within 24–48 hours.
+                  </p>
+                  <div className="flex gap-2 pt-2">
+                    <button
+                      onClick={() => { setCourtSubmitted(false); setCourtName(""); setCourtAddress(""); setCourtSearch(""); }}
+                      className="flex-1 text-[13px] font-medium py-2 rounded-lg border border-border hover:bg-muted/50 transition-colors"
+                    >
+                      Submit Another
+                    </button>
+                    <button
+                      onClick={() => { setShowAddCourt(false); setCourtSubmitted(false); setCourtName(""); setCourtAddress(""); setCourtSearch(""); setCourtResults([]); }}
+                      className={`flex-1 text-[13px] font-medium py-2 rounded-lg ${theme.pickup.button}`}
+                    >
+                      Done
+                    </button>
+                  </div>
+                </div>
+              ) : !courtName ? (
+                /* Search step */
+                <div className="space-y-2">
+                  <label className="text-[13px] font-medium">Search for the park</label>
+                  <div className="relative">
+                    <input
+                      type="text"
+                      value={courtSearch}
+                      onChange={(e) => {
+                        const q = e.target.value;
+                        setCourtSearch(q);
+                        if (searchTimeout.current) clearTimeout(searchTimeout.current);
+                        if (q.trim().length < 3) { setCourtResults([]); return; }
+                        setCourtSearching(true);
+                        searchTimeout.current = setTimeout(async () => {
+                          try {
+                            const res = await fetch(
+                              `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(q + " park")}&format=json&addressdetails=1&limit=5&countrycodes=us`
+                            );
+                            const data = await res.json();
+                            setCourtResults(
+                              data.map((r: { display_name: string; name: string }) => ({
+                                name: r.name || r.display_name.split(",")[0],
+                                address: r.display_name,
+                              }))
+                            );
+                          } catch {
+                            setCourtResults([]);
+                          } finally {
+                            setCourtSearching(false);
+                          }
+                        }, 600);
+                      }}
+                      placeholder="e.g. Millbrook Exchange Park, Raleigh"
+                      className="w-full rounded-md border border-input bg-background px-3 py-2.5 pr-10 text-[15px] focus:outline-none focus:ring-2 focus:ring-ring"
+                      autoFocus
+                    />
+                    <div className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground">
+                      {courtSearching ? (
+                        <svg className="w-4 h-4 animate-spin" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10" strokeDasharray="30" strokeDashoffset="10"/></svg>
+                      ) : (
+                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
+                      )}
+                    </div>
+                  </div>
+
+                  {courtResults.length > 0 && (
+                    <div className="border border-border rounded-lg overflow-hidden">
+                      {courtResults.map((r, i) => (
+                        <button
+                          key={i}
+                          onClick={() => { setCourtName(r.name); setCourtAddress(r.address); setCourtResults([]); setCourtSearch(""); }}
+                          className="w-full text-left px-3 py-2.5 hover:bg-muted/50 transition-colors border-b border-border/50 last:border-b-0"
+                        >
+                          <p className="text-[13px] font-medium truncate">{r.name}</p>
+                          <p className="text-[11px] text-muted-foreground truncate">{r.address}</p>
+                        </button>
+                      ))}
+                    </div>
+                  )}
+
+                  {courtSearch.trim().length >= 3 && !courtSearching && courtResults.length === 0 && (
+                    <p className="text-[12px] text-muted-foreground text-center py-2">
+                      No results found. Try a different search.
+                    </p>
+                  )}
+
+                  <div className="text-center pt-1">
+                    <button
+                      onClick={() => { setCourtName(courtSearch.trim() || "Unknown"); setCourtAddress(""); }}
+                      className="text-[12px] text-muted-foreground hover:text-foreground underline"
+                    >
+                      Can&apos;t find it? Enter manually
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                /* Confirm + details step */
+                <div className="space-y-3">
+                  <div className="bg-muted/40 rounded-lg px-3 py-2.5 flex items-start justify-between gap-2">
+                    <div className="min-w-0">
+                      <p className="text-[14px] font-medium truncate">{courtName}</p>
+                      {courtAddress && <p className="text-[11px] text-muted-foreground truncate">{courtAddress}</p>}
+                    </div>
+                    <button
+                      onClick={() => { setCourtName(""); setCourtAddress(""); }}
+                      className="text-[11px] text-muted-foreground hover:text-foreground shrink-0 underline"
+                    >
+                      Change
+                    </button>
+                  </div>
+
+                  {!courtAddress && (
+                    <div className="space-y-1.5">
+                      <label className="text-[13px] font-medium">Address</label>
+                      <input
+                        type="text"
+                        value={courtAddress}
+                        onChange={(e) => setCourtAddress(e.target.value)}
+                        placeholder="e.g. 1905 Spring Forest Rd, Raleigh, NC"
+                        maxLength={200}
+                        className="w-full rounded-md border border-input bg-background px-3 py-2.5 text-[15px] focus:outline-none focus:ring-2 focus:ring-ring"
+                      />
+                    </div>
+                  )}
+
+                  <div className="space-y-1.5">
+                    <label className="text-[13px] font-medium">Number of Courts</label>
+                    <div className="relative">
+                      <select
+                        value={courtCount}
+                        onChange={(e) => setCourtCount(e.target.value)}
+                        className="w-full appearance-none rounded-md border border-input bg-background px-3 py-2.5 pr-10 text-[15px] focus:outline-none focus:ring-2 focus:ring-ring"
+                      >
+                        {[1, 2, 3, 4, 5, 6, 7, 8, 10, 12].map((n) => (
+                          <option key={n} value={n}>{n}</option>
+                        ))}
+                      </select>
+                      <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground"><path d="m6 9 6 6 6-6"/></svg>
+                    </div>
+                  </div>
+
+                  <p className="text-[11px] text-muted-foreground text-center">
+                    Our team will review and add your court within 24–48 hours.
+                  </p>
+
+                  <Button
+                    onClick={async () => {
+                      if (!courtName.trim() || !courtAddress.trim() || !userId) return;
+                      setCourtSubmitting(true);
+                      try {
+                        await supabase.from("park_submissions").insert({
+                          submitted_by: userId,
+                          name: courtName.trim(),
+                          address: courtAddress.trim(),
+                          court_count: parseInt(courtCount),
+                        });
+                        setCourtName("");
+                        setCourtAddress("");
+                        setCourtCount("2");
+                        setCourtSubmitted(true);
+                      } catch (err) {
+                        console.error("Submit court error:", err);
+                      } finally {
+                        setCourtSubmitting(false);
+                      }
+                    }}
+                    disabled={!courtName.trim() || !courtAddress.trim() || courtSubmitting}
+                    className={`w-full ${theme.pickup.button}`}
+                  >
+                    {courtSubmitting ? "Submitting..." : "Submit Court"}
+                  </Button>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
       )}
     </main>
   );
