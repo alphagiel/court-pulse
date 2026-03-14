@@ -192,7 +192,7 @@ export function AppHeader({
             {title}
           </h1>
           {subtitle && (
-            <p className="text-[13px] text-muted-foreground truncate">
+            <p className="text-[13px] text-muted-foreground">
               {subtitle}
             </p>
           )}
