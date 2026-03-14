@@ -14,6 +14,7 @@ import { AppHeader } from "@/components/app-header";
 import { Button } from "@/components/ui/button";
 import type { Park } from "@/types/database";
 import { Loader } from "@/components/loader";
+import { Dropdown } from "@/components/dropdown";
 import { theme } from "@/lib/theme";
 
 function formatHourLabel(targetTime: string | null): string {
@@ -261,7 +262,7 @@ export default function PickupPage() {
   };
 
   if (authLoading || !user || !profile) {
-    return <Loader />;
+    return <PickupSkeleton />;
   }
 
   const intentParkName = intentParkId
@@ -286,7 +287,7 @@ export default function PickupPage() {
       <div className="max-w-2xl mx-auto px-4 py-8 sm:px-6 space-y-6">
         <AppHeader
           title="Pickup"
-          subtitle="Find players, hit the courts"
+          subtitle={<>Tap a court to signal you&apos;re down to play, or{" "}<button onClick={() => setShowAddCourt(true)} className="text-green-700 font-medium hover:underline">add a court</button>.</>}
           backHref="/"
         />
 
@@ -295,11 +296,6 @@ export default function PickupPage() {
             {locationError}
           </p>
         )}
-
-        <p className="text-[13px] text-muted-foreground text-center">
-          Tap a court to signal you&apos;re down to play, or{" "}
-          <button onClick={() => setShowAddCourt(true)} className="text-green-700 font-medium hover:underline">add a court</button>.
-        </p>
 
         {/* Active intent banner */}
         {intentActive && intentParkName && (
@@ -328,20 +324,16 @@ export default function PickupPage() {
         {/* Sort toggle + Court cards */}
         <div>
           <div className="flex items-center gap-3 mb-4">
-            <span className="text-[13px] font-medium text-muted-foreground">Top</span>
-            <select
-              value={topN}
-              onChange={(e) => setTopN(parseInt(e.target.value))}
-              className="appearance-none bg-muted/60 border border-border rounded-lg px-2 py-1.5 text-[13px] font-semibold text-center cursor-pointer focus:outline-none focus:ring-1 focus:ring-ring w-11"
-            >
-              {[3, 5, 7, 10].map((n) => (
-                <option key={n} value={n}>{n}</option>
-              ))}
-            </select>
-            <div className="flex bg-muted rounded-lg p-1 gap-0.5">
+            <div className="flex items-center bg-muted rounded-full p-1 gap-0.5">
+              <Dropdown
+                value={String(topN)}
+                onChange={(v) => setTopN(parseInt(v))}
+                options={[3, 5, 7, 10].map((n) => ({ value: String(n), label: `Top ${n}` }))}
+                variant="compact"
+              />
               <button
                 onClick={() => hasLocation && setSortMode("closest")}
-                className={`flex items-center gap-1.5 text-[13px] font-medium px-3 py-1.5 rounded-md transition-colors ${
+                className={`flex items-center gap-1.5 text-[13px] font-medium px-3 py-1.5 rounded-full transition-colors ${
                   (hasLocation ? sortMode : "busiest") === "closest"
                     ? "bg-green-600 text-white shadow-sm"
                     : hasLocation
@@ -354,7 +346,7 @@ export default function PickupPage() {
               </button>
               <button
                 onClick={() => setSortMode("busiest")}
-                className={`flex items-center gap-1.5 text-[13px] font-medium px-3 py-1.5 rounded-md transition-colors ${
+                className={`flex items-center gap-1.5 text-[13px] font-medium px-3 py-1.5 rounded-full transition-colors ${
                   (hasLocation ? sortMode : "busiest") === "busiest"
                     ? "bg-green-600 text-white shadow-sm"
                     : "text-muted-foreground hover:text-foreground"
@@ -367,7 +359,9 @@ export default function PickupPage() {
           </div>
 
           {loading ? (
-            <Loader variant="inline" />
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              {[1, 2, 3].map((i) => <SkeletonCard key={i} />)}
+            </div>
           ) : parkActivities.length === 0 ? (
             <div className="text-center py-12 text-[14px] text-muted-foreground">
               No courts found. Check back soon!
@@ -582,18 +576,12 @@ export default function PickupPage() {
 
                   <div className="space-y-1.5">
                     <label className="text-[13px] font-medium">Number of Courts</label>
-                    <div className="relative">
-                      <select
-                        value={courtCount}
-                        onChange={(e) => setCourtCount(e.target.value)}
-                        className="w-full appearance-none rounded-md border border-input bg-background px-3 py-2.5 pr-10 text-[15px] focus:outline-none focus:ring-2 focus:ring-ring"
-                      >
-                        {[1, 2, 3, 4, 5, 6, 7, 8, 10, 12].map((n) => (
-                          <option key={n} value={n}>{n}</option>
-                        ))}
-                      </select>
-                      <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground"><path d="m6 9 6 6 6-6"/></svg>
-                    </div>
+                    <Dropdown
+                      value={courtCount}
+                      onChange={setCourtCount}
+                      options={[1, 2, 3, 4, 5, 6, 7, 8, 10, 12].map((n) => ({ value: String(n), label: String(n) }))}
+                      placeholder="Select..."
+                    />
                   </div>
 
                   <p className="text-[11px] text-muted-foreground text-center">
@@ -847,5 +835,64 @@ function CourtModal({
         </div>
       </div>
     </div>
+  );
+}
+
+// --------------- Skeleton Components ---------------
+
+function Shimmer({ className }: { className?: string }) {
+  return <div className={`animate-pulse rounded-md bg-muted ${className || ""}`} />;
+}
+
+function SkeletonCard() {
+  return (
+    <div className="rounded-xl border border-border/50 p-4 space-y-3">
+      <div className="flex items-center justify-between">
+        <Shimmer className="h-5 w-28" />
+        <Shimmer className="h-4 w-12 rounded-full" />
+      </div>
+      <Shimmer className="h-3 w-36" />
+      <div className="flex gap-2 pt-1">
+        <Shimmer className="h-6 w-14 rounded-full" />
+        <Shimmer className="h-6 w-14 rounded-full" />
+      </div>
+    </div>
+  );
+}
+
+function PickupSkeleton() {
+  return (
+    <main className="min-h-screen bg-background">
+      <div className="max-w-2xl mx-auto px-4 py-8 sm:px-6 space-y-6">
+        {/* Header skeleton */}
+        <div className="space-y-2">
+          <div className="flex items-center justify-between">
+            <Shimmer className="h-7 w-16 rounded-full" />
+            <div className="flex items-center gap-1.5">
+              <Shimmer className="h-4 w-12" />
+              <Shimmer className="h-8 w-8 rounded-full" />
+            </div>
+          </div>
+          <div className="text-center space-y-1.5">
+            <Shimmer className="h-6 w-24 mx-auto" />
+            <Shimmer className="h-4 w-56 mx-auto" />
+          </div>
+        </div>
+
+        {/* Sort toggle skeleton */}
+        <Shimmer className="h-10 w-64 rounded-full" />
+
+        {/* Card grid skeleton */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          {[1, 2, 3].map((i) => <SkeletonCard key={i} />)}
+        </div>
+
+        {/* Legend skeleton */}
+        <div className="flex items-center justify-center gap-4">
+          <Shimmer className="h-3 w-16" />
+          <Shimmer className="h-3 w-12" />
+        </div>
+      </div>
+    </main>
   );
 }
