@@ -12,6 +12,8 @@ import type { Park, Profile, MatchMode, SkillLevel } from "@/types/database";
 import { SKILL_TIER_LEVELS, getSkillTier } from "@/types/database";
 import { Loader } from "@/components/loader";
 import { Dropdown } from "@/components/dropdown";
+import { DatePicker } from "@/components/date-picker";
+import { TimePicker } from "@/components/time-picker";
 import { theme } from "@/lib/theme";
 
 const L = theme.ladder;
@@ -249,25 +251,18 @@ function NewProposalPageInner() {
             {/* Date */}
             <div className="space-y-1.5">
               <label className="text-[14px] font-medium">Date</label>
-              <input
-                type="date"
+              <DatePicker
                 value={date}
-                min={todayStr}
-                max={maxDateStr}
-                onChange={(e) => setDate(e.target.value)}
-                className="w-full rounded-md border border-input bg-background px-3 py-3 text-[16px] focus:outline-none focus:ring-2 focus:ring-ring"
+                onChange={setDate}
+                minDate={new Date(todayStr + "T00:00:00")}
+                maxDate={new Date(maxDateStr + "T00:00:00")}
               />
             </div>
 
             {/* Time */}
             <div className="space-y-1.5">
               <label className="text-[14px] font-medium">Time</label>
-              <input
-                type="time"
-                value={time}
-                onChange={(e) => setTime(e.target.value)}
-                className="w-full rounded-md border border-input bg-background px-3 py-3 text-[16px] focus:outline-none focus:ring-2 focus:ring-ring"
-              />
+              <TimePicker value={time} onChange={setTime} date={date} />
             </div>
 
             {/* Message */}
