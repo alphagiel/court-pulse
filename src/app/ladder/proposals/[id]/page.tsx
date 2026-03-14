@@ -5,6 +5,7 @@ import { useRouter, useParams, useSearchParams } from "next/navigation";
 import { useAuth } from "@/lib/auth-context";
 import { supabase } from "@/lib/supabase";
 import { useProposalSignups } from "@/lib/ladder-hooks";
+import { getSkillTier } from "@/types/database";
 
 import { CourtPairing } from "@/components/court-pairing";
 import { Button } from "@/components/ui/button";
@@ -17,6 +18,9 @@ import type {
   LadderRating,
 } from "@/types/database";
 import { Loader } from "@/components/loader";
+import { theme } from "@/lib/theme";
+
+const L = theme.ladder;
 
 function formatDateTime(dateStr: string): string {
   const d = new Date(dateStr);
@@ -36,7 +40,7 @@ export default function ProposalDetailPage() {
 }
 
 function ProposalDetailInner() {
-  const { user, loading: authLoading } = useAuth();
+  const { user, profile, loading: authLoading } = useAuth();
   const router = useRouter();
   const params = useParams();
   const searchParams = useSearchParams();
@@ -167,8 +171,11 @@ function ProposalDetailInner() {
   const isInvitedPartner = userId === proposal.partner_id && !isSignedUp;
   const isPairing = proposal.status === "pairing";
 
-  // Can this user join? (role assigned internally, creator arranges teams later)
-  const canJoin = !isSignedUp && !isInvitedPartner && signupCount < 4 && proposal.status !== "accepted";
+  // Can this user join? Must be same tier, not already signed up, slots available
+  const userTier = profile ? getSkillTier(profile.skill_level) : null;
+  const proposalTier = getSkillTier(proposal.creator.skill_level);
+  const isSameTier = userTier === proposalTier;
+  const canJoin = isSameTier && !isSignedUp && !isInvitedPartner && signupCount < 4 && proposal.status !== "accepted";
 
   const handleAcceptPartner = async () => {
     if (!userId) return;
@@ -341,12 +348,12 @@ function ProposalDetailInner() {
   const statusColor: Record<string, string> = {
     open: "bg-amber-100 text-amber-800",
     forming: "bg-blue-100 text-blue-800",
-    pairing: "bg-green-100 text-green-800",
-    accepted: "bg-green-100 text-green-800",
+    pairing: `${L.rowExpanded} ${L.accent}`,
+    accepted: `${L.rowExpanded} ${L.accent}`,
   };
 
   return (
-    <main className="min-h-screen bg-background">
+    <main className={`min-h-screen ${L.bg}`}>
       <div className="max-w-lg mx-auto px-5 py-8 sm:px-6 space-y-6">
         <AppHeader
           title="Doubles"
@@ -379,13 +386,13 @@ function ProposalDetailInner() {
 
         {/* Partner invitation */}
         {isInvitedPartner && proposal.status !== "accepted" && (
-          <Card className="border-green-300 bg-green-50/50">
+          <Card className={`border-sky-300 ${L.rowDetail}`}>
             <CardContent className="pt-5 space-y-3">
               <div className="text-center space-y-1">
-                <p className="text-[15px] font-semibold text-green-800">
+                <p className="text-[15px] font-semibold text-sky-800">
                   You&apos;ve been invited as a partner
                 </p>
-                <p className="text-[13px] text-green-700">
+                <p className="text-[13px] text-sky-700">
                   {proposal.creator.username} wants you on their team for doubles
                 </p>
               </div>
@@ -393,7 +400,7 @@ function ProposalDetailInner() {
                 <Button
                   onClick={handleAcceptPartner}
                   disabled={actionLoading}
-                  className="flex-1 bg-green-600 hover:bg-green-700 text-white"
+                  className={`flex-1 ${L.button}`}
                 >
                   {actionLoading ? "Accepting..." : "Accept"}
                 </Button>
@@ -419,7 +426,7 @@ function ProposalDetailInner() {
                 {signups.map((s) => (
                   <div key={s.id} className="flex items-center justify-between py-1.5">
                     <div className="flex items-center gap-2">
-                      <div className="w-7 h-7 rounded-full bg-green-100 text-green-700 flex items-center justify-center text-[12px] font-bold">
+                      <div className="w-7 h-7 rounded-full bg-sky-100 text-sky-700 flex items-center justify-center text-[12px] font-bold">
                         {s.profile.username.charAt(0).toUpperCase()}
                       </div>
                       <div>
@@ -460,10 +467,16 @@ function ProposalDetailInner() {
                 <Button
                   onClick={handleJoin}
                   disabled={actionLoading}
-                  className="w-full bg-green-600 hover:bg-green-700 text-white"
+                  className={`w-full ${L.button}`}
                 >
                   {actionLoading ? "Joining..." : "Join"}
                 </Button>
+              )}
+
+              {!isSameTier && !isSignedUp && !isInvitedPartner && (
+                <p className="text-[13px] text-muted-foreground text-center">
+                  This proposal is for the {proposalTier} tier. You can&apos;t join from a different tier.
+                </p>
               )}
 
               {isSignedUp && !isCreator && (
@@ -525,13 +538,13 @@ function ProposalDetailInner() {
                 {signups.map((s) => (
                   <div key={s.id} className="flex items-center justify-between px-3 py-2">
                     <div className="flex items-center gap-2">
-                      <div className="w-6 h-6 rounded-full bg-green-100 text-green-700 flex items-center justify-center text-[10px] font-bold">
+                      <div className="w-6 h-6 rounded-full bg-sky-100 text-sky-700 flex items-center justify-center text-[10px] font-bold">
                         {s.profile.username.charAt(0).toUpperCase()}
                       </div>
                       <span className="text-[13px] font-medium">{s.profile.username}</span>
                     </div>
                     {s.profile.email ? (
-                      <a href={`mailto:${s.profile.email}`} className="text-[12px] text-green-700 hover:underline">
+                      <a href={`mailto:${s.profile.email}`} className="text-[12px] text-sky-700 hover:underline">
                         {s.profile.email}
                       </a>
                     ) : (

@@ -8,7 +8,8 @@
       "Bash(find /c/Users/lfage/Documents -iname \"*dahil*\" -o -iname \"*bulaklak*\" -o -iname \"*florante*\" 2>/dev/null | head -20)",
       "Bash(find /c/Users/lfage/Downloads -iname \"*dahil*\" -o -iname \"*bulaklak*\" -o -iname \"*florante*\" 2>/dev/null | head -20)",
       "Bash(find /c/Users/lfage/Desktop -iname \"*dahil*\" -o -iname \"*bulaklak*\" -o -iname \"*florante*\" 2>/dev/null | head -20)",
-      "Bash(find /c/Users/lfage/Music -iname \"*dahil*\" -o -iname \"*bulaklak*\" -o -iname \"*florante*\" 2>/dev/null | head -20)"
+      "Bash(find /c/Users/lfage/Music -iname \"*dahil*\" -o -iname \"*bulaklak*\" -o -iname \"*florante*\" 2>/dev/null | head -20)",
+      "Bash(npx next:*)"
     ]
   }
 }
