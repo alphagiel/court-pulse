@@ -17,6 +17,9 @@ import type {
   Team,
 } from "@/types/database";
 import { Loader } from "@/components/loader";
+import { theme } from "@/lib/theme";
+
+const L = theme.ladder;
 
 function formatDateTime(dateStr: string): string {
   const d = new Date(dateStr);
@@ -39,7 +42,15 @@ interface MatchDetail extends Match {
   park: Park;
 }
 
-const defaultPark: Park = { id: "", name: "Unknown", address: null, lat: 0, lng: 0, court_count: 0, created_at: "" };
+const defaultPark: Park = {
+  id: "",
+  name: "Unknown",
+  address: null,
+  lat: 0,
+  lng: 0,
+  court_count: 0,
+  created_at: "",
+};
 
 export default function MatchPage() {
   return (
@@ -85,7 +96,10 @@ function MatchPageInner() {
       .eq("id", matchId)
       .single();
 
-    if (!m) { setLoading(false); return; }
+    if (!m) {
+      setLoading(false);
+      return;
+    }
 
     const { data: proposal } = (await supabase
       .from("proposals")
@@ -94,8 +108,16 @@ function MatchPageInner() {
       .single()) as { data: (Proposal & { parks: Park }) | null };
 
     // Fetch all player profiles
-    const playerIds = [m.player1_id, m.player2_id, m.player3_id, m.player4_id].filter(Boolean) as string[];
-    const { data: profiles } = await supabase.from("profiles").select("*").in("id", playerIds);
+    const playerIds = [
+      m.player1_id,
+      m.player2_id,
+      m.player3_id,
+      m.player4_id,
+    ].filter(Boolean) as string[];
+    const { data: profiles } = await supabase
+      .from("profiles")
+      .select("*")
+      .in("id", playerIds);
     const profileMap = new Map((profiles || []).map((p: Profile) => [p.id, p]));
 
     setMatch({
@@ -117,9 +139,14 @@ function MatchPageInner() {
     setLoading(false);
   }, [matchId]);
 
-  useEffect(() => { fetchMatch(); }, [fetchMatch]);
+  useEffect(() => {
+    fetchMatch();
+  }, [fetchMatch]);
 
-  if (!authLoading && !user) { router.replace("/login"); return null; }
+  if (!authLoading && !user) {
+    router.replace("/login");
+    return null;
+  }
   if (loading || authLoading) {
     return <Loader />;
   }
@@ -132,17 +159,26 @@ function MatchPageInner() {
   }
 
   const isDoubles = match.mode === "doubles";
-  const allPlayerIds = [match.player1_id, match.player2_id, match.player3_id, match.player4_id].filter(Boolean);
+  const allPlayerIds = [
+    match.player1_id,
+    match.player2_id,
+    match.player3_id,
+    match.player4_id,
+  ].filter(Boolean);
   const teamAIds = [match.player1_id, match.player2_id];
-  const teamBIds = [match.player3_id, match.player4_id].filter(Boolean) as string[];
+  const teamBIds = [match.player3_id, match.player4_id].filter(
+    Boolean,
+  ) as string[];
   const isPlayer = allPlayerIds.includes(userId || "");
   const isTeamA = teamAIds.includes(userId || "");
   const isSubmitter = match.submitted_by === userId;
 
-  const canSubmitScore = isPlayer && (match.status === "pending" || match.status === "disputed");
+  const canSubmitScore =
+    isPlayer && (match.status === "pending" || match.status === "disputed");
   // For doubles: anyone on the opposing team of the submitter can confirm
   const canConfirm = (() => {
-    if (!isPlayer || match.status !== "score_submitted" || isSubmitter) return false;
+    if (!isPlayer || match.status !== "score_submitted" || isSubmitter)
+      return false;
     if (!isDoubles) return true;
     // Submitter's team shouldn't confirm — opponent team should
     const submitterIsTeamA = teamAIds.includes(match.submitted_by || "");
@@ -186,8 +222,10 @@ function MatchPageInner() {
       return { winnerId: null, winningTeam: null };
     }
 
-    if (p1Wins > p2Wins) return { winnerId: match.player1_id, winningTeam: null };
-    if (p2Wins > p1Wins) return { winnerId: match.player2_id, winningTeam: null };
+    if (p1Wins > p2Wins)
+      return { winnerId: match.player1_id, winningTeam: null };
+    if (p2Wins > p1Wins)
+      return { winnerId: match.player2_id, winningTeam: null };
     return { winnerId: null, winningTeam: null };
   };
 
@@ -235,11 +273,24 @@ function MatchPageInner() {
       .update({ confirmed_by: userId, status: "confirmed" })
       .eq("id", match.id);
 
-    const loserId = match.winner_id === match.player1_id ? match.player2_id : match.player1_id;
+    const loserId =
+      match.winner_id === match.player1_id
+        ? match.player2_id
+        : match.player1_id;
 
     const [winnerRating, loserRating] = await Promise.all([
-      supabase.from("ladder_ratings").select("*").eq("user_id", match.winner_id).eq("mode", "singles").single(),
-      supabase.from("ladder_ratings").select("*").eq("user_id", loserId).eq("mode", "singles").single(),
+      supabase
+        .from("ladder_ratings")
+        .select("*")
+        .eq("user_id", match.winner_id)
+        .eq("mode", "singles")
+        .single(),
+      supabase
+        .from("ladder_ratings")
+        .select("*")
+        .eq("user_id", loserId)
+        .eq("mode", "singles")
+        .single(),
     ]);
 
     if (winnerRating.data && loserRating.data) {
@@ -249,16 +300,26 @@ function MatchPageInner() {
       );
       const now = new Date().toISOString();
       await Promise.all([
-        supabase.from("ladder_ratings").update({
-          elo_rating: newWinnerRating,
-          wins: (winnerRating.data as LadderRating).wins + 1,
-          last_played: now, updated_at: now,
-        }).eq("user_id", match.winner_id).eq("mode", "singles"),
-        supabase.from("ladder_ratings").update({
-          elo_rating: newLoserRating,
-          losses: (loserRating.data as LadderRating).losses + 1,
-          last_played: now, updated_at: now,
-        }).eq("user_id", loserId).eq("mode", "singles"),
+        supabase
+          .from("ladder_ratings")
+          .update({
+            elo_rating: newWinnerRating,
+            wins: (winnerRating.data as LadderRating).wins + 1,
+            last_played: now,
+            updated_at: now,
+          })
+          .eq("user_id", match.winner_id)
+          .eq("mode", "singles"),
+        supabase
+          .from("ladder_ratings")
+          .update({
+            elo_rating: newLoserRating,
+            losses: (loserRating.data as LadderRating).losses + 1,
+            last_played: now,
+            updated_at: now,
+          })
+          .eq("user_id", loserId)
+          .eq("mode", "singles"),
       ]);
     }
   };
@@ -284,7 +345,9 @@ function MatchPageInner() {
 
     if (!allRatings || allRatings.length < 4) return;
 
-    const ratingMap = new Map(allRatings.map((r: LadderRating) => [r.user_id, r]));
+    const ratingMap = new Map(
+      allRatings.map((r: LadderRating) => [r.user_id, r]),
+    );
     const w1 = ratingMap.get(winnerIds[0]);
     const w2 = ratingMap.get(winnerIds[1]);
     const l1 = ratingMap.get(loserIds[0]);
@@ -299,18 +362,46 @@ function MatchPageInner() {
 
     const now = new Date().toISOString();
     await Promise.all([
-      supabase.from("ladder_ratings").update({
-        elo_rating: newWinnerRatings[0], wins: w1.wins + 1, last_played: now, updated_at: now,
-      }).eq("user_id", winnerIds[0]).eq("mode", "doubles"),
-      supabase.from("ladder_ratings").update({
-        elo_rating: newWinnerRatings[1], wins: w2.wins + 1, last_played: now, updated_at: now,
-      }).eq("user_id", winnerIds[1]).eq("mode", "doubles"),
-      supabase.from("ladder_ratings").update({
-        elo_rating: newLoserRatings[0], losses: l1.losses + 1, last_played: now, updated_at: now,
-      }).eq("user_id", loserIds[0]).eq("mode", "doubles"),
-      supabase.from("ladder_ratings").update({
-        elo_rating: newLoserRatings[1], losses: l2.losses + 1, last_played: now, updated_at: now,
-      }).eq("user_id", loserIds[1]).eq("mode", "doubles"),
+      supabase
+        .from("ladder_ratings")
+        .update({
+          elo_rating: newWinnerRatings[0],
+          wins: w1.wins + 1,
+          last_played: now,
+          updated_at: now,
+        })
+        .eq("user_id", winnerIds[0])
+        .eq("mode", "doubles"),
+      supabase
+        .from("ladder_ratings")
+        .update({
+          elo_rating: newWinnerRatings[1],
+          wins: w2.wins + 1,
+          last_played: now,
+          updated_at: now,
+        })
+        .eq("user_id", winnerIds[1])
+        .eq("mode", "doubles"),
+      supabase
+        .from("ladder_ratings")
+        .update({
+          elo_rating: newLoserRatings[0],
+          losses: l1.losses + 1,
+          last_played: now,
+          updated_at: now,
+        })
+        .eq("user_id", loserIds[0])
+        .eq("mode", "doubles"),
+      supabase
+        .from("ladder_ratings")
+        .update({
+          elo_rating: newLoserRatings[1],
+          losses: l2.losses + 1,
+          last_played: now,
+          updated_at: now,
+        })
+        .eq("user_id", loserIds[1])
+        .eq("mode", "doubles"),
     ]);
   };
 
@@ -337,14 +428,25 @@ function MatchPageInner() {
       await supabase.from("matches").delete().eq("id", match.id);
 
       if (isOwner) {
-        await supabase.from("proposals").update({ status: "cancelled" }).eq("id", match.proposal_id);
+        await supabase
+          .from("proposals")
+          .update({ status: "cancelled" })
+          .eq("id", match.proposal_id);
       } else if (isDoubles) {
         // For doubles, revert to pairing so teams can reform
-        await supabase.from("proposals").update({ status: "pairing" }).eq("id", match.proposal_id);
+        await supabase
+          .from("proposals")
+          .update({ status: "pairing" })
+          .eq("id", match.proposal_id);
       } else {
-        await supabase.from("proposals").update({
-          status: "open", accepted_by: null, accepted_at: null,
-        }).eq("id", match.proposal_id);
+        await supabase
+          .from("proposals")
+          .update({
+            status: "open",
+            accepted_by: null,
+            accepted_at: null,
+          })
+          .eq("id", match.proposal_id);
       }
 
       goBack();
@@ -359,7 +461,10 @@ function MatchPageInner() {
     if (!userId) return;
     setSubmitting(true);
     try {
-      await supabase.from("matches").update({ status: "disputed" }).eq("id", match.id);
+      await supabase
+        .from("matches")
+        .update({ status: "disputed" })
+        .eq("id", match.id);
       await fetchMatch();
     } catch (err) {
       console.error("Dispute error:", err);
@@ -371,17 +476,26 @@ function MatchPageInner() {
   // Find who submitted for the confirm prompt
   const submitterName = (() => {
     if (!match.submitted_by) return "Someone";
-    const all = [match.player1, match.player2, match.player3, match.player4].filter(Boolean) as Profile[];
+    const all = [
+      match.player1,
+      match.player2,
+      match.player3,
+      match.player4,
+    ].filter(Boolean) as Profile[];
     return all.find((p) => p.id === match.submitted_by)?.username || "Someone";
   })();
 
   // Winner display
   const winnerDisplay = (() => {
     if (isDoubles && match.winning_team) {
-      return match.winning_team === "a" ? `Team A: ${teamALabel}` : `Team B: ${teamBLabel}`;
+      return match.winning_team === "a"
+        ? `Team A: ${teamALabel}`
+        : `Team B: ${teamBLabel}`;
     }
     if (!isDoubles && match.winner_id) {
-      return match.winner_id === match.player1_id ? match.player1.username : match.player2.username;
+      return match.winner_id === match.player1_id
+        ? match.player1.username
+        : match.player2.username;
     }
     return null;
   })();
@@ -396,17 +510,19 @@ function MatchPageInner() {
   const statusColor: Record<string, string> = {
     pending: "bg-amber-100 text-amber-800",
     score_submitted: "bg-blue-100 text-blue-800",
-    confirmed: "bg-green-100 text-green-800",
+    confirmed: "bg-sky-100 text-sky-800",
     disputed: "bg-red-100 text-red-800",
   };
 
   return (
-    <main className="min-h-screen bg-background">
+    <main className={`min-h-screen ${L.bg}`}>
       <div className="max-w-lg mx-auto px-5 py-8 sm:px-6 space-y-6">
         <AppHeader
           title={isDoubles ? "Doubles Match" : "Match"}
           badge={
-            <span className={`inline-block text-[12px] px-2.5 py-0.5 rounded-full font-medium ${statusColor[match.status]}`}>
+            <span
+              className={`inline-block text-[12px] px-2.5 py-0.5 rounded-full font-medium ${statusColor[match.status]}`}
+            >
               {statusLabel[match.status]}
             </span>
           }
@@ -417,11 +533,15 @@ function MatchPageInner() {
         <Card>
           <CardContent className="pt-5 space-y-3">
             {isDoubles ? (
-              <div className="rounded-xl border-2 border-green-600/30 bg-green-950/5 overflow-hidden px-3 py-3">
+              <div className="rounded-xl border-2 border-sky-600/30 bg-sky-950/5 overflow-hidden px-3 py-3">
                 {/* Team labels */}
                 <div className="flex justify-between mb-3">
-                  <span className="text-[11px] font-semibold uppercase tracking-wider text-green-700">Team A</span>
-                  <span className="text-[11px] font-semibold uppercase tracking-wider text-green-700">Team B</span>
+                  <span className="text-[11px] font-semibold uppercase tracking-wider text-sky-700">
+                    Team A
+                  </span>
+                  <span className="text-[11px] font-semibold uppercase tracking-wider text-sky-700">
+                    Team B
+                  </span>
                 </div>
 
                 {/* Court with VS */}
@@ -434,30 +554,46 @@ function MatchPageInner() {
 
                   {/* Net + VS circle */}
                   <div className="absolute left-1/2 top-0 bottom-0 -translate-x-1/2 flex flex-col items-center">
-                    <div className="w-[3px] flex-1 bg-green-600/40 rounded-full" />
-                    <div className="w-7 h-7 rounded-full bg-green-600 flex items-center justify-center z-10 shrink-0 -my-1">
-                      <span className="text-[9px] font-bold text-white tracking-tight">VS</span>
+                    <div className="w-[3px] flex-1 bg-sky-600/40 rounded-full" />
+                    <div className="w-7 h-7 rounded-full bg-sky-600 flex items-center justify-center z-10 shrink-0 -my-1">
+                      <span className="text-[9px] font-bold text-white tracking-tight">
+                        VS
+                      </span>
                     </div>
-                    <div className="w-[3px] flex-1 bg-green-600/40 rounded-full" />
+                    <div className="w-[3px] flex-1 bg-sky-600/40 rounded-full" />
                   </div>
 
                   {/* Team B */}
                   <div className="flex-1 flex flex-col gap-2 pl-2">
-                    {match.player3 && <MatchPlayerChip profile={match.player3} />}
-                    {match.player4 && <MatchPlayerChip profile={match.player4} />}
+                    {match.player3 && (
+                      <MatchPlayerChip profile={match.player3} />
+                    )}
+                    {match.player4 && (
+                      <MatchPlayerChip profile={match.player4} />
+                    )}
                   </div>
                 </div>
               </div>
             ) : (
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-[15px] font-medium">{match.player1.username}</p>
-                  <p className="text-[12px] text-muted-foreground">{match.player1.skill_level}</p>
+                  <p className="text-[15px] font-medium">
+                    {match.player1.username}
+                  </p>
+                  <p className="text-[12px] text-muted-foreground">
+                    {match.player1.skill_level}
+                  </p>
                 </div>
-                <span className="text-[14px] font-bold text-muted-foreground">vs</span>
+                <span className="text-[14px] font-bold text-muted-foreground">
+                  vs
+                </span>
                 <div className="text-right">
-                  <p className="text-[15px] font-medium">{match.player2.username}</p>
-                  <p className="text-[12px] text-muted-foreground">{match.player2.skill_level}</p>
+                  <p className="text-[15px] font-medium">
+                    {match.player2.username}
+                  </p>
+                  <p className="text-[12px] text-muted-foreground">
+                    {match.player2.skill_level}
+                  </p>
                 </div>
               </div>
             )}
@@ -472,25 +608,50 @@ function MatchPageInner() {
           <Card>
             <CardContent className="pt-5 space-y-3">
               <div className="flex items-center gap-2">
-                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-muted-foreground"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"/></svg>
+                <svg
+                  xmlns="http://www.w3.org/2000/svg"
+                  width="16"
+                  height="16"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  className="text-muted-foreground"
+                >
+                  <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z" />
+                </svg>
                 <h3 className="text-[14px] font-semibold">Contact Info</h3>
               </div>
-              <p className="text-[11px] text-muted-foreground">Need to coordinate? Here&apos;s how to reach your opponent.</p>
+              <p className="text-[11px] text-muted-foreground">
+                Need to coordinate? Here&apos;s how to reach your opponent.
+              </p>
               <div className="rounded-lg border border-border bg-muted/30 divide-y divide-border">
                 {[match.player1, match.player2].map((player) => (
-                  <div key={player.id} className="flex items-center justify-between px-3 py-2">
+                  <div
+                    key={player.id}
+                    className="flex items-center justify-between px-3 py-2"
+                  >
                     <div className="flex items-center gap-2">
-                      <div className="w-6 h-6 rounded-full bg-green-100 text-green-700 flex items-center justify-center text-[10px] font-bold">
+                      <div className="w-6 h-6 rounded-full bg-sky-100 text-sky-700 flex items-center justify-center text-[10px] font-bold">
                         {player.username.charAt(0).toUpperCase()}
                       </div>
-                      <span className="text-[13px] font-medium">{player.username}</span>
+                      <span className="text-[13px] font-medium">
+                        {player.username}
+                      </span>
                     </div>
                     {player.email ? (
-                      <a href={`mailto:${player.email}`} className="text-[12px] text-green-700 hover:underline">
+                      <a
+                        href={`mailto:${player.email}`}
+                        className="text-[12px] text-sky-700 hover:underline"
+                      >
                         {player.email}
                       </a>
                     ) : (
-                      <span className="text-[11px] text-muted-foreground italic">No email</span>
+                      <span className="text-[11px] text-muted-foreground italic">
+                        No email
+                      </span>
                     )}
                   </div>
                 ))}
@@ -560,14 +721,18 @@ function MatchPageInner() {
 
             {/* Winner display */}
             {winnerDisplay && match.status !== "pending" && (
-              <p className="text-center text-[13px] font-medium text-green-600">
+              <p className="text-center text-[13px] font-medium text-sky-600">
                 Winner: {winnerDisplay}
               </p>
             )}
 
             {/* Actions */}
             {canSubmitScore && (
-              <Button onClick={handleSubmitScore} disabled={submitting} className="w-full">
+              <Button
+                onClick={handleSubmitScore}
+                disabled={submitting}
+                className="w-full"
+              >
                 {submitting ? "Submitting..." : "Submit Score"}
               </Button>
             )}
@@ -575,13 +740,23 @@ function MatchPageInner() {
             {canConfirm && (
               <div className="space-y-2">
                 <p className="text-[12px] text-muted-foreground text-center">
-                  {submitterName} submitted this score. Please confirm or dispute.
+                  {submitterName} submitted this score. Please confirm or
+                  dispute.
                 </p>
                 <div className="flex gap-2">
-                  <Button onClick={handleConfirm} disabled={submitting} className="flex-1">
+                  <Button
+                    onClick={handleConfirm}
+                    disabled={submitting}
+                    className="flex-1"
+                  >
                     {submitting ? "..." : "Confirm"}
                   </Button>
-                  <Button onClick={handleDispute} disabled={submitting} variant="destructive" className="flex-1">
+                  <Button
+                    onClick={handleDispute}
+                    disabled={submitting}
+                    variant="destructive"
+                    className="flex-1"
+                  >
                     {submitting ? "..." : "Dispute"}
                   </Button>
                 </div>
@@ -599,7 +774,11 @@ function MatchPageInner() {
                 <p className="text-[12px] text-red-500 text-center">
                   Score was disputed. Any player can correct and resubmit.
                 </p>
-                <Button onClick={handleSubmitScore} disabled={submitting} className="w-full">
+                <Button
+                  onClick={handleSubmitScore}
+                  disabled={submitting}
+                  className="w-full"
+                >
                   {submitting ? "Submitting..." : "Resubmit Score"}
                 </Button>
               </div>
@@ -634,8 +813,12 @@ function MatchPlayerChip({ profile }: { profile: Profile }) {
         {profile.username.charAt(0).toUpperCase()}
       </div>
       <div className="min-w-0 flex-1">
-        <p className="text-[12px] font-semibold truncate leading-tight">{profile.username}</p>
-        <p className="text-[10px] text-muted-foreground leading-tight">{profile.skill_level}</p>
+        <p className="text-[12px] font-semibold truncate leading-tight">
+          {profile.username}
+        </p>
+        <p className="text-[10px] text-muted-foreground leading-tight">
+          {profile.skill_level}
+        </p>
       </div>
     </div>
   );

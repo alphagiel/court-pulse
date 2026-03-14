@@ -11,6 +11,9 @@ import { AppHeader } from "@/components/app-header";
 import type { Park, Profile, MatchMode, SkillLevel } from "@/types/database";
 import { SKILL_TIER_LEVELS, getSkillTier } from "@/types/database";
 import { Loader } from "@/components/loader";
+import { theme } from "@/lib/theme";
+
+const L = theme.ladder;
 
 export default function NewProposalPage() {
   return (
@@ -155,32 +158,32 @@ function NewProposalPageInner() {
     (mode === "singles" || seekingPartner || partnerId);
 
   return (
-    <main className="min-h-screen bg-background">
+    <main className={`min-h-screen ${L.bg}`}>
       <div className="max-w-lg mx-auto px-5 py-8 sm:px-6 space-y-6">
         <AppHeader
           title="New Proposal"
-          subtitle={mode === "doubles" ? "Find a doubles match" : "Challenge someone to a match"}
+          subtitle={mode === "doubles" ? "Find a doubles match" : "Propose a singles match"}
           onBack={goBack}
         />
 
         {/* Mode Toggle */}
-        <div className="flex rounded-lg border border-border overflow-hidden">
+        <div className="flex rounded-lg bg-muted p-1">
           <button
             onClick={() => setMode("singles")}
-            className={`flex-1 py-2.5 text-[14px] font-medium transition-colors ${
+            className={`flex-1 py-2.5 text-[14px] font-medium rounded-md transition-colors ${
               mode === "singles"
-                ? "bg-green-600 text-white"
-                : "bg-muted/30 text-muted-foreground hover:text-foreground"
+                ? `${L.toggle} text-white shadow-sm`
+                : "text-muted-foreground hover:text-foreground"
             }`}
           >
             Singles
           </button>
           <button
             onClick={() => setMode("doubles")}
-            className={`flex-1 py-2.5 text-[14px] font-medium transition-colors ${
+            className={`flex-1 py-2.5 text-[14px] font-medium rounded-md transition-colors ${
               mode === "doubles"
-                ? "bg-green-600 text-white"
-                : "bg-muted/30 text-muted-foreground hover:text-foreground"
+                ? `${L.toggle} text-white shadow-sm`
+                : "text-muted-foreground hover:text-foreground"
             }`}
           >
             Doubles
@@ -193,48 +196,49 @@ function NewProposalPageInner() {
             {mode === "doubles" && (
               <div className="space-y-3">
                 <label className="text-[14px] font-medium">Partner</label>
-                <div className="flex rounded-lg border border-border overflow-hidden">
+                <div className="grid grid-cols-2 gap-3">
                   <button
                     onClick={() => { setSeekingPartner(true); setPartnerId(""); }}
-                    className={`flex-1 py-2 text-[13px] font-medium transition-colors ${
+                    className={`flex flex-col items-center gap-2 rounded-xl border p-4 transition-all ${
                       seekingPartner
-                        ? "bg-foreground text-background"
-                        : "bg-muted/30 text-muted-foreground hover:text-foreground"
+                        ? `${L.cardActive} shadow-sm`
+                        : "border-border bg-muted/40 hover:bg-muted/60"
                     }`}
                   >
-                    Looking for partner
+                    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
+                    <span className="text-[13px] font-semibold">Find a partner</span>
+                    <span className="text-[11px] text-muted-foreground leading-tight text-center">Open slot for tier players</span>
                   </button>
                   <button
                     onClick={() => setSeekingPartner(false)}
-                    className={`flex-1 py-2 text-[13px] font-medium transition-colors ${
+                    className={`flex flex-col items-center gap-2 rounded-xl border p-4 transition-all ${
                       !seekingPartner
-                        ? "bg-foreground text-background"
-                        : "bg-muted/30 text-muted-foreground hover:text-foreground"
+                        ? `${L.cardActive} shadow-sm`
+                        : "border-border bg-muted/40 hover:bg-muted/60"
                     }`}
                   >
-                    I have a partner
+                    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><line x1="19" y1="8" x2="19" y2="14"/><line x1="22" y1="11" x2="16" y2="11"/></svg>
+                    <span className="text-[13px] font-semibold">Invite a partner</span>
+                    <span className="text-[11px] text-muted-foreground leading-tight text-center">Pick someone specific</span>
                   </button>
                 </div>
 
-                {seekingPartner && (
-                  <p className="text-[12px] text-muted-foreground bg-muted/40 rounded-md px-3 py-2">
-                    Other players in your tier can join as your partner before opponents sign up.
-                  </p>
-                )}
-
                 {!seekingPartner && (
-                  <select
-                    value={partnerId}
-                    onChange={(e) => setPartnerId(e.target.value)}
-                    className="w-full rounded-md border border-input bg-background px-3 py-3 text-[16px] focus:outline-none focus:ring-2 focus:ring-ring"
-                  >
-                    <option value="">Select your partner...</option>
-                    {tierMembers.map((p) => (
-                      <option key={p.id} value={p.id}>
-                        {p.username} ({p.skill_level})
-                      </option>
-                    ))}
-                  </select>
+                  <div className="relative">
+                    <select
+                      value={partnerId}
+                      onChange={(e) => setPartnerId(e.target.value)}
+                      className="w-full appearance-none rounded-md border border-input bg-background px-3 py-3 pr-10 text-[16px] focus:outline-none focus:ring-2 focus:ring-ring"
+                    >
+                      <option value="">Select your partner...</option>
+                      {tierMembers.map((p) => (
+                        <option key={p.id} value={p.id}>
+                          {p.username} ({p.skill_level})
+                        </option>
+                      ))}
+                    </select>
+                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground"><path d="m6 9 6 6 6-6"/></svg>
+                  </div>
                 )}
               </div>
             )}
@@ -242,16 +246,19 @@ function NewProposalPageInner() {
             {/* Park select */}
             <div className="space-y-1.5">
               <label className="text-[14px] font-medium">Court</label>
-              <select
-                value={parkId}
-                onChange={(e) => setParkId(e.target.value)}
-                className="w-full rounded-md border border-input bg-background px-3 py-3 text-[16px] focus:outline-none focus:ring-2 focus:ring-ring"
-              >
-                <option value="">Select a court...</option>
-                {parks.map((p) => (
-                  <option key={p.id} value={p.id}>{p.name}</option>
-                ))}
-              </select>
+              <div className="relative">
+                <select
+                  value={parkId}
+                  onChange={(e) => setParkId(e.target.value)}
+                  className="w-full appearance-none rounded-md border border-input bg-background px-3 py-3 pr-10 text-[16px] focus:outline-none focus:ring-2 focus:ring-ring"
+                >
+                  <option value="">Select a court...</option>
+                  {parks.map((p) => (
+                    <option key={p.id} value={p.id}>{p.name}</option>
+                  ))}
+                </select>
+                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground"><path d="m6 9 6 6 6-6"/></svg>
+              </div>
             </div>
 
             {/* Date */}
@@ -321,7 +328,7 @@ function NewProposalPageInner() {
             <Button
               onClick={handleSubmit}
               disabled={!isValid || submitting}
-              className="w-full bg-green-600 hover:bg-green-700 text-white"
+              className={`w-full ${L.button}`}
             >
               {submitting ? "Creating..." : "Post Proposal"}
             </Button>

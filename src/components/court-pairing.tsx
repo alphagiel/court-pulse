@@ -3,6 +3,9 @@
 import { useState, useRef, useMemo, useCallback, useLayoutEffect, useEffect, forwardRef } from "react";
 import { autoBalanceTeams } from "@/lib/elo";
 import type { Profile } from "@/types/database";
+import { theme } from "@/lib/theme";
+
+const L = theme.ladder;
 
 interface PlayerInfo {
   userId: string;
@@ -289,13 +292,13 @@ export function CourtPairing({
             onClick={handleAutoBalance}
             className={`inline-flex items-center gap-1.5 text-[11px] font-medium px-3 py-1 rounded-full transition-colors shrink-0 ${
               autoBalanced
-                ? "bg-green-100 text-green-700"
+                ? "bg-sky-100 text-sky-700"
                 : "bg-muted text-muted-foreground"
             }`}
           >
             <span className={`inline-block w-2.5 h-2.5 rounded-full border-2 transition-colors ${
               autoBalanced
-                ? "bg-green-600 border-green-600"
+                ? "bg-sky-600 border-sky-600"
                 : "border-muted-foreground/50"
             }`} />
             Auto-balance
@@ -316,14 +319,14 @@ export function CourtPairing({
       )}
 
       {/* Court */}
-      <div className="relative rounded-xl border-2 border-green-600/30 bg-green-950/5 overflow-hidden">
+      <div className="relative rounded-xl border-2 border-sky-600/30 bg-sky-950/5 overflow-hidden">
         <div className="px-3 py-3">
           {/* Team labels */}
           <div className="flex justify-between mb-3">
-            <span className="text-[11px] font-semibold uppercase tracking-wider text-green-700">
+            <span className="text-[11px] font-semibold uppercase tracking-wider text-sky-700">
               Team A
             </span>
-            <span className="text-[11px] font-semibold uppercase tracking-wider text-green-700">
+            <span className="text-[11px] font-semibold uppercase tracking-wider text-sky-700">
               Team B
             </span>
           </div>
@@ -347,9 +350,9 @@ export function CourtPairing({
 
             {/* Net */}
             <div className="absolute left-1/2 top-0 bottom-0 -translate-x-1/2 flex flex-col items-center">
-              <div className="w-2 h-2 rounded-full bg-green-600/60 shrink-0" />
-              <div className="w-[3px] flex-1 bg-green-600/40 rounded-full" />
-              <div className="w-2 h-2 rounded-full bg-green-600/60 shrink-0" />
+              <div className="w-2 h-2 rounded-full bg-sky-600/60 shrink-0" />
+              <div className="w-[3px] flex-1 bg-sky-600/40 rounded-full" />
+              <div className="w-2 h-2 rounded-full bg-sky-600/60 shrink-0" />
             </div>
 
             {/* Team B side */}
@@ -376,7 +379,7 @@ export function CourtPairing({
             <span
               className={`text-[11px] font-medium px-2 py-0.5 rounded-full ${
                 eloDiff <= 20
-                  ? "bg-green-100 text-green-700"
+                  ? "bg-sky-100 text-sky-700"
                   : eloDiff <= 50
                     ? "bg-amber-100 text-amber-700"
                     : "bg-red-100 text-red-700"
@@ -395,7 +398,7 @@ export function CourtPairing({
       {isCreator && !disabled && (
         <button
           onClick={() => onStartMatch(teamA, teamB)}
-          className="w-full py-2.5 rounded-lg bg-green-600 hover:bg-green-700 text-white text-[14px] font-medium transition-colors"
+          className="w-full py-2.5 rounded-lg bg-sky-600 hover:bg-sky-700 text-white text-[14px] font-medium transition-colors"
         >
           Start Match
         </button>
@@ -424,13 +427,13 @@ const PlayerChip = forwardRef<
         relative flex items-center gap-1.5 px-1.5 py-1.5 rounded-lg border-2 text-left w-full overflow-hidden transition-colors duration-200
         ${canInteract ? "cursor-pointer active:scale-[0.97]" : "cursor-default"}
         ${highlighted
-          ? "border-green-500 bg-green-50 shadow-sm shadow-green-200/50"
+          ? "border-sky-500 bg-sky-50 shadow-sm shadow-sky-200/50"
           : "border-border bg-card hover:border-muted-foreground/30"
         }
       `}
     >
       <div className={`w-6 h-6 rounded-full flex items-center justify-center text-[11px] font-bold shrink-0 transition-colors duration-200 ${
-        highlighted ? "bg-green-600 text-white" : "bg-muted text-muted-foreground"
+        highlighted ? "bg-sky-600 text-white" : "bg-muted text-muted-foreground"
       }`}>
         {player.profile.username.charAt(0).toUpperCase()}
       </div>

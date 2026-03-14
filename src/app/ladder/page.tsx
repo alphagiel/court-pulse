@@ -28,6 +28,9 @@ import type {
 } from "@/types/database";
 import { getSkillTier, SKILL_TIER_LABELS } from "@/types/database";
 import { Loader } from "@/components/loader";
+import { theme } from "@/lib/theme";
+
+const L = theme.ladder;
 
 function formatDate(dateStr: string): string {
   const d = new Date(dateStr);
@@ -253,7 +256,7 @@ function LadderPageInner() {
   // --- Landing page: mode + tier cards ---
   if (selectedTier === null) {
     return (
-      <main className="min-h-screen bg-background">
+      <main className={`min-h-screen ${L.bg}`}>
         <div className="max-w-lg mx-auto px-4 py-8 sm:px-6 space-y-6">
           <AppHeader
             title="Ladder"
@@ -267,7 +270,7 @@ function LadderPageInner() {
               onClick={() => handleSetMode("singles")}
               className={`flex flex-col items-center gap-1.5 rounded-xl border p-4 shadow-sm transition-colors ${
                 mode === "singles"
-                  ? "border-green-400 bg-green-50 dark:bg-green-950/20"
+                  ? L.cardActive
                   : "border-border bg-muted/40 hover:bg-muted/60"
               }`}
             >
@@ -279,7 +282,7 @@ function LadderPageInner() {
               onClick={() => handleSetMode("doubles")}
               className={`flex flex-col items-center gap-1.5 rounded-xl border p-4 shadow-sm transition-colors ${
                 mode === "doubles"
-                  ? "border-green-400 bg-green-50 dark:bg-green-950/20"
+                  ? L.cardActive
                   : "border-border bg-muted/40 hover:bg-muted/60"
               }`}
             >
@@ -313,7 +316,7 @@ function LadderPageInner() {
 
   // --- Tier detail view ---
   return (
-    <main className="min-h-screen bg-background">
+    <main className={`min-h-screen ${L.bg}`}>
       <div className="max-w-lg mx-auto px-4 py-8 sm:px-6 space-y-5">
         <AppHeader
           title={`${TIER_SHORT[selectedTier]} ${isDoubles ? "Doubles" : "Ladder"}`}
@@ -322,26 +325,39 @@ function LadderPageInner() {
             : `${TIER_RANGE[selectedTier]} · View only`
           }
           onBack={() => handleSetTier(null)}
+          action={!isReadOnly ? (
+            <button
+              onClick={() =>
+                router.push(
+                  `/ladder/proposals/new?tier=${selectedTier}${isDoubles ? "&mode=doubles" : ""}&tab=proposals`
+                )
+              }
+              className={`w-12 h-12 flex items-center justify-center rounded-full ${L.button} shadow-md active:scale-95 transition-all shrink-0`}
+              aria-label={isDoubles ? "Create Doubles Proposal" : "Propose a Match"}
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+            </button>
+          ) : undefined}
         />
 
         {/* Mode toggle (compact) */}
-        <div className="flex rounded-lg border border-border overflow-hidden">
+        <div className="flex rounded-lg bg-muted p-1">
           <button
             onClick={() => handleSetMode("singles")}
-            className={`flex-1 py-2 text-[13px] font-medium transition-colors ${
+            className={`flex-1 py-2 text-[13px] font-medium rounded-md transition-colors ${
               mode === "singles"
-                ? "bg-green-600 text-white"
-                : "bg-muted/30 text-muted-foreground hover:text-foreground"
+                ? `${L.toggle} text-white shadow-sm`
+                : "text-muted-foreground hover:text-foreground"
             }`}
           >
             Singles
           </button>
           <button
             onClick={() => handleSetMode("doubles")}
-            className={`flex-1 py-2 text-[13px] font-medium transition-colors ${
+            className={`flex-1 py-2 text-[13px] font-medium rounded-md transition-colors ${
               mode === "doubles"
-                ? "bg-green-600 text-white"
-                : "bg-muted/30 text-muted-foreground hover:text-foreground"
+                ? `${L.toggle} text-white shadow-sm`
+                : "text-muted-foreground hover:text-foreground"
             }`}
           >
             Doubles
@@ -450,7 +466,7 @@ function TierCard({
             {isUserTier && (
               <>
                 <span className="text-border">|</span>
-                <span className="inline-block w-2 h-2 rounded-full bg-green-500 shrink-0 animate-pulse" title="Your tier" />
+                <span className={`inline-block w-2 h-2 rounded-full ${L.dot} shrink-0 animate-pulse`} title="Your tier" />
               </>
             )}
           </p>
@@ -636,16 +652,16 @@ function RankingRow({
         onClick={onToggle}
         className={`w-full grid grid-cols-[2rem_1fr_3rem_4rem_1rem] gap-x-2 px-3 py-2.5 text-[13px] items-center transition-all text-left ${
           isExpanded
-            ? isYou ? "bg-green-100/80" : "bg-muted/80"
+            ? isYou ? L.rowExpanded : "bg-muted/80"
             : isYou
-              ? "bg-green-50/60 hover:bg-green-50 border-b border-border/50 hover:shadow-sm hover:-translate-y-[1px]"
+              ? `${L.rowHighlight} border-b border-border/50 hover:shadow-sm hover:-translate-y-[1px]`
               : "hover:bg-muted/50 border-b border-border/50 hover:shadow-sm hover:-translate-y-[1px]"
         }`}
       >
         <span className="text-muted-foreground font-medium">{showRank && rank ? rank : "—"}</span>
         <span className="font-medium truncate">
           {entry.username}
-          {isYou && <span className="text-green-600 ml-1 text-[11px]">you</span>}
+          {isYou && <span className={`${L.accent} ml-1 text-[11px]`}>you</span>}
         </span>
         <span className="text-center text-muted-foreground tabular-nums">{entry.wins}-{entry.losses}</span>
         <span className="text-right font-semibold tabular-nums">{entry.elo_rating}</span>
@@ -653,7 +669,7 @@ function RankingRow({
       </button>
 
       {isExpanded && (
-        <div className={`px-3 py-3 animate-unfold ${isYou ? "bg-green-50/40" : "bg-muted/30"}`}>
+        <div className={`px-3 py-3 animate-unfold ${isYou ? L.rowDetail : "bg-muted/30"}`}>
           <div className="space-y-1.5 text-[13px]">
             <DetailRow label="Skill" value={entry.skill_level} />
             <DetailRow label="Record" value={`${entry.wins}W – ${entry.losses}L`} />
@@ -678,7 +694,7 @@ function RankingRow({
                 {recent.map((m, i) => (
                   <div key={i} className="flex items-center justify-between text-[12px]">
                     <div className="flex items-center gap-1.5 min-w-0">
-                      <span className={`text-[10px] font-bold w-4 shrink-0 ${m.won ? "text-green-600" : "text-red-500"}`}>
+                      <span className={`text-[10px] font-bold w-4 shrink-0 ${m.won ? theme.win : theme.loss}`}>
                         {m.won ? "W" : "L"}
                       </span>
                       <span className="truncate">
@@ -702,7 +718,7 @@ function RankingRow({
             <div className="mt-3 pt-3 border-t border-border/30">
               <p className="text-[11px] text-muted-foreground uppercase tracking-wider mb-1.5">Best Win — {seasonLabel}</p>
               <p className="text-[12px]">
-                <span className="text-green-600 font-bold text-[10px]">W</span>
+                <span className={`${theme.winBold} text-[10px]`}>W</span>
                 {" "}vs <span className="font-medium">{bestWin.opponentName}</span>
                 <span className="text-muted-foreground/60 text-[10px] ml-1">{bestWin.opponentElo} ELO</span>
                 <span className="text-muted-foreground text-[11px] ml-2">{formatDate(bestWin.date)}</span>
@@ -822,7 +838,7 @@ function ProposalsTab({
   return (
     <div className="space-y-4">
       {!readOnly && (
-        <Button onClick={onCreateNew} variant="outline" className="w-full border-green-300 text-green-700 hover:bg-green-50 hover:border-green-400">
+        <Button onClick={onCreateNew} variant="outline" className={`w-full ${L.buttonOutline}`}>
           Propose a Match
         </Button>
       )}
@@ -849,25 +865,25 @@ function ProposalsTab({
                       onClick={() => setExpandedId(isExpanded ? null : p.id)}
                       className={`w-full grid grid-cols-[1fr_5rem_4.5rem_1rem] gap-x-2 px-3 py-2.5 text-[13px] items-center transition-all text-left ${
                         isExpanded
-                          ? isYours ? "bg-green-100/80" : "bg-muted/80"
+                          ? isYours ? L.rowExpanded : "bg-muted/80"
                           : isYours
-                            ? "bg-green-50/60 hover:bg-green-50 border-b border-border/50 hover:shadow-sm hover:-translate-y-[1px]"
+                            ? `${L.rowHighlight} border-b border-border/50 hover:shadow-sm hover:-translate-y-[1px]`
                             : "hover:bg-muted/50 border-b border-border/50 hover:shadow-sm hover:-translate-y-[1px]"
                       }`}
                     >
                       <span className="font-medium truncate">
                         {p.creator.username}
-                        {isYours && <span className="text-green-600 ml-1 text-[11px]">you</span>}
+                        {isYours && <span className={`${L.accent} ml-1 text-[11px]`}>you</span>}
                       </span>
                       <span className="text-center text-muted-foreground text-[12px] truncate">{formatDate(p.proposed_time)}</span>
                       <span className="text-right">
-                        <span className="text-[10px] text-green-700 bg-green-50 border border-green-200 rounded-full px-1.5 py-0.5">Open</span>
+                        <span className={`text-[10px] ${L.badge} border rounded-full px-1.5 py-0.5`}>Open</span>
                       </span>
                       <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={`text-muted-foreground/50 transition-transform ${isExpanded ? "rotate-180" : ""}`}><path d="m6 9 6 6 6-6"/></svg>
                     </button>
 
                     {isExpanded && (
-                      <div className={`px-3 py-3 animate-unfold ${isYours ? "bg-green-50/40" : "bg-muted/30"}`}>
+                      <div className={`px-3 py-3 animate-unfold ${isYours ? L.rowDetail : "bg-muted/30"}`}>
                         <div className="space-y-1.5 text-[13px]">
                           <DetailRow label="Skill" value={p.creator.skill_level} />
                           <DetailRow label="Park" value={p.park.name} />
@@ -891,7 +907,7 @@ function ProposalsTab({
                                 size="sm"
                                 onClick={() => onAccept(p)}
                                 disabled={actionId === p.id}
-                                className="w-full bg-green-600 hover:bg-green-700 text-white"
+                                className={`w-full ${L.button}`}
                               >
                                 {actionId === p.id ? "Accepting..." : "Accept Challenge"}
                               </Button>
@@ -932,13 +948,13 @@ function ProposalsTab({
                       onClick={() => setExpandedId(isExpanded ? null : p.id)}
                       className={`w-full grid grid-cols-[1fr_5rem_4.5rem_1rem] gap-x-2 px-3 py-2.5 text-[13px] items-center transition-all text-left ${
                         isExpanded
-                          ? isInvolved ? "bg-green-100/80" : "bg-muted/80"
-                          : `opacity-70 border-b border-border/50 hover:shadow-sm hover:-translate-y-[1px] ${isInvolved ? "bg-green-50/40 hover:bg-green-50" : "hover:bg-muted/50"}`
+                          ? isInvolved ? L.rowExpanded : "bg-muted/80"
+                          : `opacity-70 border-b border-border/50 hover:shadow-sm hover:-translate-y-[1px] ${isInvolved ? `${L.rowHighlight}` : "hover:bg-muted/50"}`
                       }`}
                     >
                       <span className="font-medium truncate">
                         {p.creator.username}
-                        {isOwner && <span className="text-green-600 ml-1 text-[11px]">you</span>}
+                        {isOwner && <span className={`${L.accent} ml-1 text-[11px]`}>you</span>}
                       </span>
                       <span className="text-center text-muted-foreground text-[12px] truncate">{formatDate(p.proposed_time)}</span>
                       <span className="text-right">
@@ -948,7 +964,7 @@ function ProposalsTab({
                     </button>
 
                     {isExpanded && (
-                      <div className={`px-3 py-3 animate-unfold ${isInvolved ? "bg-green-50/40" : "bg-muted/30"}`}>
+                      <div className={`px-3 py-3 animate-unfold ${isInvolved ? L.rowDetail : "bg-muted/30"}`}>
                         <div className="space-y-1.5 text-[13px]">
                           <DetailRow label="Skill" value={p.creator.skill_level} />
                           <DetailRow label="Park" value={p.park.name} />
@@ -1029,16 +1045,16 @@ function DoublesProposalsTab({
   const visibleActive = showAll ? active : active.slice(0, INITIAL_SHOW);
 
   const statusInfo: Record<string, { text: string; className: string }> = {
-    open: { text: "Open", className: "text-green-700 bg-green-50 border-green-200" },
+    open: { text: "Open", className: L.badge },
     forming: { text: "Forming", className: "text-blue-700 bg-blue-50 border-blue-200" },
     pairing: { text: "Pairing", className: "text-amber-700 bg-amber-50 border-amber-200" },
-    accepted: { text: "Matched", className: "text-green-700 bg-green-50 border-green-200" },
+    accepted: { text: "Matched", className: L.badge },
   };
 
   return (
     <div className="space-y-4">
       {!readOnly && (
-        <Button onClick={onCreateNew} variant="outline" className="w-full border-green-300 text-green-700 hover:bg-green-50 hover:border-green-400">
+        <Button onClick={onCreateNew} variant="outline" className={`w-full ${L.buttonOutline}`}>
           Create Doubles Proposal
         </Button>
       )}
@@ -1066,13 +1082,13 @@ function DoublesProposalsTab({
                     key={p.id}
                     onClick={() => onViewProposal(p.id)}
                     className={`w-full grid grid-cols-[1fr_3rem_4.5rem_1rem] gap-x-2 px-3 py-2.5 text-[13px] items-center border-b border-border/50 transition-all text-left hover:shadow-sm hover:-translate-y-[1px] ${
-                      isYours ? "bg-green-50/60 hover:bg-green-50" : "hover:bg-muted/50"
+                      isYours ? L.rowHighlight : "hover:bg-muted/50"
                     }`}
                   >
                     <div className="truncate">
                       <span className="font-medium">
                         {p.creator.username}
-                        {isYours && <span className="text-green-600 ml-1 text-[11px]">you</span>}
+                        {isYours && <span className={`${L.accent} ml-1 text-[11px]`}>you</span>}
                       </span>
                       <span className="text-[11px] text-muted-foreground ml-1.5">
                         {p.park.name}
@@ -1128,7 +1144,7 @@ function DoublesProposalsTab({
                       )}
                     </div>
                     <span className="text-right">
-                      <span className="text-[10px] text-green-700 bg-green-50 border border-green-200 rounded-full px-1.5 py-0.5">Matched</span>
+                      <span className={`text-[10px] ${L.badge} border rounded-full px-1.5 py-0.5`}>Matched</span>
                     </span>
                     <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-muted-foreground/50"><path d="m9 18 6-6-6-6"/></svg>
                   </button>
@@ -1166,7 +1182,7 @@ function MatchesTab({
   const statusBadge: Record<string, { text: string; className: string }> = {
     pending: { text: "Pending", className: "text-amber-700 bg-amber-50 border-amber-200" },
     score_submitted: { text: "Confirm", className: "text-blue-700 bg-blue-50 border-blue-200" },
-    confirmed: { text: "Done", className: "text-green-700 bg-green-50 border-green-200" },
+    confirmed: { text: "Done", className: L.badge },
     disputed: { text: "Disputed", className: "text-red-700 bg-red-50 border-red-200" },
   };
 
@@ -1192,13 +1208,13 @@ function MatchesTab({
               onClick={() => setExpandedId(isExpanded ? null : m.id)}
               className={`w-full grid grid-cols-[1fr_5rem_4.5rem_1rem] gap-x-2 px-3 py-2.5 text-[13px] items-center transition-all text-left ${
                 isExpanded
-                  ? isWin ? "bg-green-100/80" : isLoss ? "bg-red-100/60" : "bg-muted/80"
-                  : `border-b border-border/50 hover:shadow-sm hover:-translate-y-[1px] ${isWin ? "bg-green-50/60 hover:bg-green-50" : isLoss ? "bg-red-50/30 hover:bg-red-50/50" : "hover:bg-muted/50"}`
+                  ? isWin ? L.rowExpanded : isLoss ? "bg-red-100/60" : "bg-muted/80"
+                  : `border-b border-border/50 hover:shadow-sm hover:-translate-y-[1px] ${isWin ? L.rowHighlight : isLoss ? "bg-red-50/30 hover:bg-red-50/50" : "hover:bg-muted/50"}`
               }`}
             >
               <span className="font-medium truncate">
                 vs {opponent.username}
-                {isWin && <span className="text-green-600 ml-1 text-[11px] font-bold">W</span>}
+                {isWin && <span className={`${theme.winBold} ml-1 text-[11px]`}>W</span>}
                 {isLoss && <span className="text-red-500 ml-1 text-[11px] font-bold">L</span>}
               </span>
               <span className="text-center text-muted-foreground text-[12px] truncate">{formatDate(m.created_at)}</span>
@@ -1209,7 +1225,7 @@ function MatchesTab({
             </button>
 
             {isExpanded && (
-              <div className={`px-3 py-3 animate-unfold ${isWin ? "bg-green-50/40" : isLoss ? "bg-red-50/20" : "bg-muted/30"}`}>
+              <div className={`px-3 py-3 animate-unfold ${isWin ? L.rowDetail : isLoss ? "bg-red-50/20" : "bg-muted/30"}`}>
                 <div className="space-y-1.5 text-[13px]">
                   <DetailRow label="Park" value={m.park.name} />
                   <DetailRow label="Date" value={formatDateTime(m.created_at)} />
@@ -1271,7 +1287,7 @@ function DoublesMatchesTab({
   const statusBadge: Record<string, { text: string; className: string }> = {
     pending: { text: "Pending", className: "text-amber-700 bg-amber-50 border-amber-200" },
     score_submitted: { text: "Confirm", className: "text-blue-700 bg-blue-50 border-blue-200" },
-    confirmed: { text: "Done", className: "text-green-700 bg-green-50 border-green-200" },
+    confirmed: { text: "Done", className: L.badge },
     disputed: { text: "Disputed", className: "text-red-700 bg-red-50 border-red-200" },
   };
 
@@ -1300,14 +1316,14 @@ function DoublesMatchesTab({
             key={m.id}
             onClick={() => onViewMatch(m.id)}
             className={`w-full grid grid-cols-[1fr_4.5rem_1rem] gap-x-2 px-3 py-2.5 text-[13px] items-center border-b border-border/50 transition-all text-left hover:shadow-sm hover:-translate-y-[1px] ${
-              isWin ? "bg-green-50/60 hover:bg-green-50" : isLoss ? "bg-red-50/30 hover:bg-red-50/50" : "hover:bg-muted/50"
+              isWin ? L.rowHighlight : isLoss ? "bg-red-50/30 hover:bg-red-50/50" : "hover:bg-muted/50"
             }`}
           >
             <div className="truncate">
               <span className="font-medium">{teamANames}</span>
               <span className="text-muted-foreground mx-1.5">vs</span>
               <span className="font-medium">{teamBNames}</span>
-              {isWin && <span className="text-green-600 ml-1 text-[11px] font-bold">W</span>}
+              {isWin && <span className={`${theme.winBold} ml-1 text-[11px]`}>W</span>}
               {isLoss && <span className="text-red-500 ml-1 text-[11px] font-bold">L</span>}
             </div>
             <span className="text-right">

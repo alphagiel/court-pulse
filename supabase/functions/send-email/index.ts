@@ -64,6 +64,27 @@ async function getUserEmail(userId: string): Promise<string | null> {
   return data?.user?.email || null;
 }
 
+type EmailCategory = "singles" | "doubles" | "digest";
+
+async function isOptedOut(userId: string, category: EmailCategory): Promise<boolean> {
+  const { data } = await supabase
+    .from("email_preferences")
+    .select("all_emails, singles_emails, doubles_emails, digest_emails")
+    .eq("user_id", userId)
+    .single();
+
+  // No row = default (all on)
+  if (!data) return false;
+
+  // Master kill switch
+  if (!data.all_emails) return true;
+
+  if (category === "singles") return !data.singles_emails;
+  if (category === "doubles") return !data.doubles_emails;
+  if (category === "digest") return !data.digest_emails;
+  return false;
+}
+
 async function isThrottled(userId: string, eventType: string): Promise<boolean> {
   const { data } = await supabase
     .from("email_throttle")
@@ -142,8 +163,11 @@ async function handleProposalCreated(record: Record<string, unknown>) {
     proposalUrl,
   });
 
+  const category: EmailCategory = mode === "doubles" ? "doubles" : "singles";
+
   let sent = 0;
   for (const playerId of playerIds) {
+    if (await isOptedOut(playerId, category)) continue;
     if (await isThrottled(playerId, "new_proposal")) continue;
 
     const email = await getUserEmail(playerId);
@@ -167,6 +191,8 @@ async function handleProposalAccepted(record: Record<string, unknown>) {
   const acceptor = await getProfile(record.accepted_by as string);
   const park = await getPark(record.park_id as string);
   if (!creator || !acceptor || !park) return;
+
+  if (await isOptedOut(record.creator_id as string, "singles")) return;
 
   const creatorEmail = await getUserEmail(record.creator_id as string);
   if (!creatorEmail) return;
@@ -220,12 +246,15 @@ async function handleDoublesFilled(record: Record<string, unknown>) {
   const proposalUrl = `${APP_URL}/ladder/proposals/${proposalId}?mode=doubles`;
   const creatorId = record.creator_id as string;
 
+  let sent = 0;
   for (const playerId of playerIds) {
+    if (await isOptedOut(playerId, "doubles")) continue;
+
     const email = await getUserEmail(playerId);
     if (!email) continue;
 
     // Rate limit: Resend free tier allows 2 req/sec
-    if (playerIds.indexOf(playerId) > 0) await new Promise((r) => setTimeout(r, 600));
+    if (sent > 0) await new Promise((r) => setTimeout(r, 600));
 
     const playerName = profileMap.get(playerId) || "Player";
     const { subject, html } = doublesFilledEmail({
@@ -238,9 +267,10 @@ async function handleDoublesFilled(record: Record<string, unknown>) {
     });
 
     await sendEmail(email, subject, html);
+    sent++;
   }
 
-  console.log(`doubles_filled: notified ${playerIds.length} players`);
+  console.log(`doubles_filled: notified ${sent}/${playerIds.length} players`);
 }
 
 async function handlePartnerInvited(record: Record<string, unknown>) {
@@ -251,6 +281,8 @@ async function handlePartnerInvited(record: Record<string, unknown>) {
   const partner = await getProfile(partnerId);
   const park = await getPark(record.park_id as string);
   if (!creator || !partner || !park) return;
+
+  if (await isOptedOut(partnerId, "doubles")) return;
 
   const partnerEmail = await getUserEmail(partnerId);
   if (!partnerEmail) return;
@@ -277,6 +309,8 @@ async function handlePlayerLeft(record: Record<string, unknown>, oldRecord: Reco
   const creator = await getProfile(creatorId);
   const park = await getPark(record.park_id as string);
   if (!creator || !park) return;
+
+  if (await isOptedOut(creatorId, "doubles")) return;
 
   const creatorEmail = await getUserEmail(creatorId);
   if (!creatorEmail) return;
@@ -307,6 +341,9 @@ async function handleMatchDisputed(record: Record<string, unknown>) {
   const disputer = disputerId ? await getProfile(disputerId) : null;
 
   if (!submitter) return;
+
+  const matchCategory: EmailCategory = record.player3_id ? "doubles" : "singles";
+  if (await isOptedOut(submittedBy, matchCategory)) return;
 
   const submitterEmail = await getUserEmail(submittedBy);
   if (!submitterEmail) return;
