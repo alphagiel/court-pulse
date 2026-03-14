@@ -25,7 +25,9 @@ export function AppHeader({
   onBack,
   action,
 }: AppHeaderProps) {
-  const { profile, signOut } = useAuth();
+  const { user, profile, signOut } = useAuth();
+  const adminIds = (process.env.NEXT_PUBLIC_ADMIN_IDS || "").split(",").map((s) => s.trim());
+  const isAdmin = user && adminIds.includes(user.id);
   const router = useRouter();
   const [menuOpen, setMenuOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
@@ -152,6 +154,17 @@ export function AppHeader({
               >
                 Settings
               </button>
+              {isAdmin && (
+                <button
+                  onClick={() => {
+                    setMenuOpen(false);
+                    router.push("/admin");
+                  }}
+                  className="w-full text-left px-3 py-2 text-[13px] text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
+                >
+                  Admin
+                </button>
+              )}
               <button
                 onClick={() => {
                   setMenuOpen(false);
