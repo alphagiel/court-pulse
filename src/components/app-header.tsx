@@ -6,7 +6,7 @@ import { useAuth } from "@/lib/auth-context";
 
 interface AppHeaderProps {
   title: string;
-  subtitle?: string;
+  subtitle?: React.ReactNode;
   /** Badge shown below title (e.g. status pill) */
   badge?: React.ReactNode;
   /** URL to navigate on back. If undefined, no back button shown. */

@@ -11,6 +11,7 @@ import { AppHeader } from "@/components/app-header";
 import type { Park, Profile, MatchMode, SkillLevel } from "@/types/database";
 import { SKILL_TIER_LEVELS, getSkillTier } from "@/types/database";
 import { Loader } from "@/components/loader";
+import { Dropdown } from "@/components/dropdown";
 import { theme } from "@/lib/theme";
 
 const L = theme.ladder;
@@ -224,21 +225,12 @@ function NewProposalPageInner() {
                 </div>
 
                 {!seekingPartner && (
-                  <div className="relative">
-                    <select
-                      value={partnerId}
-                      onChange={(e) => setPartnerId(e.target.value)}
-                      className="w-full appearance-none rounded-md border border-input bg-background px-3 py-3 pr-10 text-[16px] focus:outline-none focus:ring-2 focus:ring-ring"
-                    >
-                      <option value="">Select your partner...</option>
-                      {tierMembers.map((p) => (
-                        <option key={p.id} value={p.id}>
-                          {p.username} ({p.skill_level})
-                        </option>
-                      ))}
-                    </select>
-                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground"><path d="m6 9 6 6 6-6"/></svg>
-                  </div>
+                  <Dropdown
+                    value={partnerId}
+                    onChange={setPartnerId}
+                    options={tierMembers.map((p) => ({ value: p.id, label: `${p.username} (${p.skill_level})` }))}
+                    placeholder="Select your partner..."
+                  />
                 )}
               </div>
             )}
@@ -246,19 +238,12 @@ function NewProposalPageInner() {
             {/* Park select */}
             <div className="space-y-1.5">
               <label className="text-[14px] font-medium">Court</label>
-              <div className="relative">
-                <select
-                  value={parkId}
-                  onChange={(e) => setParkId(e.target.value)}
-                  className="w-full appearance-none rounded-md border border-input bg-background px-3 py-3 pr-10 text-[16px] focus:outline-none focus:ring-2 focus:ring-ring"
-                >
-                  <option value="">Select a court...</option>
-                  {parks.map((p) => (
-                    <option key={p.id} value={p.id}>{p.name}</option>
-                  ))}
-                </select>
-                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground"><path d="m6 9 6 6 6-6"/></svg>
-              </div>
+              <Dropdown
+                value={parkId}
+                onChange={setParkId}
+                options={parks.map((p) => ({ value: p.id, label: p.name }))}
+                placeholder="Select a court..."
+              />
             </div>
 
             {/* Date */}

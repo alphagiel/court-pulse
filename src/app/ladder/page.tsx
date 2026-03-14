@@ -218,7 +218,7 @@ function LadderPageInner() {
   };
 
   if (authLoading || memberLoading || !profile) {
-    return <Loader />;
+    return <LadderSkeleton />;
   }
 
   // Registration gate
@@ -294,7 +294,9 @@ function LadderPageInner() {
 
           {/* Tier cards */}
           {previewsLoading ? (
-            <Loader variant="inline" />
+            <div className="grid grid-cols-1 min-[360px]:grid-cols-3 gap-2.5">
+              {[1, 2, 3].map((i) => <SkeletonTierCard key={i} />)}
+            </div>
           ) : (
             <div className="grid grid-cols-1 min-[360px]:grid-cols-3 gap-2.5">
               {previews.map((preview) => (
@@ -1364,4 +1366,63 @@ function LoadingState({ text }: { text: string }) {
 
 function EmptyState({ text }: { text: string }) {
   return <p className="text-center py-8 text-[14px] text-muted-foreground">{text}</p>;
+}
+
+// --- Skeletons ---
+
+function Shimmer({ className }: { className?: string }) {
+  return <div className={`animate-pulse rounded-md bg-muted ${className || ""}`} />;
+}
+
+function SkeletonTierCard() {
+  return (
+    <Card className="flex flex-col">
+      <CardContent className="p-3 flex flex-col gap-[15px]">
+        <div>
+          <Shimmer className="h-4 w-20 mb-1" />
+          <Shimmer className="h-3 w-14" />
+        </div>
+        <hr className="border-border" />
+        <div className="space-y-1.5">
+          <div className="flex justify-between"><Shimmer className="h-3 w-12" /><Shimmer className="h-3 w-5" /></div>
+          <div className="flex justify-between"><Shimmer className="h-3 w-14" /><Shimmer className="h-3 w-5" /></div>
+          <div className="flex justify-between"><Shimmer className="h-3 w-12" /><Shimmer className="h-3 w-5" /></div>
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
+function LadderSkeleton() {
+  return (
+    <main className={`min-h-screen ${L.bg}`}>
+      <div className="max-w-lg mx-auto px-4 py-8 sm:px-6 space-y-6">
+        {/* Header */}
+        <div className="space-y-2">
+          <div className="flex items-center justify-between">
+            <Shimmer className="h-7 w-16 rounded-full" />
+            <div className="flex items-center gap-1.5">
+              <Shimmer className="h-4 w-12" />
+              <Shimmer className="h-8 w-8 rounded-full" />
+            </div>
+          </div>
+          <div className="text-center space-y-1.5">
+            <Shimmer className="h-6 w-20 mx-auto" />
+            <Shimmer className="h-4 w-24 mx-auto" />
+          </div>
+        </div>
+
+        {/* Mode toggle */}
+        <div className="grid grid-cols-2 gap-3">
+          <Shimmer className="h-20 rounded-xl" />
+          <Shimmer className="h-20 rounded-xl" />
+        </div>
+
+        {/* Tier cards */}
+        <div className="grid grid-cols-1 min-[360px]:grid-cols-3 gap-2.5">
+          {[1, 2, 3].map((i) => <SkeletonTierCard key={i} />)}
+        </div>
+      </div>
+    </main>
+  );
 }
