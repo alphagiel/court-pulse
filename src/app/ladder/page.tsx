@@ -1361,6 +1361,56 @@ function DetailRow({ label, value, italic }: { label: string; value: string; ita
 }
 
 function LoadingState({ text }: { text: string }) {
+  const isRankings = text.includes("rankings");
+  const isProposals = text.includes("proposals") || text.includes("doubles proposals");
+  const isMatches = text.includes("matches") || text.includes("doubles matches");
+
+  if (isRankings) {
+    return (
+      <div className="space-y-0">
+        <div className="grid grid-cols-[2rem_1fr_3rem_4rem] gap-x-2 px-3 py-2 border-b">
+          <Shimmer className="h-3 w-4" /><Shimmer className="h-3 w-16" /><Shimmer className="h-3 w-8" /><Shimmer className="h-3 w-10 ml-auto" />
+        </div>
+        {[1, 2, 3, 4, 5].map((i) => (
+          <div key={i} className="grid grid-cols-[2rem_1fr_3rem_4rem] gap-x-2 px-3 py-3 border-b border-border/50">
+            <Shimmer className="h-4 w-4" />
+            <Shimmer className="h-4 w-24" />
+            <Shimmer className="h-4 w-8" />
+            <Shimmer className="h-4 w-12 ml-auto" />
+          </div>
+        ))}
+      </div>
+    );
+  }
+
+  if (isProposals) {
+    return (
+      <div className="space-y-0">
+        {[1, 2, 3].map((i) => (
+          <div key={i} className="grid grid-cols-[1fr_5rem_4.5rem] gap-x-2 px-3 py-3 border-b border-border/50">
+            <Shimmer className="h-4 w-28" />
+            <Shimmer className="h-4 w-16" />
+            <Shimmer className="h-5 w-12 rounded-full ml-auto" />
+          </div>
+        ))}
+      </div>
+    );
+  }
+
+  if (isMatches) {
+    return (
+      <div className="space-y-0">
+        {[1, 2, 3].map((i) => (
+          <div key={i} className="grid grid-cols-[1fr_4rem_4.5rem] gap-x-2 px-3 py-3 border-b border-border/50">
+            <Shimmer className="h-4 w-32" />
+            <Shimmer className="h-4 w-10" />
+            <Shimmer className="h-5 w-14 rounded-full ml-auto" />
+          </div>
+        ))}
+      </div>
+    );
+  }
+
   return <p className="text-center py-8 text-[14px] text-muted-foreground">{text}</p>;
 }
 
