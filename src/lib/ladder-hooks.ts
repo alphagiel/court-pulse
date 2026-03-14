@@ -149,6 +149,35 @@ export function useLadderRankings(tier: SkillTier, mode: MatchMode = "singles") 
       .select("*")
       .in("id", userIds);
 
+    // Compute W/L from confirmed matches (source of truth)
+    const { data: confirmedMatches } = await supabase
+      .from("matches")
+      .select("player1_id, player2_id, player3_id, player4_id, winner_id, winning_team, mode, status")
+      .eq("mode", mode)
+      .eq("status", "confirmed");
+
+    const winsMap = new Map<string, number>();
+    const lossesMap = new Map<string, number>();
+    for (const m of confirmedMatches || []) {
+      if (mode === "singles") {
+        const loserId = m.player1_id === m.winner_id ? m.player2_id : m.player1_id;
+        winsMap.set(m.winner_id, (winsMap.get(m.winner_id) || 0) + 1);
+        lossesMap.set(loserId, (lossesMap.get(loserId) || 0) + 1);
+      } else {
+        // Doubles: winning_team is "a" or "b"
+        const teamA = [m.player1_id, m.player2_id].filter(Boolean);
+        const teamB = [m.player3_id, m.player4_id].filter(Boolean);
+        const winners = m.winning_team === "a" ? teamA : teamB;
+        const losers = m.winning_team === "a" ? teamB : teamA;
+        for (const id of winners) {
+          winsMap.set(id, (winsMap.get(id) || 0) + 1);
+        }
+        for (const id of losers) {
+          lossesMap.set(id, (lossesMap.get(id) || 0) + 1);
+        }
+      }
+    }
+
     const profileMap = new Map((profiles || []).map((p: Profile) => [p.id, p]));
     const tierLevels = SKILL_TIER_LEVELS[tier];
 
@@ -166,8 +195,8 @@ export function useLadderRankings(tier: SkillTier, mode: MatchMode = "singles") 
         username: profile?.username || "Unknown",
         skill_level: profile?.skill_level || "3.5",
         elo_rating: r.elo_rating,
-        wins: r.wins,
-        losses: r.losses,
+        wins: winsMap.get(r.user_id) || 0,
+        losses: lossesMap.get(r.user_id) || 0,
         last_played: r.last_played,
       };
     });
