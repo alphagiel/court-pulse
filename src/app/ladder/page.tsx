@@ -30,7 +30,9 @@ import type {
 import { getSkillTier, SKILL_TIER_LABELS } from "@/types/database";
 import { Loader } from "@/components/loader";
 import { SwipeTabs } from "@/components/swipe-tabs";
+import { Input } from "@/components/ui/input";
 import { theme } from "@/lib/theme";
+import { isTriangleZip } from "@/lib/geo";
 
 const L = theme.ladder;
 
@@ -71,7 +73,7 @@ export default function LadderPage() {
 }
 
 function LadderPageInner() {
-  const { user, profile, loading: authLoading } = useAuth();
+  const { user, profile, loading: authLoading, refreshProfile } = useAuth();
   const router = useRouter();
   const searchParams = useSearchParams();
   const userId = user?.id;
@@ -94,6 +96,11 @@ function LadderPageInner() {
   );
   const [registering, setRegistering] = useState(false);
   const [actionId, setActionId] = useState<string | null>(null);
+
+  // Zip code prompt state
+  const [zipInput, setZipInput] = useState("");
+  const [zipSaving, setZipSaving] = useState(false);
+  const [zipError, setZipError] = useState<string | null>(null);
 
   // Sync URL with current state (replace, not push, to avoid polluting history)
   const updateUrl = (newTier: SkillTier | null, newMode: MatchMode, newTab: Tab) => {
@@ -131,7 +138,8 @@ function LadderPageInner() {
   const { matches, loading: matchesLoading, refetch: refetchMatches } = useMyMatches(userId, activeTier, mode);
 
   const isOwnTier = selectedTier === userTier;
-  const isReadOnly = selectedTier !== null && !isOwnTier;
+  const isOutsideTriangle = !!profile?.zip_code && !isTriangleZip(profile.zip_code);
+  const isReadOnly = isOutsideTriangle || (selectedTier !== null && !isOwnTier);
   const isDoubles = mode === "doubles";
 
   // Redirect if not authenticated
@@ -223,6 +231,118 @@ function LadderPageInner() {
     return <LadderSkeleton />;
   }
 
+  // Zip code prompt for existing users
+  if (!profile.zip_code) {
+    return (
+      <main className="min-h-screen bg-background">
+        <div className="max-w-lg mx-auto px-4 py-8 sm:px-6 space-y-8">
+          <AppHeader
+            title="Ladder"
+            subtitle="Compete & climb the rankings"
+            backHref="/"
+          />
+          <Card>
+            <CardContent className="pt-6 space-y-4">
+              <h2 className="text-[18px] font-semibold text-center">Add Your Zip Code</h2>
+              <p className="text-[14px] text-muted-foreground text-center">
+                To use the ladder, please add your zip code. This helps us determine eligibility for the NC Triangle ladder.
+              </p>
+              <div className="space-y-2">
+                <Input
+                  type="text"
+                  inputMode="numeric"
+                  placeholder="e.g. 27601"
+                  value={zipInput}
+                  onChange={(e) => {
+                    setZipInput(e.target.value.replace(/\D/g, "").slice(0, 5));
+                    setZipError(null);
+                  }}
+                  maxLength={5}
+                  className="h-11 text-[15px] text-center"
+                  autoFocus
+                />
+                {zipError && (
+                  <p className="text-[13px] text-red-600 text-center">{zipError}</p>
+                )}
+              </div>
+              <Button
+                className="w-full"
+                disabled={zipSaving}
+                onClick={async () => {
+                  const trimmed = zipInput.trim();
+                  if (!/^\d{5}$/.test(trimmed)) {
+                    setZipError("Please enter a valid 5-digit zip code");
+                    return;
+                  }
+                  setZipSaving(true);
+                  setZipError(null);
+                  await supabase
+                    .from("profiles")
+                    .update({ zip_code: trimmed })
+                    .eq("id", user!.id);
+                  await refreshProfile();
+                  setZipSaving(false);
+                }}
+              >
+                {zipSaving ? "Saving..." : "Save Zip Code"}
+              </Button>
+            </CardContent>
+          </Card>
+        </div>
+      </main>
+    );
+  }
+
+  // Geo gate — outside Triangle gets view-only landing
+  if (isOutsideTriangle && !member) {
+    return (
+      <main className="min-h-screen bg-background">
+        <div className="max-w-lg mx-auto px-4 py-8 sm:px-6 space-y-6">
+          <AppHeader
+            title="Ladder"
+            subtitle="Compete & climb the rankings"
+            backHref="/"
+          />
+
+          <div className={`rounded-xl border ${L.cardActive} p-4 text-center space-y-2`}>
+            <p className="text-[14px] font-medium">
+              The ladder is currently available for players in the NC Triangle area (Raleigh, Durham, Chapel Hill).
+            </p>
+            <p className="text-[13px] text-muted-foreground">
+              Pickup is available everywhere!
+            </p>
+            <p className="text-[12px] text-muted-foreground">
+              You can update your zip code in{" "}
+              <button onClick={() => router.push("/settings")} className="text-sky-600 hover:text-sky-700 font-medium underline">
+                Settings
+              </button>
+            </p>
+          </div>
+
+          {/* Still show tier previews as view-only */}
+          {previewsLoading ? (
+            <div className="grid grid-cols-1 min-[360px]:grid-cols-3 gap-2.5">
+              {[1, 2, 3].map((i) => <SkeletonTierCard key={i} />)}
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 min-[360px]:grid-cols-3 gap-2.5">
+              {previews.map((preview) => (
+                <TierCard
+                  key={preview.tier}
+                  preview={preview}
+                  isUserTier={preview.tier === userTier}
+                  onSelect={() => {
+                    handleSetTier(preview.tier, "rankings");
+                  }}
+                />
+              ))}
+            </div>
+          )}
+        </div>
+      </main>
+    );
+  }
+
   // Registration gate
   if (!member) {
     return (
@@ -265,6 +385,21 @@ function LadderPageInner() {
             subtitle={`${TIER_SHORT[userTier]}`}
             backHref="/"
           />
+
+          {/* Outside Triangle banner for existing members */}
+          {isOutsideTriangle && (
+            <div className="rounded-xl border border-amber-200 bg-amber-50 dark:border-amber-900 dark:bg-amber-950/30 p-4 text-center space-y-1">
+              <p className="text-[13px] font-medium text-amber-800 dark:text-amber-300">
+                The ladder is currently available for NC Triangle players. You&apos;re in view-only mode.
+              </p>
+              <p className="text-[12px] text-amber-700 dark:text-amber-400">
+                Update your zip code in{" "}
+                <button onClick={() => router.push("/settings")} className="underline font-medium">
+                  Settings
+                </button>
+              </p>
+            </div>
+          )}
 
           {/* Mode selection */}
           <div className="grid grid-cols-2 gap-3">

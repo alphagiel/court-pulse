@@ -25,6 +25,7 @@ export default function SetupPage() {
   const router = useRouter();
   const [username, setUsername] = useState("");
   const [skillLevel, setSkillLevel] = useState<SkillLevel>("3.5");
+  const [zipCode, setZipCode] = useState("");
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -51,6 +52,16 @@ export default function SetupPage() {
       return;
     }
 
+    const trimmedZip = zipCode.trim();
+    if (!trimmedZip) {
+      setError("Zip code is required");
+      return;
+    }
+    if (!/^\d{5}$/.test(trimmedZip)) {
+      setError("Please enter a valid 5-digit zip code");
+      return;
+    }
+
     setSaving(true);
     setError(null);
 
@@ -59,6 +70,7 @@ export default function SetupPage() {
       username: trimmed,
       email: user.email || null,
       skill_level: skillLevel,
+      zip_code: trimmedZip,
     });
 
     if (insertError) {
@@ -85,7 +97,7 @@ export default function SetupPage() {
         <div className="text-center space-y-2">
           <h1 className="text-[27px] font-bold tracking-[0.5px]">Set Up Your Profile</h1>
           <p className="text-[14px] text-muted-foreground">
-            Pick a username and your skill level to get started
+            Pick a username, skill level, and zip code to get started
           </p>
         </div>
 
@@ -124,6 +136,25 @@ export default function SetupPage() {
                 </button>
               ))}
             </div>
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="zipCode" className="text-[13px] font-medium">
+              Zip Code
+            </Label>
+            <Input
+              id="zipCode"
+              type="text"
+              inputMode="numeric"
+              placeholder="e.g. 27601"
+              value={zipCode}
+              onChange={(e) => setZipCode(e.target.value.replace(/\D/g, "").slice(0, 5))}
+              maxLength={5}
+              className="h-11 text-[15px]"
+            />
+            <p className="text-[11px] text-muted-foreground">
+              Used to determine ladder eligibility (NC Triangle area)
+            </p>
           </div>
 
           {error && (

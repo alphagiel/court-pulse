@@ -22,6 +22,13 @@ function toRad(deg: number): number {
   return (deg * Math.PI) / 180;
 }
 
+// NC Triangle area zip code prefixes (Raleigh, Durham, Chapel Hill, Cary)
+export const TRIANGLE_ZIP_PREFIXES = ["275", "276", "277"];
+
+export function isTriangleZip(zip: string): boolean {
+  return TRIANGLE_ZIP_PREFIXES.some((prefix) => zip.startsWith(prefix));
+}
+
 // Estimate drive time (rough: 2 min per mile in suburban area)
 export function estimateDriveMinutes(distanceMiles: number): number {
   return Math.max(1, Math.round(distanceMiles * 2));
