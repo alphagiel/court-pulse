@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useRef, Suspense } from "react";
+import { motion } from "framer-motion";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useAuth } from "@/lib/auth-context";
 import { supabase } from "@/lib/supabase";
@@ -28,6 +29,7 @@ import type {
 } from "@/types/database";
 import { getSkillTier, SKILL_TIER_LABELS } from "@/types/database";
 import { Loader } from "@/components/loader";
+import { SwipeTabs } from "@/components/swipe-tabs";
 import { theme } from "@/lib/theme";
 
 const L = theme.ladder;
@@ -343,27 +345,25 @@ function LadderPageInner() {
         />
 
         {/* Mode toggle (compact) */}
-        <div className="flex rounded-lg bg-muted p-1">
-          <button
-            onClick={() => handleSetMode("singles")}
-            className={`flex-1 py-2 text-[13px] font-medium rounded-md transition-colors ${
-              mode === "singles"
-                ? `${L.toggle} text-white shadow-sm`
-                : "text-muted-foreground hover:text-foreground"
-            }`}
-          >
-            Singles
-          </button>
-          <button
-            onClick={() => handleSetMode("doubles")}
-            className={`flex-1 py-2 text-[13px] font-medium rounded-md transition-colors ${
-              mode === "doubles"
-                ? `${L.toggle} text-white shadow-sm`
-                : "text-muted-foreground hover:text-foreground"
-            }`}
-          >
-            Doubles
-          </button>
+        <div className="flex gap-1 bg-muted rounded-lg p-1 relative">
+          {(["singles", "doubles"] as MatchMode[]).map((m) => (
+            <button
+              key={m}
+              onClick={() => handleSetMode(m)}
+              className="flex-1 relative z-10 text-[13px] font-medium py-2 rounded-md transition-colors capitalize"
+            >
+              {mode === m && (
+                <motion.div
+                  layoutId="mode-indicator"
+                  className={`absolute inset-0 rounded-md ${L.toggle} shadow-sm`}
+                  transition={{ type: "spring", stiffness: 400, damping: 30 }}
+                />
+              )}
+              <span className={`relative z-10 ${mode === m ? "text-white" : "text-muted-foreground hover:text-foreground"}`}>
+                {m === "singles" ? "Singles" : "Doubles"}
+              </span>
+            </button>
+          ))}
         </div>
 
         {isReadOnly && (
@@ -374,68 +374,70 @@ function LadderPageInner() {
           </div>
         )}
 
-        {/* Content tabs */}
-        <div className="flex gap-1 bg-muted rounded-lg p-1">
-          {(["rankings", "proposals", "matches"] as Tab[]).map((t) => {
-            if (t === "matches" && isReadOnly) return null;
-            return (
-              <button
-                key={t}
-                onClick={() => handleSetTab(t)}
-                className={`flex-1 text-[13px] font-medium py-2 rounded-md transition-colors capitalize ${
-                  tab === t
-                    ? "bg-background text-foreground shadow-sm"
-                    : "text-muted-foreground hover:text-foreground"
-                }`}
-              >
-                {t}
-              </button>
-            );
-          })}
-        </div>
-
-        {/* Tab content */}
-        {tab === "rankings" && (
-          <RankingsTab rankings={rankings} loading={rankingsLoading} currentUserId={userId} mode={mode} />
-        )}
-        {tab === "proposals" && !isDoubles && (
-          <ProposalsTab
-            proposals={proposals}
-            loading={proposalsLoading}
-            currentUserId={userId!}
-            onAccept={handleAcceptProposal}
-            onCancel={handleCancelProposal}
-            actionId={actionId}
-            onCreateNew={() => router.push(`/ladder/proposals/new?tier=${selectedTier}&tab=proposals`)}
-            readOnly={isReadOnly}
-          />
-        )}
-        {tab === "proposals" && isDoubles && (
-          <DoublesProposalsTab
-            proposals={proposals}
-            loading={proposalsLoading}
-            currentUserId={userId!}
-            onCreateNew={() => router.push(`/ladder/proposals/new?tier=${selectedTier}&mode=doubles&tab=proposals`)}
-            onViewProposal={(id) => router.push(`/ladder/proposals/${id}?tier=${selectedTier}&mode=doubles&tab=proposals`)}
-            readOnly={isReadOnly}
-          />
-        )}
-        {tab === "matches" && !isReadOnly && !isDoubles && (
-          <MatchesTab
-            matches={matches}
-            loading={matchesLoading}
-            currentUserId={userId!}
-            onViewMatch={(id) => router.push(`/ladder/match/${id}?tier=${selectedTier}&tab=matches`)}
-          />
-        )}
-        {tab === "matches" && !isReadOnly && isDoubles && (
-          <DoublesMatchesTab
-            matches={matches}
-            loading={matchesLoading}
-            currentUserId={userId!}
-            onViewMatch={(id) => router.push(`/ladder/match/${id}?tier=${selectedTier}&mode=doubles&tab=matches`)}
-          />
-        )}
+        {/* Content tabs + swipeable content */}
+        <SwipeTabs
+          id="ladder-tabs"
+          tabs={
+            isReadOnly
+              ? [
+                  { value: "rankings" as Tab, label: "Rankings" },
+                  { value: "proposals" as Tab, label: "Proposals" },
+                ]
+              : [
+                  { value: "rankings" as Tab, label: "Rankings" },
+                  { value: "proposals" as Tab, label: "Proposals" },
+                  { value: "matches" as Tab, label: "Matches" },
+                ]
+          }
+          active={tab}
+          onChange={handleSetTab}
+        >
+          {(activeTab) => (
+            <>
+              {activeTab === "rankings" && (
+                <RankingsTab rankings={rankings} loading={rankingsLoading} currentUserId={userId} mode={mode} />
+              )}
+              {activeTab === "proposals" && !isDoubles && (
+                <ProposalsTab
+                  proposals={proposals}
+                  loading={proposalsLoading}
+                  currentUserId={userId!}
+                  onAccept={handleAcceptProposal}
+                  onCancel={handleCancelProposal}
+                  actionId={actionId}
+                  onCreateNew={() => router.push(`/ladder/proposals/new?tier=${selectedTier}&tab=proposals`)}
+                  readOnly={isReadOnly}
+                />
+              )}
+              {activeTab === "proposals" && isDoubles && (
+                <DoublesProposalsTab
+                  proposals={proposals}
+                  loading={proposalsLoading}
+                  currentUserId={userId!}
+                  onCreateNew={() => router.push(`/ladder/proposals/new?tier=${selectedTier}&mode=doubles&tab=proposals`)}
+                  onViewProposal={(id) => router.push(`/ladder/proposals/${id}?tier=${selectedTier}&mode=doubles&tab=proposals`)}
+                  readOnly={isReadOnly}
+                />
+              )}
+              {activeTab === "matches" && !isReadOnly && !isDoubles && (
+                <MatchesTab
+                  matches={matches}
+                  loading={matchesLoading}
+                  currentUserId={userId!}
+                  onViewMatch={(id) => router.push(`/ladder/match/${id}?tier=${selectedTier}&tab=matches`)}
+                />
+              )}
+              {activeTab === "matches" && !isReadOnly && isDoubles && (
+                <DoublesMatchesTab
+                  matches={matches}
+                  loading={matchesLoading}
+                  currentUserId={userId!}
+                  onViewMatch={(id) => router.push(`/ladder/match/${id}?tier=${selectedTier}&mode=doubles&tab=matches`)}
+                />
+              )}
+            </>
+          )}
+        </SwipeTabs>
       </div>
     </main>
   );

@@ -17,6 +17,7 @@ import { Loader } from "@/components/loader";
 import { Dropdown } from "@/components/dropdown";
 import { theme } from "@/lib/theme";
 import { LayoutGroup, motion } from "framer-motion";
+import { useHourlyWeather, weatherIcon } from "@/lib/use-weather";
 
 function formatHourLabel(targetTime: string | null): string {
   if (!targetTime) return "Now";
@@ -332,30 +333,35 @@ export default function PickupPage() {
                 options={[3, 5, 7, 10].map((n) => ({ value: String(n), label: `Top ${n}` }))}
                 variant="compact"
               />
-              <button
-                onClick={() => hasLocation && setSortMode("closest")}
-                className={`flex items-center gap-1.5 text-[13px] font-medium px-3 py-1.5 rounded-full transition-colors ${
-                  (hasLocation ? sortMode : "busiest") === "closest"
-                    ? "bg-green-600 text-white shadow-sm"
-                    : hasLocation
-                      ? "text-muted-foreground hover:text-foreground"
-                      : "text-muted-foreground/40 cursor-not-allowed"
-                }`}
-              >
-                <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z"/><circle cx="12" cy="10" r="3"/></svg>
-                Closest
-              </button>
-              <button
-                onClick={() => setSortMode("busiest")}
-                className={`flex items-center gap-1.5 text-[13px] font-medium px-3 py-1.5 rounded-full transition-colors ${
-                  (hasLocation ? sortMode : "busiest") === "busiest"
-                    ? "bg-green-600 text-white shadow-sm"
-                    : "text-muted-foreground hover:text-foreground"
-                }`}
-              >
-                <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
-                Busiest
-              </button>
+              {([
+                { value: "closest" as const, label: "Closest", disabled: !hasLocation, icon: <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z"/><circle cx="12" cy="10" r="3"/></svg> },
+                { value: "busiest" as const, label: "Busiest", disabled: false, icon: <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg> },
+              ]).map((s) => {
+                const active = (hasLocation ? sortMode : "busiest") === s.value;
+                return (
+                  <button
+                    key={s.value}
+                    onClick={() => !s.disabled && setSortMode(s.value)}
+                    className={`relative flex items-center gap-1.5 text-[13px] font-medium px-3 py-1.5 rounded-full transition-colors ${
+                      s.disabled && !active ? "text-muted-foreground/40 cursor-not-allowed" : ""
+                    }`}
+                  >
+                    {active && (
+                      <motion.div
+                        layoutId="sort-mode-indicator"
+                        className="absolute inset-0 rounded-full bg-green-600 shadow-sm"
+                        transition={{ type: "spring", stiffness: 400, damping: 30 }}
+                      />
+                    )}
+                    <span className={`relative z-10 flex items-center gap-1.5 ${
+                      active ? "text-white" : s.disabled ? "" : "text-muted-foreground hover:text-foreground"
+                    }`}>
+                      {s.icon}
+                      {s.label}
+                    </span>
+                  </button>
+                );
+              })}
             </div>
           </div>
 
@@ -669,6 +675,8 @@ function CourtModal({
   onClose: () => void;
 }) {
   const availableHours = useMemo(() => getAvailableHours(), []);
+  const todayStr = new Date().toISOString().split("T")[0];
+  const hourly = useHourlyWeather(todayStr, true, park.lat, park.lng);
   const checkOutTime = checkInExpiresAt
     ? formatTime(new Date(checkInExpiresAt))
     : null;
@@ -818,16 +826,31 @@ function CourtModal({
                 When are you going?
               </p>
               <div className="flex gap-2 overflow-x-auto pb-1 scrollbar-hide">
-                {availableHours.map((slot) => (
-                  <button
-                    key={slot.label}
-                    onClick={() => onImGoing(park.id, slot.value)}
-                    disabled={actionLoading}
-                    className="shrink-0 px-4 py-2.5 rounded-xl border border-border/50 bg-background text-[13px] font-medium hover:bg-green-50 hover:border-green-400 hover:text-green-700 transition-colors active:scale-95"
-                  >
-                    {slot.label}
-                  </button>
-                ))}
+                {availableHours.map((slot) => {
+                  // For "Now", use current hour; for others, parse the ISO time
+                  const hour = slot.value
+                    ? new Date(slot.value).getHours()
+                    : new Date().getHours();
+                  const hourKey = `${String(hour).padStart(2, "0")}:00`;
+                  const forecast = hourly.get(hourKey);
+
+                  return (
+                    <button
+                      key={slot.label}
+                      onClick={() => onImGoing(park.id, slot.value)}
+                      disabled={actionLoading}
+                      className="shrink-0 flex flex-col items-center gap-1 px-4 py-2.5 rounded-xl border border-border/50 bg-background text-[13px] font-medium hover:bg-green-50 hover:border-green-400 hover:text-green-700 transition-colors active:scale-95"
+                    >
+                      <span>{slot.label}</span>
+                      {forecast && (
+                        <span className="flex items-center gap-0.5 text-[10px] text-muted-foreground">
+                          <span>{weatherIcon(forecast.weatherCode)}</span>
+                          <span>{forecast.temp}°</span>
+                        </span>
+                      )}
+                    </button>
+                  );
+                })}
               </div>
 
               <Button
