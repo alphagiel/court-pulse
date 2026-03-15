@@ -126,13 +126,13 @@ export default function Home() {
           </button>
         </div>
 
-        <div className="pt-6">
-          <hr className="border-border" />
-          <p className="text-center text-[11px] text-muted-foreground/60 pt-4">
-            &copy; 2026 Alpha DeAsis. All rights reserved.
-          </p>
-        </div>
       </div>
+
+      <footer className="fixed bottom-0 inset-x-0 py-2">
+        <p className="text-center text-[10px] text-muted-foreground/40">
+          &copy; 2026 Court Pulse Raleigh
+        </p>
+      </footer>
     </main>
   );
 }
