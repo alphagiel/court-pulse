@@ -16,6 +16,7 @@ import type { Park } from "@/types/database";
 import { Loader } from "@/components/loader";
 import { Dropdown } from "@/components/dropdown";
 import { theme } from "@/lib/theme";
+import { LayoutGroup, motion } from "framer-motion";
 
 function formatHourLabel(targetTime: string | null): string {
   if (!targetTime) return "Now";
@@ -367,20 +368,32 @@ export default function PickupPage() {
               No courts found. Check back soon!
             </div>
           ) : (
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              {parkActivities.map((activity) => (
-                <ParkCard
-                  key={activity.park.id}
-                  activity={activity}
-                  onTap={setModalParkId}
-                  isUserGoing={
-                    intentActive && intentParkId === activity.park.id
-                  }
-                  userCheckedIn={activity.park.id in userCheckIns}
-                  playerProfiles={playerProfiles}
-                />
-              ))}
-            </div>
+            <LayoutGroup>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                {parkActivities.map((activity) => (
+                  <motion.div
+                    key={activity.park.id}
+                    layout
+                    layoutId={activity.park.id}
+                    transition={{ type: "spring", stiffness: 350, damping: 30 }}
+                  >
+                    <ParkCard
+                      activity={activity}
+                      onTap={(parkId) => {
+                        if (!intentActive || intentParkId === parkId) setModalParkId(parkId);
+                      }}
+                      onQuickJoin={intentActive ? undefined : setModalParkId}
+                      isUserGoing={
+                        intentActive && intentParkId === activity.park.id
+                      }
+                      userCheckedIn={activity.park.id in userCheckIns}
+                      userId={userId}
+                      playerProfiles={playerProfiles}
+                    />
+                  </motion.div>
+                ))}
+              </div>
+            </LayoutGroup>
           )}
         </div>
 

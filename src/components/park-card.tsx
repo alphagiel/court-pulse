@@ -8,8 +8,10 @@ import type { PlayerProfile } from "@/lib/hooks";
 interface ParkCardProps {
   activity: ParkActivity;
   onTap: (parkId: string) => void;
+  onQuickJoin?: (parkId: string) => void;
   isUserGoing: boolean;
   userCheckedIn: boolean;
+  userId?: string;
   playerProfiles: Record<string, PlayerProfile>;
 }
 
@@ -106,13 +108,15 @@ const TIME_ROWS: { key: TimeBucketKey; label: string }[] = [
 export function ParkCard({
   activity,
   onTap,
+  onQuickJoin,
   isUserGoing,
   userCheckedIn,
+  userId,
   playerProfiles,
 }: ParkCardProps) {
   const { park, totalPlayers, totalInterested, distanceMiles } = activity;
   const isActive = totalPlayers > 0 || totalInterested > 0;
-  const [hoveredDot, setHoveredDot] = useState<string | null>(null);
+  const [tappedDot, setTappedDot] = useState<string | null>(null);
 
   const dots = buildDots(activity.activeIntents, activity.activeCheckIns);
 
@@ -140,34 +144,50 @@ export function ParkCard({
     >
       <div className="px-3 pt-3 pb-2.5 space-y-2">
         {/* Header */}
-        <div>
-          <div className="flex items-center gap-1.5">
-            <h3 className="font-semibold text-[13px] leading-tight">
-              {park.name}
-            </h3>
-            {park.court_count > 0 && (
-              <span className="text-[10px] text-muted-foreground shrink-0">
-                {park.court_count}ct
+        <div className="flex items-start justify-between gap-2">
+          <div className="min-w-0">
+            <div className="flex items-center gap-1.5">
+              <h3 className="font-semibold text-[13px] leading-tight">
+                {park.name}
+              </h3>
+              {park.court_count > 0 && (
+                <span className="text-[10px] text-muted-foreground shrink-0">
+                  {park.court_count}ct
+                </span>
+              )}
+            </div>
+            <div className="flex items-center gap-2 mt-0.5">
+              <span className="text-[10px] text-muted-foreground">
+                {distanceMiles !== null
+                  ? `${distanceMiles} mi`
+                  : park.address || ""}
               </span>
-            )}
+              {totalPlayers > 0 && (
+                <span className="text-[10px] font-semibold text-green-600 dark:text-green-400">
+                  {totalPlayers} here
+                </span>
+              )}
+              {totalInterested > 0 && (
+                <span className="text-[10px] font-semibold text-blue-600 dark:text-blue-400">
+                  {totalInterested} going
+                </span>
+              )}
+            </div>
           </div>
-          <div className="flex items-center gap-2 mt-0.5">
-            <span className="text-[10px] text-muted-foreground">
-              {distanceMiles !== null
-                ? `${distanceMiles} mi`
-                : park.address || ""}
+          {/* Quick join pill */}
+          {!isUserGoing && onQuickJoin && (
+            <button
+              onClick={(e) => { e.stopPropagation(); onQuickJoin(park.id); }}
+              className="shrink-0 text-[10px] font-semibold px-2.5 py-1 rounded-full bg-green-50 dark:bg-green-950/40 text-green-700 dark:text-green-400 border border-green-300 dark:border-green-700 hover:bg-green-100 dark:hover:bg-green-900/50 active:scale-95 transition-all"
+            >
+              I&apos;m in
+            </button>
+          )}
+          {isUserGoing && (
+            <span className="shrink-0 text-[10px] font-semibold px-2.5 py-1 rounded-full bg-green-100 dark:bg-green-900/40 text-green-700 dark:text-green-400 border border-green-300 dark:border-green-800">
+              {userCheckedIn ? "Here" : "Going"}
             </span>
-            {totalPlayers > 0 && (
-              <span className="text-[10px] font-semibold text-green-600 dark:text-green-400">
-                {totalPlayers} here
-              </span>
-            )}
-            {totalInterested > 0 && (
-              <span className="text-[10px] font-semibold text-blue-600 dark:text-blue-400">
-                {totalInterested} going
-              </span>
-            )}
-          </div>
+          )}
         </div>
 
         {/* Dot chart grid */}
@@ -207,29 +227,46 @@ export function ParkCard({
                       <div className="flex flex-wrap gap-[3px] items-center justify-center py-1.5 px-0.5 min-h-[22px]">
                         {cellDots.map((dot) => {
                           const profile = playerProfiles[dot.userId];
+                          const isMe = userId === dot.userId;
+                          const isOpen = tappedDot === dot.id;
                           return (
                             <span
                               key={dot.id}
                               className="relative"
-                              onMouseEnter={() => setHoveredDot(dot.id)}
-                              onMouseLeave={() => setHoveredDot(null)}
+                              onMouseEnter={() => setTappedDot(dot.id)}
+                              onMouseLeave={() => setTappedDot(null)}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setTappedDot(isOpen ? null : dot.id);
+                              }}
                             >
+                              {/* Radar ping for current user */}
+                              {isMe && (
+                                <span
+                                  className={`absolute inset-0 rounded-full animate-ping ${
+                                    dot.isHere
+                                      ? "bg-green-400/60"
+                                      : "bg-blue-400/60"
+                                  }`}
+                                  style={{ animationDuration: "1.8s" }}
+                                />
+                              )}
                               <span
-                                className={`block w-2 h-2 rounded-full shrink-0 transition-all ${
+                                className={`relative block w-2 h-2 rounded-full shrink-0 transition-all cursor-pointer ${
                                   dot.isHere
                                     ? "bg-green-500 dark:bg-green-400"
                                     : "bg-blue-400 dark:bg-blue-500"
-                                } ${hoveredDot === dot.id ? "ring-2 ring-offset-1 ring-foreground/30 scale-125" : ""}`}
+                                } ${isMe ? "ring-1 ring-offset-1 ring-foreground/20" : ""} ${isOpen ? "ring-2 ring-offset-1 ring-foreground/30 scale-125" : ""}`}
                               />
                               {/* Tooltip */}
-                              {hoveredDot === dot.id && (
+                              {isOpen && (
                                 <span
-                                  className="absolute z-10 bottom-full left-1/2 -translate-x-1/2 mb-1.5 rounded-lg bg-foreground text-background text-[11px] shadow-lg pointer-events-none overflow-hidden"
+                                  className="absolute z-10 bottom-full left-1/2 -translate-x-1/2 mb-1.5 rounded-lg bg-foreground text-background text-[11px] shadow-lg overflow-hidden"
                                   onClick={(e) => e.stopPropagation()}
                                 >
                                   {/* Header */}
                                   <span className="block px-3 pt-2 pb-1.5 font-semibold text-[12px] whitespace-nowrap">
-                                    Player
+                                    {isMe ? "You" : "Player"}
                                     <span className="font-normal opacity-60 text-[10px]">
                                       {" "}{dot.skillLevel}
                                       {profile?.elo != null && ` | ${Math.round(profile.elo)} elo`}
@@ -260,16 +297,6 @@ export function ParkCard({
           ))}
         </div>
 
-        {/* User status */}
-        {userCheckedIn ? (
-          <p className="text-[10px] text-green-600 dark:text-green-400 font-medium text-center">
-            You&apos;re here
-          </p>
-        ) : isUserGoing ? (
-          <p className="text-[10px] text-green-600 dark:text-green-400 font-medium text-center">
-            You&apos;re going
-          </p>
-        ) : null}
       </div>
     </Card>
   );
