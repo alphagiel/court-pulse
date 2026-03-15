@@ -7,6 +7,9 @@ import { supabase } from "@/lib/supabase";
 import { Card, CardContent } from "@/components/ui/card";
 import { AppHeader } from "@/components/app-header";
 import { Loader } from "@/components/loader";
+import { Input } from "@/components/ui/input";
+import { Button } from "@/components/ui/button";
+import { isTriangleZip } from "@/lib/geo";
 
 interface EmailPreferences {
   singles_emails: boolean;
@@ -23,12 +26,23 @@ const DEFAULT_PREFS: EmailPreferences = {
 };
 
 export default function SettingsPage() {
-  const { user, loading: authLoading } = useAuth();
+  const { user, profile, loading: authLoading, refreshProfile } = useAuth();
   const router = useRouter();
   const [prefs, setPrefs] = useState<EmailPreferences>(DEFAULT_PREFS);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
+
+  // Zip code editing
+  const [editingZip, setEditingZip] = useState(false);
+  const [zipCode, setZipCode] = useState("");
+  const [zipSaving, setZipSaving] = useState(false);
+  const [zipError, setZipError] = useState<string | null>(null);
+  const [zipSaved, setZipSaved] = useState(false);
+
+  useEffect(() => {
+    if (profile) setZipCode(profile.zip_code || "");
+  }, [profile]);
 
   useEffect(() => {
     if (!user) return;
@@ -108,6 +122,102 @@ export default function SettingsPage() {
           subtitle="Manage your preferences"
           backHref="/ladder"
         />
+
+        {/* Profile — Zip Code */}
+        <Card>
+          <CardContent className="pt-5 space-y-3">
+            <h2 className="text-[16px] font-semibold">Profile</h2>
+
+            <div className="space-y-1">
+              <p className="text-[13px] font-medium text-muted-foreground">Zip Code</p>
+              {editingZip ? (
+                <div className="flex gap-2 items-start">
+                  <div className="flex-1 space-y-1">
+                    <Input
+                      type="text"
+                      inputMode="numeric"
+                      placeholder="e.g. 27601"
+                      value={zipCode}
+                      onChange={(e) => {
+                        setZipCode(e.target.value.replace(/\D/g, "").slice(0, 5));
+                        setZipError(null);
+                      }}
+                      maxLength={5}
+                      className="h-9 text-[14px]"
+                      autoFocus
+                    />
+                    {zipError && (
+                      <p className="text-[12px] text-red-600">{zipError}</p>
+                    )}
+                  </div>
+                  <Button
+                    size="sm"
+                    disabled={zipSaving}
+                    onClick={async () => {
+                      const trimmed = zipCode.trim();
+                      if (!/^\d{5}$/.test(trimmed)) {
+                        setZipError("Enter a valid 5-digit zip code");
+                        return;
+                      }
+                      setZipSaving(true);
+                      setZipError(null);
+                      await supabase
+                        .from("profiles")
+                        .update({ zip_code: trimmed })
+                        .eq("id", user!.id);
+                      await refreshProfile();
+                      setZipSaving(false);
+                      setEditingZip(false);
+                      setZipSaved(true);
+                      setTimeout(() => setZipSaved(false), 2000);
+                    }}
+                    className="h-9"
+                  >
+                    {zipSaving ? "..." : "Save"}
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    onClick={() => {
+                      setEditingZip(false);
+                      setZipCode(profile?.zip_code || "");
+                      setZipError(null);
+                    }}
+                    className="h-9"
+                  >
+                    Cancel
+                  </Button>
+                </div>
+              ) : (
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <p className="text-[14px] font-medium">
+                      {profile?.zip_code || "Not set"}
+                    </p>
+                    {profile?.zip_code && (
+                      <span className={`text-[11px] px-1.5 py-0.5 rounded-full font-medium ${
+                        isTriangleZip(profile.zip_code)
+                          ? "bg-green-100 text-green-700 dark:bg-green-950/40 dark:text-green-400"
+                          : "bg-amber-100 text-amber-700 dark:bg-amber-950/40 dark:text-amber-400"
+                      }`}>
+                        {isTriangleZip(profile.zip_code) ? "Triangle" : "Outside Triangle"}
+                      </span>
+                    )}
+                    {zipSaved && (
+                      <span className="text-[11px] text-green-600 font-medium">Saved</span>
+                    )}
+                  </div>
+                  <button
+                    onClick={() => setEditingZip(true)}
+                    className="text-[13px] text-sky-600 hover:text-sky-700 font-medium"
+                  >
+                    Edit
+                  </button>
+                </div>
+              )}
+            </div>
+          </CardContent>
+        </Card>
 
         {/* Email Preferences */}
         <Card>

@@ -16,6 +16,7 @@ export interface Profile {
   email: string | null;
   skill_level: SkillLevel;
   preferred_park_id: string | null;
+  zip_code: string | null;
   created_at: string;
 }
 
