@@ -1,18 +1,17 @@
 "use client";
 
 import { useState, useRef, useEffect } from "react";
+import { useDailyWeather, weatherIcon } from "@/lib/use-weather";
 
 interface DatePickerProps {
   value: string; // "YYYY-MM-DD"
   onChange: (value: string) => void;
   minDate?: Date;
   maxDate?: Date;
-}
-
-interface DayForecast {
-  date: string;
-  tempHigh: number;
-  weatherCode: number;
+  /** Park latitude for weather (defaults to Raleigh) */
+  lat?: number;
+  /** Park longitude for weather (defaults to Raleigh) */
+  lng?: number;
 }
 
 function toDateStr(d: Date): string {
@@ -43,25 +42,11 @@ function isToday(d: Date): boolean {
   return d.getFullYear() === now.getFullYear() && d.getMonth() === now.getMonth() && d.getDate() === now.getDate();
 }
 
-// WMO Weather codes → icon + label
-function weatherIcon(code: number): string {
-  if (code === 0) return "☀️";
-  if (code <= 3) return "⛅";
-  if (code <= 48) return "☁️";
-  if (code <= 57) return "🌧️";
-  if (code <= 67) return "🌧️";
-  if (code <= 77) return "❄️";
-  if (code <= 82) return "🌧️";
-  if (code <= 86) return "❄️";
-  if (code >= 95) return "⛈️";
-  return "☁️";
-}
-
-export function DatePicker({ value, onChange, minDate, maxDate }: DatePickerProps) {
+export function DatePicker({ value, onChange, minDate, maxDate, lat, lng }: DatePickerProps) {
   const [open, setOpen] = useState(false);
-  const [forecasts, setForecasts] = useState<Map<string, DayForecast>>(new Map());
   const ref = useRef<HTMLDivElement>(null);
-  const fetchedRef = useRef(false);
+
+  const forecasts = useDailyWeather(open, lat, lng);
 
   useEffect(() => {
     if (!open) return;
@@ -70,34 +55,6 @@ export function DatePicker({ value, onChange, minDate, maxDate }: DatePickerProp
     };
     document.addEventListener("mousedown", handler);
     return () => document.removeEventListener("mousedown", handler);
-  }, [open]);
-
-  // Fetch weather on first open
-  useEffect(() => {
-    if (!open || fetchedRef.current) return;
-    fetchedRef.current = true;
-
-    // Raleigh, NC coordinates (default)
-    const lat = 35.7796;
-    const lng = -78.6382;
-
-    fetch(
-      `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lng}&daily=temperature_2m_max,weather_code&temperature_unit=fahrenheit&timezone=America%2FNew_York&forecast_days=16`
-    )
-      .then((r) => r.json())
-      .then((data) => {
-        if (!data.daily) return;
-        const map = new Map<string, DayForecast>();
-        for (let i = 0; i < data.daily.time.length; i++) {
-          map.set(data.daily.time[i], {
-            date: data.daily.time[i],
-            tempHigh: Math.round(data.daily.temperature_2m_max[i]),
-            weatherCode: data.daily.weather_code[i],
-          });
-        }
-        setForecasts(map);
-      })
-      .catch(() => {});
   }, [open]);
 
   const days = getDaysBetween(minDate || new Date(), maxDate || new Date());

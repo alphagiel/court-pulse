@@ -13,6 +13,7 @@ import { SKILL_TIER_LEVELS, getSkillTier } from "@/types/database";
 import { Loader } from "@/components/loader";
 import { Dropdown } from "@/components/dropdown";
 import { DatePicker } from "@/components/date-picker";
+import { motion } from "framer-motion";
 import { TimePicker } from "@/components/time-picker";
 import { theme } from "@/lib/theme";
 
@@ -170,27 +171,25 @@ function NewProposalPageInner() {
         />
 
         {/* Mode Toggle */}
-        <div className="flex rounded-lg bg-muted p-1">
-          <button
-            onClick={() => setMode("singles")}
-            className={`flex-1 py-2.5 text-[14px] font-medium rounded-md transition-colors ${
-              mode === "singles"
-                ? `${L.toggle} text-white shadow-sm`
-                : "text-muted-foreground hover:text-foreground"
-            }`}
-          >
-            Singles
-          </button>
-          <button
-            onClick={() => setMode("doubles")}
-            className={`flex-1 py-2.5 text-[14px] font-medium rounded-md transition-colors ${
-              mode === "doubles"
-                ? `${L.toggle} text-white shadow-sm`
-                : "text-muted-foreground hover:text-foreground"
-            }`}
-          >
-            Doubles
-          </button>
+        <div className="flex gap-1 bg-muted rounded-lg p-1 relative">
+          {(["singles", "doubles"] as MatchMode[]).map((m) => (
+            <button
+              key={m}
+              onClick={() => setMode(m)}
+              className="flex-1 relative z-10 text-[14px] font-medium py-2.5 rounded-md transition-colors capitalize"
+            >
+              {mode === m && (
+                <motion.div
+                  layoutId="new-proposal-mode"
+                  className={`absolute inset-0 rounded-md ${L.toggle} shadow-sm`}
+                  transition={{ type: "spring", stiffness: 400, damping: 30 }}
+                />
+              )}
+              <span className={`relative z-10 ${mode === m ? "text-white" : "text-muted-foreground hover:text-foreground"}`}>
+                {m === "singles" ? "Singles" : "Doubles"}
+              </span>
+            </button>
+          ))}
         </div>
 
         <Card>

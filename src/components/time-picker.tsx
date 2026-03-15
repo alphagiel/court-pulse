@@ -1,12 +1,17 @@
 "use client";
 
 import { useState, useRef, useEffect } from "react";
+import { useHourlyWeather, weatherIcon } from "@/lib/use-weather";
 
 interface TimePickerProps {
   value: string; // "HH:MM" 24h format
   onChange: (value: string) => void;
   /** Selected date in "YYYY-MM-DD" format — used to fetch hourly weather */
   date?: string;
+  /** Park latitude for weather (defaults to Raleigh) */
+  lat?: number;
+  /** Park longitude for weather (defaults to Raleigh) */
+  lng?: number;
 }
 
 const TIME_SLOTS = [
@@ -18,11 +23,6 @@ const TIME_SLOTS = [
   "21:00",
 ];
 
-interface HourlyForecast {
-  temp: number;
-  weatherCode: number;
-}
-
 function formatTimeDisplay(time: string): string {
   if (!time) return "Select a time...";
   const [h, m] = time.split(":").map(Number);
@@ -31,25 +31,12 @@ function formatTimeDisplay(time: string): string {
   return `${hour}:${m.toString().padStart(2, "0")} ${period}`;
 }
 
-function weatherIcon(code: number): string {
-  if (code === 0) return "☀️";
-  if (code <= 3) return "⛅";
-  if (code <= 48) return "☁️";
-  if (code <= 57) return "🌧️";
-  if (code <= 67) return "🌧️";
-  if (code <= 77) return "❄️";
-  if (code <= 82) return "🌧️";
-  if (code <= 86) return "❄️";
-  if (code >= 95) return "⛈️";
-  return "☁️";
-}
-
-export function TimePicker({ value, onChange, date }: TimePickerProps) {
+export function TimePicker({ value, onChange, date, lat, lng }: TimePickerProps) {
   const [open, setOpen] = useState(false);
-  const [hourly, setHourly] = useState<Map<string, HourlyForecast>>(new Map());
   const ref = useRef<HTMLDivElement>(null);
   const selectedRef = useRef<HTMLButtonElement>(null);
-  const fetchedDateRef = useRef<string | null>(null);
+
+  const hourly = useHourlyWeather(date, open, lat, lng);
 
   useEffect(() => {
     if (!open) return;
@@ -66,34 +53,6 @@ export function TimePicker({ value, onChange, date }: TimePickerProps) {
       selectedRef.current.scrollIntoView({ block: "center", behavior: "instant" });
     }
   }, [open]);
-
-  // Fetch hourly weather for the selected date
-  useEffect(() => {
-    if (!open || !date || fetchedDateRef.current === date) return;
-    fetchedDateRef.current = date;
-
-    const lat = 35.7796;
-    const lng = -78.6382;
-
-    fetch(
-      `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lng}&hourly=temperature_2m,weather_code&temperature_unit=fahrenheit&timezone=America%2FNew_York&start_date=${date}&end_date=${date}`
-    )
-      .then((r) => r.json())
-      .then((data) => {
-        if (!data.hourly) return;
-        const map = new Map<string, HourlyForecast>();
-        for (let i = 0; i < data.hourly.time.length; i++) {
-          // data.hourly.time[i] is like "2026-03-14T06:00"
-          const hour = data.hourly.time[i].split("T")[1]; // "06:00"
-          map.set(hour, {
-            temp: Math.round(data.hourly.temperature_2m[i]),
-            weatherCode: data.hourly.weather_code[i],
-          });
-        }
-        setHourly(map);
-      })
-      .catch(() => {});
-  }, [open, date]);
 
   return (
     <div className="relative" ref={ref}>
