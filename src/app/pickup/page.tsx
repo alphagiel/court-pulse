@@ -361,7 +361,7 @@ export default function PickupPage() {
       <div className="max-w-2xl mx-auto px-4 py-8 sm:px-6 space-y-6">
         <AppHeader
           title="Pickup"
-          subtitle={<>Tap a court to signal you&apos;re down to play, or{" "}<button onClick={() => setShowAddCourt(true)} className="text-green-700 font-medium hover:underline">add a court</button>.</>}
+          subtitle={<>Tap <span className="text-green-700 dark:text-green-400 font-semibold border border-green-300 dark:border-green-700 rounded-full px-2 py-0.5">I&apos;m in</span> to signal you&apos;re down to play, or{" "}<button onClick={() => setShowAddCourt(true)} className="text-green-700 dark:text-green-400 font-medium underline">add a court</button>.</>}
           backHref="/"
         />
 
@@ -473,12 +473,12 @@ export default function PickupPage() {
                       activity={activity}
                       onTap={(parkId) => {
                         if (isOutsideTriangle) return;
-                        if (!intentActive || intentParkId === parkId) setModalParkId(parkId);
+                        setModalParkId(parkId);
                       }}
-                      onQuickJoin={isOutsideTriangle || intentActive ? undefined : setModalParkId}
                       isUserGoing={
                         intentActive && intentParkId === activity.park.id
                       }
+                      hasActiveIntent={intentActive}
                       userCheckedIn={activity.park.id in userCheckIns}
                       userId={userId}
                       playerProfiles={playerProfiles}
@@ -499,6 +499,10 @@ export default function PickupPage() {
           <div className="flex items-center gap-1.5">
             <span className="w-2.5 h-2.5 rounded-full bg-blue-400 inline-block" />
             <span>Going</span>
+          </div>
+          <div className="flex items-center gap-1.5">
+            <span className="w-2.5 h-2.5 rounded-full bg-amber-500 inline-block" />
+            <span>You</span>
           </div>
         </div>
 

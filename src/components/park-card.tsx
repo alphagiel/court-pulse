@@ -13,6 +13,7 @@ interface ParkCardProps {
   userCheckedIn: boolean;
   userId?: string;
   playerProfiles: Record<string, PlayerProfile>;
+  hasActiveIntent?: boolean;
 }
 
 type TimeBucketKey = "morning" | "afternoon" | "evening";
@@ -113,10 +114,12 @@ export function ParkCard({
   userCheckedIn,
   userId,
   playerProfiles,
+  hasActiveIntent,
 }: ParkCardProps) {
   const { park, totalPlayers, totalInterested, distanceMiles } = activity;
   const isActive = totalPlayers > 0 || totalInterested > 0;
   const [tappedDot, setTappedDot] = useState<string | null>(null);
+  const [showCancelHint, setShowCancelHint] = useState(false);
 
   const dots = buildDots(activity.activeIntents, activity.activeCheckIns);
 
@@ -133,14 +136,13 @@ export function ParkCard({
 
   return (
     <Card
-      className={`!overflow-visible transition-all cursor-pointer active:scale-[0.98] hover:bg-muted/50 ${
+      className={`!overflow-visible transition-all ${
         isUserGoing
           ? "border-green-500 bg-green-50/60 dark:bg-green-950/30 shadow-md shadow-green-500/10 ring-1 ring-green-400/30"
           : isActive
             ? "border-green-400/60 bg-green-50/40 dark:bg-green-950/20 shadow-sm"
             : "border-border/60"
       }`}
-      onClick={() => onTap(park.id)}
     >
       <div className="px-3 pt-3 pb-2.5 space-y-2">
         {/* Header */}
@@ -175,17 +177,41 @@ export function ParkCard({
             </div>
           </div>
           {/* Quick join pill */}
-          {!isUserGoing && onQuickJoin && (
+          {!isUserGoing && (
             <button
-              onClick={(e) => { e.stopPropagation(); onQuickJoin(park.id); }}
-              className="shrink-0 text-[10px] font-semibold px-2.5 py-1 rounded-full bg-green-50 dark:bg-green-950/40 text-green-700 dark:text-green-400 border border-green-300 dark:border-green-700 hover:bg-green-100 dark:hover:bg-green-900/50 active:scale-95 transition-all"
+              onClick={(e) => {
+                e.stopPropagation();
+                if (hasActiveIntent) {
+                  setShowCancelHint(true);
+                  setTimeout(() => setShowCancelHint(false), 2500);
+                } else {
+                  onTap(park.id);
+                }
+              }}
+              className="shrink-0 text-[10px] font-semibold px-2.5 py-1 rounded-full bg-green-50 dark:bg-green-950/40 text-green-700 dark:text-green-400 border border-green-300 dark:border-green-700 hover:bg-green-100 dark:hover:bg-green-900/50 active:scale-95 transition-all cursor-pointer"
             >
               I&apos;m in
             </button>
           )}
           {isUserGoing && (
-            <span className="shrink-0 text-[10px] font-semibold px-2.5 py-1 rounded-full bg-green-100 dark:bg-green-900/40 text-green-700 dark:text-green-400 border border-green-300 dark:border-green-800">
-              {userCheckedIn ? "Here" : "Going"}
+            <span className="relative shrink-0">
+              <span
+                className={`absolute inset-[-5px] rounded-full animate-pulse ${
+                  userCheckedIn ? "bg-green-400/15" : "bg-amber-400/15"
+                }`}
+                style={{ animationDuration: "2.5s" }}
+              />
+              <button
+                onClick={(e) => { e.stopPropagation(); onTap(park.id); }}
+                className={`relative shrink-0 text-[10px] font-semibold px-2.5 py-1 rounded-full cursor-pointer active:scale-95 transition-all ${
+                  userCheckedIn
+                    ? "bg-green-100 dark:bg-green-900/40 text-green-700 dark:text-green-400 border border-green-300 dark:border-green-800 hover:bg-green-200 dark:hover:bg-green-900/60"
+                    : "bg-amber-100 dark:bg-amber-900/40 text-amber-700 dark:text-amber-400 border border-amber-300 dark:border-amber-800 hover:bg-amber-200 dark:hover:bg-amber-900/60"
+                }`}
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" className="inline-block mr-0.5"><path d="M20 6 9 17l-5-5"/></svg>
+                {userCheckedIn ? "Here" : "Going"}
+              </button>
             </span>
           )}
         </div>
@@ -240,23 +266,21 @@ export function ParkCard({
                                 setTappedDot(isOpen ? null : dot.id);
                               }}
                             >
-                              {/* Radar ping for current user */}
-                              {isMe && (
+                              {/* Radar ping for current user — only when here */}
+                              {isMe && dot.isHere && (
                                 <span
-                                  className={`absolute inset-0 rounded-full animate-ping ${
-                                    dot.isHere
-                                      ? "bg-green-400/60"
-                                      : "bg-blue-400/60"
-                                  }`}
+                                  className="absolute -inset-1 rounded-full animate-ping bg-amber-400/50"
                                   style={{ animationDuration: "1.8s" }}
                                 />
                               )}
                               <span
                                 className={`relative block w-2 h-2 rounded-full shrink-0 transition-all cursor-pointer ${
-                                  dot.isHere
-                                    ? "bg-green-500 dark:bg-green-400"
-                                    : "bg-blue-400 dark:bg-blue-500"
-                                } ${isMe ? "ring-1 ring-offset-1 ring-foreground/20" : ""} ${isOpen ? "ring-2 ring-offset-1 ring-foreground/30 scale-125" : ""}`}
+                                  isMe
+                                    ? "bg-amber-500 dark:bg-amber-400"
+                                    : dot.isHere
+                                      ? "bg-green-500 dark:bg-green-400"
+                                      : "bg-blue-400 dark:bg-blue-500"
+                                } ${isMe ? "ring-1 ring-offset-1 ring-amber-400/40" : ""} ${isOpen ? "ring-2 ring-offset-1 ring-foreground/30 scale-125" : ""}`}
                               />
                               {/* Tooltip */}
                               {isOpen && (
@@ -297,6 +321,12 @@ export function ParkCard({
           ))}
         </div>
 
+        {/* Cancel hint */}
+        {showCancelHint && (
+          <p className="text-[10px] text-amber-600 dark:text-amber-400 text-center pb-1">
+            Cancel your current court first
+          </p>
+        )}
       </div>
     </Card>
   );
