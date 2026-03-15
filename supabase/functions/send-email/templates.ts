@@ -261,6 +261,45 @@ ${actionButton("View Proposal", data.proposalUrl)}
   };
 }
 
+export interface FeedbackReplyData {
+  userName: string;
+  originalMessage: string;
+  adminReply: string;
+  appUrl: string;
+}
+
+export function feedbackReplyEmail(data: FeedbackReplyData): { subject: string; html: string } {
+  const content = `
+<h2 style="margin: 0 0 16px 0; color: #333333; font-size: 20px; font-weight: 600;">
+  Reply to Your Feedback
+</h2>
+
+<p style="margin: 0 0 16px 0; color: #555555; font-size: 16px; line-height: 1.6;">
+  Hey ${data.userName}, thanks for your feedback! Here's a reply from the Court Pulse team:
+</p>
+
+<table role="presentation" style="width: 100%; margin: 24px 0; background-color: #f5f3ff; border-radius: 8px; border: 1px solid #ddd6fe;">
+  <tr>
+    <td style="padding: 20px;">
+      <p style="margin: 0 0 12px 0; color: #888888; font-size: 13px; font-style: italic;">
+        Your message: "${data.originalMessage.length > 200 ? data.originalMessage.slice(0, 200) + "..." : data.originalMessage}"
+      </p>
+      <p style="margin: 0; color: #333333; font-size: 16px; line-height: 1.6;">
+        ${data.adminReply}
+      </p>
+    </td>
+  </tr>
+</table>
+
+${actionButton("Open Court Pulse", data.appUrl)}
+`.trim();
+
+  return {
+    subject: "Reply to your feedback — Court Pulse",
+    html: baseTemplate(content),
+  };
+}
+
 export interface MatchDisputedData {
   submitterName: string;
   disputerName: string;

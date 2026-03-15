@@ -7,6 +7,7 @@ import {
   partnerInviteEmail,
   playerLeftEmail,
   matchDisputedEmail,
+  feedbackReplyEmail,
 } from "./templates.ts";
 
 const RESEND_API_KEY = Deno.env.get("RESEND_API_KEY")!;
@@ -360,9 +361,35 @@ async function handleMatchDisputed(record: Record<string, unknown>) {
   console.log(`match_disputed: notified submitter ${submitter.username}`);
 }
 
+// --- Feedback reply handler ---
+
+async function handleFeedbackReply(payload: { user_id: string; admin_reply: string; feedback_id: string }) {
+  const profile = await getProfile(payload.user_id);
+  if (!profile) return;
+
+  const email = await getUserEmail(payload.user_id);
+  if (!email) return;
+
+  // Get original feedback message
+  const { data: feedback } = await supabase
+    .from("feedback")
+    .select("message")
+    .eq("id", payload.feedback_id)
+    .single();
+
+  const { subject, html } = feedbackReplyEmail({
+    userName: profile.username,
+    originalMessage: feedback?.message || "",
+    adminReply: payload.admin_reply,
+    appUrl: APP_URL,
+  });
+
+  const ok = await sendEmail(email, subject, html);
+  console.log(`feedback_reply: ${ok ? "sent" : "failed"} to ${profile.username}`);
+}
+
 // --- Main handler ---
-// Receives Supabase Database Webhook payloads:
-// { type: "INSERT"|"UPDATE"|"DELETE", table: "proposals"|"matches", record: {...}, old_record: {...} }
+// Receives Supabase Database Webhook payloads or direct invocations
 
 Deno.serve(async (req) => {
   if (req.method !== "POST") {
@@ -371,6 +398,15 @@ Deno.serve(async (req) => {
 
   try {
     const payload = await req.json();
+
+    // Direct invocation for feedback reply
+    if (payload.type === "feedback_reply") {
+      await handleFeedbackReply(payload);
+      return new Response(JSON.stringify({ ok: true }), {
+        headers: { "Content-Type": "application/json" },
+      });
+    }
+
     const { type, table, record, old_record } = payload;
 
     console.log(`Webhook: ${type} on ${table}`);
