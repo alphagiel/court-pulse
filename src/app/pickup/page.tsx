@@ -16,6 +16,9 @@ import type { Park } from "@/types/database";
 import { Loader } from "@/components/loader";
 import { Dropdown } from "@/components/dropdown";
 import { theme } from "@/lib/theme";
+import { Input } from "@/components/ui/input";
+import { Card, CardContent } from "@/components/ui/card";
+import { isTriangleZip } from "@/lib/geo";
 import { LayoutGroup, motion } from "framer-motion";
 import { useHourlyWeather, weatherIcon } from "@/lib/use-weather";
 
@@ -59,7 +62,7 @@ function getAvailableHours(): { label: string; value: string | null }[] {
 }
 
 export default function PickupPage() {
-  const { user, profile, loading: authLoading } = useAuth();
+  const { user, profile, loading: authLoading, refreshProfile } = useAuth();
   const router = useRouter();
   const { location, error: locationError } = useUserLocation();
   const { parks, checkIns, intents, playerProfiles, loading } = useParkActivity();
@@ -73,6 +76,11 @@ export default function PickupPage() {
   const [sortMode, setSortMode] = useState<"closest" | "busiest">(location ? "closest" : "busiest");
   const [paddleLoading, setPaddleLoading] = useState<string | null>(null);
   const [userCheckIns, setUserCheckIns] = useState<Record<string, string>>({});
+
+  // Zip code prompt state
+  const [zipInput, setZipInput] = useState("");
+  const [zipSaving, setZipSaving] = useState(false);
+  const [zipError, setZipError] = useState<string | null>(null);
 
   // Modal state
   const [modalParkId, setModalParkId] = useState<string | null>(null);
@@ -267,6 +275,70 @@ export default function PickupPage() {
     return <PickupSkeleton />;
   }
 
+  // Zip code prompt for existing users
+  if (!profile.zip_code) {
+    return (
+      <main className="min-h-screen bg-background">
+        <div className="max-w-lg mx-auto px-4 py-8 sm:px-6 space-y-8">
+          <AppHeader
+            title="Pickup"
+            subtitle="Play now"
+            backHref="/"
+          />
+          <Card>
+            <CardContent className="pt-6 space-y-4">
+              <h2 className="text-[18px] font-semibold text-center">Add Your Zip Code</h2>
+              <p className="text-[14px] text-muted-foreground text-center">
+                To use pickup, please add your zip code. This helps us determine feature availability in your area.
+              </p>
+              <div className="space-y-2">
+                <Input
+                  type="text"
+                  inputMode="numeric"
+                  placeholder="e.g. 27601"
+                  value={zipInput}
+                  onChange={(e) => {
+                    setZipInput(e.target.value.replace(/\D/g, "").slice(0, 5));
+                    setZipError(null);
+                  }}
+                  maxLength={5}
+                  className="h-11 text-[15px] text-center"
+                  autoFocus
+                />
+                {zipError && (
+                  <p className="text-[13px] text-red-600 text-center">{zipError}</p>
+                )}
+              </div>
+              <Button
+                className="w-full"
+                disabled={zipSaving}
+                onClick={async () => {
+                  const trimmed = zipInput.trim();
+                  if (!/^\d{5}$/.test(trimmed)) {
+                    setZipError("Please enter a valid 5-digit zip code");
+                    return;
+                  }
+                  setZipSaving(true);
+                  setZipError(null);
+                  await supabase
+                    .from("profiles")
+                    .update({ zip_code: trimmed })
+                    .eq("id", user!.id);
+                  await refreshProfile();
+                  setZipSaving(false);
+                }}
+              >
+                {zipSaving ? "Saving..." : "Save Zip Code"}
+              </Button>
+            </CardContent>
+          </Card>
+        </div>
+      </main>
+    );
+  }
+
+  const isOutsideTriangle = !!profile.zip_code && !isTriangleZip(profile.zip_code);
+
   const intentParkName = intentParkId
     ? parks.find((p) => p.id === intentParkId)?.name || null
     : null;
@@ -297,6 +369,20 @@ export default function PickupPage() {
           <p className="text-[13px] text-amber-600 text-center">
             {locationError}
           </p>
+        )}
+
+        {isOutsideTriangle && (
+          <div className="rounded-xl border border-amber-200 bg-amber-50 dark:border-amber-900 dark:bg-amber-950/30 p-4 text-center space-y-1">
+            <p className="text-[13px] font-medium text-amber-800 dark:text-amber-300">
+              Pickup is currently available for NC Triangle players. You&apos;re in view-only mode.
+            </p>
+            <p className="text-[12px] text-amber-700 dark:text-amber-400">
+              Update your zip code in{" "}
+              <button onClick={() => router.push("/settings")} className="underline font-medium">
+                Settings
+              </button>
+            </p>
+          </div>
         )}
 
         {/* Active intent banner */}
@@ -386,9 +472,10 @@ export default function PickupPage() {
                     <ParkCard
                       activity={activity}
                       onTap={(parkId) => {
+                        if (isOutsideTriangle) return;
                         if (!intentActive || intentParkId === parkId) setModalParkId(parkId);
                       }}
-                      onQuickJoin={intentActive ? undefined : setModalParkId}
+                      onQuickJoin={isOutsideTriangle || intentActive ? undefined : setModalParkId}
                       isUserGoing={
                         intentActive && intentParkId === activity.park.id
                       }
