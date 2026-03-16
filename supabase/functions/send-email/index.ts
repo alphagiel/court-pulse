@@ -25,10 +25,11 @@ const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
 
 function formatDateTime(dateStr: string): string {
   const d = new Date(dateStr);
+  const tz = "America/New_York";
   return (
-    d.toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" }) +
+    d.toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric", timeZone: tz }) +
     " at " +
-    d.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" })
+    d.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit", timeZone: tz })
   );
 }
 
