@@ -149,19 +149,30 @@ async function getTierPlayerIds(creatorId: string): Promise<string[]> {
 // --- Event handlers ---
 
 async function handleProposalCreated(record: Record<string, unknown>) {
-  const creator = await getProfile(record.creator_id as string);
-  const park = await getPark(record.park_id as string);
+  // Re-fetch proposal from DB — webhook payload may not include all columns (e.g. mode)
+  const { data: proposal } = await supabase
+    .from("proposals")
+    .select("*")
+    .eq("id", record.id as string)
+    .single();
+
+  const fresh = proposal || record;
+  const creator = await getProfile(fresh.creator_id as string);
+  const park = await getPark(fresh.park_id as string);
   if (!creator || !park) return;
 
-  const mode = (record.mode as string) || "singles";
-  const playerIds = await getTierPlayerIds(record.creator_id as string);
+  const mode = (fresh.mode as string) || "singles";
+  const playerIds = await getTierPlayerIds(fresh.creator_id as string);
 
-  const proposalUrl = `${APP_URL}/ladder/proposals/${record.id}?mode=${mode}`;
+  // Singles proposals are handled inline on the ladder page; doubles have a detail page
+  const proposalUrl = mode === "doubles"
+    ? `${APP_URL}/ladder/proposals/${fresh.id}?mode=doubles`
+    : `${APP_URL}/ladder?tab=proposals`;
   const { subject, html } = newProposalEmail({
     creatorName: creator.username,
     mode: mode as "singles" | "doubles",
     parkName: park.name,
-    dateTime: formatDateTime(record.proposed_time as string),
+    dateTime: formatDateTime(fresh.proposed_time as string),
     proposalUrl,
   });
 
