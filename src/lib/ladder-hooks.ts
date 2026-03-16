@@ -24,7 +24,8 @@ export interface TierPreview {
   tier: SkillTier;
   playerCount: number;
   topPlayers: { username: string; elo_rating: number }[];
-  openProposals: number;
+  openProposalsSingles: number;
+  openProposalsDoubles: number;
   totalMatches: number;
   levelBreakdown: Record<string, number>;
 }
@@ -37,7 +38,7 @@ export function useTierPreviews() {
     const [ratingsRes, profilesRes, proposalsRes, matchesRes] = await Promise.all([
       supabase.from("ladder_ratings").select("*").eq("mode", "singles").order("elo_rating", { ascending: false }),
       supabase.from("profiles").select("*"),
-      supabase.from("proposals").select("*").eq("status", "open").gte("expires_at", new Date().toISOString()).gte("proposed_time", new Date().toISOString()),
+      supabase.from("proposals").select("*").in("status", ["open", "forming"]).gte("expires_at", new Date().toISOString()).gte("proposed_time", new Date().toISOString()),
       supabase.from("matches").select("*").in("status", ["pending", "score_submitted", "confirmed"]),
     ]);
 
@@ -73,11 +74,13 @@ export function useTierPreviews() {
         }).length;
       }
 
-      // Open proposals in this tier
-      const openProposals = proposals.filter((p: Proposal) => {
+      // Open proposals in this tier by mode
+      const tierProposals = proposals.filter((p: Proposal) => {
         const creator = profileMap.get(p.creator_id);
         return creator && tierLevels.includes(creator.skill_level as SkillLevel);
-      }).length;
+      });
+      const openProposalsSingles = tierProposals.filter((p: Proposal) => p.mode === "singles").length;
+      const openProposalsDoubles = tierProposals.filter((p: Proposal) => p.mode === "doubles").length;
 
       // Total confirmed matches in this tier
       const totalMatches = matches.filter((m: Match) => {
@@ -89,7 +92,8 @@ export function useTierPreviews() {
         tier,
         playerCount: tierRatings.length,
         topPlayers,
-        openProposals,
+        openProposalsSingles,
+        openProposalsDoubles,
         totalMatches,
         levelBreakdown,
       };
