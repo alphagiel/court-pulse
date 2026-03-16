@@ -32,8 +32,11 @@ export function baseTemplate(content: string): string {
           <!-- Footer -->
           <tr>
             <td style="padding: 24px 40px; background-color: #f9f9f9; border-radius: 0 0 8px 8px; border-top: 1px solid #e0e0e0;">
-              <p style="margin: 0; color: #666666; font-size: 12px; line-height: 1.5;">
+              <p style="margin: 0 0 8px 0; color: #666666; font-size: 12px; line-height: 1.5;">
                 You received this email because you have an account with Court Pulse.
+              </p>
+              <p style="margin: 0; color: #666666; font-size: 12px; line-height: 1.5;">
+                <a href="https://court-pulse-raleigh.vercel.app/settings" style="color: #888888; text-decoration: underline;">Unsubscribe</a> or manage your email preferences.
               </p>
             </td>
           </tr>

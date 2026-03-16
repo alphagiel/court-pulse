@@ -113,14 +113,14 @@ function LadderPageInner() {
   };
 
   const handleSetTier = (tier: SkillTier | null, defaultTab?: Tab) => {
-    const newTab = defaultTab || "rankings";
+    const newTab = defaultTab || "proposals";
     setSelectedTier(tier);
     setTab(newTab);
     updateUrl(tier, mode, newTab);
   };
 
   const handleSetMode = (newMode: MatchMode, defaultTab?: Tab) => {
-    const newTab = defaultTab || "rankings";
+    const newTab = defaultTab || "proposals";
     setMode(newMode);
     setTab(newTab);
     updateUrl(selectedTier, newMode, newTab);
@@ -620,7 +620,7 @@ function TierCard({
           </div>
           <div className="flex justify-between">
             <span className="text-muted-foreground">Proposals</span>
-            <span className="font-semibold">{preview.openProposals}</span>
+            <span className="font-semibold">{preview.openProposalsSingles + preview.openProposalsDoubles}</span>
           </div>
           <div className="flex justify-between">
             <span className="text-muted-foreground">Matches</span>
