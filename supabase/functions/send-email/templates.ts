@@ -162,6 +162,7 @@ ${actionButton("View Match", data.matchUrl)}
 export interface DoublesFilledData {
   playerName: string;
   playerNames: string[];
+  organizerName: string;
   parkName: string;
   dateTime: string;
   proposalUrl: string;
@@ -170,8 +171,8 @@ export interface DoublesFilledData {
 
 export function doublesFilledEmail(data: DoublesFilledData): { subject: string; html: string } {
   const message = data.isOrganizer
-    ? `All 4 players are in, ${data.playerName}. Time to arrange teams!`
-    : `All 4 players are in, ${data.playerName}. The organizer will finalize the pairings.`;
+    ? `You got 4, ${data.playerName}! Head over to arrange the teams and check the ELO gap before you hit the court.`
+    : `You got 4! <strong>${data.organizerName}</strong> is setting the final pairings — check the ELO gap and discuss any swaps when you meet on the court.`;
 
   const buttonText = data.isOrganizer ? "Arrange Teams" : "View Pairings";
 

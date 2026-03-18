@@ -188,10 +188,23 @@ function ProposalDetailInner() {
         role: "partner",
       });
 
-      // Clear seeking_partner since partner accepted
+      // Query actual signup count from DB (don't trust stale render-time count)
+      const { count } = await supabase
+        .from("proposal_signups")
+        .select("*", { count: "exact", head: true })
+        .eq("proposal_id", proposalId);
+
+      const actualCount = count ?? signupCount + 1;
+
+      // Clear seeking_partner + transition to pairing if this fills it to 4
+      const updateFields: Record<string, unknown> = { seeking_partner: false };
+      if (actualCount >= 4) {
+        updateFields.status = "pairing";
+      }
+
       await supabase
         .from("proposals")
-        .update({ seeking_partner: false })
+        .update(updateFields)
         .eq("id", proposalId);
 
       refetchSignups();
@@ -235,10 +248,16 @@ function ProposalDetailInner() {
         role,
       });
 
-      const newCount = signupCount + 1;
+      // Query actual signup count from DB (don't trust stale render-time count)
+      const { count } = await supabase
+        .from("proposal_signups")
+        .select("*", { count: "exact", head: true })
+        .eq("proposal_id", proposalId);
+
+      const actualCount = count ?? signupCount + 1;
 
       // If this fills it to 4, move to pairing status
-      if (newCount >= 4) {
+      if (actualCount >= 4) {
         await supabase
           .from("proposals")
           .update({ status: "pairing" })
