@@ -11,7 +11,8 @@
       "Bash(find /c/Users/lfage/Music -iname \"*dahil*\" -o -iname \"*bulaklak*\" -o -iname \"*florante*\" 2>/dev/null | head -20)",
       "Bash(npx next:*)",
       "Bash(npx tsc:*)",
-      "Bash(grep:*)"
+      "Bash(grep:*)",
+      "Bash(find /C/Users/lfage/Sandbox/full-stack/court-pulse -type f \\\\\\(-name *.sql -o -name *.ts -o -name *.tsx \\\\\\))"
     ]
   }
 }

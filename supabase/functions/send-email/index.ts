@@ -267,6 +267,7 @@ async function handleDoublesFilled(record: Record<string, unknown>) {
 
   const proposalUrl = `${APP_URL}/ladder/proposals/${proposalId}?mode=doubles`;
   const creatorId = record.creator_id as string;
+  const organizerName = profileMap.get(creatorId) || "The organizer";
 
   let sent = 0;
   for (const playerId of playerIds) {
@@ -282,6 +283,7 @@ async function handleDoublesFilled(record: Record<string, unknown>) {
     const { subject, html } = doublesFilledEmail({
       playerName,
       playerNames: allNames,
+      organizerName,
       parkName: park.name,
       dateTime: formatDateTime(record.proposed_time as string),
       proposalUrl,
