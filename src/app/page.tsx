@@ -6,6 +6,7 @@ import { useAuth } from "@/lib/auth-context";
 import { AppHeader } from "@/components/app-header";
 import { Loader } from "@/components/loader";
 import { theme } from "@/lib/theme";
+import { WeatherForecast } from "@/components/weather-forecast";
 
 type Route = "pickup" | "ladder";
 
@@ -126,6 +127,7 @@ export default function Home() {
           </button>
         </div>
 
+        <WeatherForecast />
       </div>
 
       <footer className="fixed bottom-0 inset-x-0 py-2">

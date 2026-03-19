@@ -13,7 +13,6 @@ import {
   useMyMatches,
   useTierPreviews,
   useSignupCounts,
-  useSignupTeams,
   type TierPreview,
 } from "@/lib/ladder-hooks";
 import { Button } from "@/components/ui/button";
@@ -93,7 +92,7 @@ function LadderPageInner() {
   );
   const [mode, setMode] = useState<MatchMode>(modeFromUrl === "doubles" ? "doubles" : "singles");
   const [tab, setTab] = useState<Tab>(
-    tabFromUrl && ["rankings", "proposals", "matches"].includes(tabFromUrl) ? tabFromUrl : "rankings"
+    tabFromUrl && ["rankings", "proposals", "matches"].includes(tabFromUrl) ? tabFromUrl : "proposals"
   );
   const [registering, setRegistering] = useState(false);
   const [actionId, setActionId] = useState<string | null>(null);
@@ -108,7 +107,7 @@ function LadderPageInner() {
     const params = new URLSearchParams();
     if (newTier) params.set("tier", newTier);
     if (newMode !== "singles") params.set("mode", newMode);
-    if (newTier && newTab !== "rankings") params.set("tab", newTab);
+    if (newTier && newTab !== "proposals") params.set("tab", newTab);
     const qs = params.toString();
     router.replace(`/ladder${qs ? `?${qs}` : ""}`, { scroll: false });
   };
@@ -333,7 +332,7 @@ function LadderPageInner() {
                   preview={preview}
                   isUserTier={preview.tier === userTier}
                   onSelect={() => {
-                    handleSetTier(preview.tier, "rankings");
+                    handleSetTier(preview.tier, "proposals");
                   }}
                 />
               ))}
@@ -443,12 +442,22 @@ function LadderPageInner() {
                   preview={preview}
                   isUserTier={preview.tier === userTier}
                   onSelect={() => {
-                    handleSetTier(preview.tier, isDoubles ? "proposals" : "rankings");
+                    handleSetTier(preview.tier, "proposals");
                   }}
                 />
               ))}
             </div>
           )}
+
+          {/* Season counter */}
+          {(() => {
+            const s = getSeasonRange();
+            return (
+              <p className="text-[12px] text-muted-foreground tracking-wide">
+                {s.label} Season <span className="mx-1">—</span> Week {s.currentWeek}/{s.totalWeeks}
+              </p>
+            );
+          })()}
         </div>
       </main>
     );
@@ -638,17 +647,25 @@ function TierCard({
 
 const MIN_MATCHES_TO_RANK = 3;
 
-function getSeasonRange(): { label: string; start: string; end: string } {
+function getSeasonRange(): { label: string; start: string; end: string; currentWeek: number; totalWeeks: number } {
   const now = new Date();
   const year = now.getFullYear();
   const month = now.getMonth(); // 0-indexed
-  if (month >= 2 && month <= 4) return { label: "Spring", start: `${year}-03-01`, end: `${year}-06-01` };
-  if (month >= 5 && month <= 7) return { label: "Summer", start: `${year}-06-01`, end: `${year}-09-01` };
-  if (month >= 8 && month <= 10) return { label: "Fall", start: `${year}-09-01`, end: `${year}-12-01` };
-  // Winter spans year boundary
-  const winterStart = month <= 1 ? `${year - 1}-12-01` : `${year}-12-01`;
-  const winterEnd = month <= 1 ? `${year}-03-01` : `${year + 1}-03-01`;
-  return { label: "Winter", start: winterStart, end: winterEnd };
+  let start: string, end: string, label: string;
+  if (month >= 2 && month <= 4) { label = "Spring"; start = `${year}-03-01`; end = `${year}-06-01`; }
+  else if (month >= 5 && month <= 7) { label = "Summer"; start = `${year}-06-01`; end = `${year}-09-01`; }
+  else if (month >= 8 && month <= 10) { label = "Fall"; start = `${year}-09-01`; end = `${year}-12-01`; }
+  else {
+    label = "Winter";
+    start = month <= 1 ? `${year - 1}-12-01` : `${year}-12-01`;
+    end = month <= 1 ? `${year}-03-01` : `${year + 1}-03-01`;
+  }
+  const startDate = new Date(start);
+  const endDate = new Date(end);
+  const totalWeeks = Math.ceil((endDate.getTime() - startDate.getTime()) / (7 * 24 * 60 * 60 * 1000));
+  const elapsed = Math.floor((now.getTime() - startDate.getTime()) / (7 * 24 * 60 * 60 * 1000)) + 1;
+  const currentWeek = Math.min(Math.max(elapsed, 1), totalWeeks);
+  return { label, start, end, currentWeek, totalWeeks };
 }
 
 interface RecentMatch {
@@ -931,9 +948,9 @@ function RankingsTab({
   const unranked = rankings.filter((e) => e.wins + e.losses < MIN_MATCHES_TO_RANK);
 
   return (
-    <div className="space-y-6">
-      <div className="overflow-hidden">
-        <div className="grid grid-cols-[2rem_1fr_3rem_4rem_1rem] gap-x-2 px-3 py-2 text-[11px] text-muted-foreground uppercase tracking-wider border-b">
+    <div className="space-y-4">
+      <div className="rounded-xl border border-border bg-gradient-to-b from-slate-50 to-white dark:from-slate-900/40 dark:to-slate-950/20 shadow-sm overflow-hidden">
+        <div className="grid grid-cols-[2rem_1fr_3rem_4rem_1rem] gap-x-2 px-3 py-2.5 text-[11px] text-muted-foreground uppercase tracking-wider bg-slate-100/80 dark:bg-slate-800/40 border-b border-border/60">
           <span>#</span>
           <span>Player</span>
           <span className="text-center">W-L</span>
@@ -962,8 +979,8 @@ function RankingsTab({
       </div>
 
       {unranked.length > 0 && (
-        <div className="overflow-hidden">
-          <p className="text-[11px] text-muted-foreground uppercase tracking-wider px-3 pb-2 border-b">
+        <div className="rounded-xl border border-dashed border-border/80 bg-muted/20 overflow-hidden">
+          <p className="text-[11px] text-muted-foreground uppercase tracking-wider px-3 py-2.5 bg-muted/40 border-b border-border/40">
             New Players — {MIN_MATCHES_TO_RANK} matches to qualify
           </p>
           {unranked.map((entry) => (
@@ -1008,15 +1025,12 @@ function ProposalsTab({
 }) {
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [showAllOpen, setShowAllOpen] = useState(false);
-  const [showAllTaken, setShowAllTaken] = useState(false);
   const [editingProposal, setEditingProposal] = useState<ProposalWithDetails | null>(null);
 
   if (loading) return <LoadingState text="Loading proposals..." />;
 
   const open = proposals.filter((p) => p.status === "open");
-  const taken = proposals.filter((p) => p.status === "accepted");
   const visibleOpen = showAllOpen ? open : open.slice(0, INITIAL_SHOW);
-  const visibleTaken = showAllTaken ? taken : taken.slice(0, INITIAL_SHOW);
 
   return (
     <div className="space-y-4">
@@ -1026,18 +1040,15 @@ function ProposalsTab({
         </Button>
       )}
 
-      {open.length === 0 && taken.length === 0 ? (
+      {open.length === 0 ? (
         <EmptyState text={readOnly ? "No proposals in this tier." : "No proposals in this tier. Create one!"} />
       ) : (
         <div className="space-y-6">
           {open.length > 0 && (
-            <div className="overflow-hidden">
-              <div className="grid grid-cols-[1fr_5rem_4.5rem_1rem] gap-x-2 px-3 py-2 text-[11px] text-muted-foreground uppercase tracking-wider border-b">
-                <span>Player</span>
-                <span className="text-center">When</span>
-                <span className="text-right">Status</span>
-                <span></span>
-              </div>
+            <div className="rounded-xl border border-sky-200 dark:border-sky-800/40 bg-gradient-to-b from-sky-50/60 to-white dark:from-sky-950/20 dark:to-slate-950/10 shadow-sm overflow-hidden">
+              <p className="text-[11px] text-muted-foreground uppercase tracking-wider px-3 py-2.5 bg-sky-100/60 dark:bg-sky-900/20 border-b border-sky-200/60 dark:border-sky-800/30">
+                Open Proposals
+              </p>
 
               {visibleOpen.map((p) => {
                 const isExpanded = expandedId === p.id;
@@ -1124,80 +1135,6 @@ function ProposalsTab({
             </div>
           )}
 
-          {taken.length > 0 && (
-            <div className="overflow-hidden">
-              <p className="text-[11px] text-muted-foreground uppercase tracking-wider px-3 pb-2 border-b">
-                Accepted
-              </p>
-
-              {visibleTaken.map((p) => {
-                const isExpanded = expandedId === p.id;
-                const isOwner = p.creator_id === currentUserId;
-                const isAcceptor = p.accepted_by === currentUserId;
-                const isInvolved = isOwner || isAcceptor;
-                return (
-                  <div key={p.id} className={`transition-all ${isExpanded ? "rounded-lg border border-border shadow-sm my-1 overflow-hidden opacity-100" : ""}`}>
-                    <button
-                      onClick={() => setExpandedId(isExpanded ? null : p.id)}
-                      className={`w-full grid grid-cols-[1fr_5rem_4.5rem_1rem] gap-x-2 px-3 py-2.5 text-[13px] items-center transition-all text-left ${
-                        isExpanded
-                          ? isInvolved ? L.rowExpanded : "bg-muted/80"
-                          : `opacity-70 border-b border-border/50 hover:shadow-sm hover:-translate-y-[1px] ${isInvolved ? `${L.rowHighlight}` : "hover:bg-muted/50"}`
-                      }`}
-                    >
-                      <span className="font-medium truncate">
-                        {p.creator.username}
-                        {isOwner && <span className={`${L.accent} ml-1 text-[11px]`}>you</span>}
-                      </span>
-                      <span className="text-center text-muted-foreground text-[12px] truncate">{formatDate(p.proposed_time)}</span>
-                      <span className="text-right">
-                        <span className="text-[10px] text-amber-700 bg-amber-50 border border-amber-200 rounded-full px-1.5 py-0.5">Taken</span>
-                      </span>
-                      <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={`text-muted-foreground/50 transition-transform ${isExpanded ? "rotate-180" : ""}`}><path d="m6 9 6 6 6-6"/></svg>
-                    </button>
-
-                    {isExpanded && (
-                      <div className={`px-3 py-3 animate-unfold ${isInvolved ? L.rowDetail : "bg-muted/30"}`}>
-                        <div className="space-y-1.5 text-[13px]">
-                          <DetailRow label="Skill" value={p.creator.skill_level} />
-                          <DetailRow label="Park" value={p.park.name} />
-                          <DetailRow label="When" value={formatDateTime(p.proposed_time)} />
-                          <DetailRow label="Accepted by" value={p.acceptor?.username || "someone"} />
-                        </div>
-                        {!readOnly && isInvolved && (
-                          <div className="mt-3">
-                            <Button
-                              size="sm"
-                              variant="outline"
-                              onClick={() => onCancel(p)}
-                              disabled={actionId === p.id}
-                              className="w-full text-red-500 hover:text-red-600 hover:bg-red-50"
-                            >
-                              {actionId === p.id
-                                ? "Cancelling..."
-                                : isOwner
-                                  ? "Delete Proposal"
-                                  : "Back Out"
-                              }
-                            </Button>
-                          </div>
-                        )}
-                      </div>
-                    )}
-                  </div>
-                );
-              })}
-
-              {!showAllTaken && taken.length > INITIAL_SHOW && (
-                <button
-                  onClick={() => setShowAllTaken(true)}
-                  className="w-full text-center text-[12px] text-muted-foreground hover:text-foreground py-2 transition-colors"
-                >
-                  Show {taken.length - INITIAL_SHOW} more accepted
-                </button>
-              )}
-            </div>
-          )}
         </div>
       )}
 
@@ -1239,14 +1176,9 @@ function DoublesProposalsTab({
   const proposalIds = proposals.map((p) => p.id);
   const { counts } = useSignupCounts(proposalIds);
 
-  // Fetch team names for matched proposals
-  const acceptedIds = proposals.filter((p) => p.status === "accepted").map((p) => p.id);
-  const { teams } = useSignupTeams(acceptedIds);
-
   if (loading) return <LoadingState text="Loading doubles proposals..." />;
 
   const active = proposals.filter((p) => ["open", "forming", "pairing"].includes(p.status));
-  const accepted = proposals.filter((p) => p.status === "accepted");
   const visibleActive = showAll ? active : active.slice(0, INITIAL_SHOW);
 
   const statusInfo: Record<string, { text: string; className: string }> = {
@@ -1264,18 +1196,15 @@ function DoublesProposalsTab({
         </Button>
       )}
 
-      {active.length === 0 && accepted.length === 0 ? (
+      {active.length === 0 ? (
         <EmptyState text={readOnly ? "No doubles proposals in this tier." : "No doubles proposals yet. Be the first!"} />
       ) : (
         <div className="space-y-6">
           {active.length > 0 && (
-            <div className="overflow-hidden">
-              <div className="grid grid-cols-[1fr_3rem_4.5rem_1rem] gap-x-2 px-3 py-2 text-[11px] text-muted-foreground uppercase tracking-wider border-b">
-                <span>Organizer</span>
-                <span className="text-center">Slots</span>
-                <span className="text-right">Status</span>
-                <span></span>
-              </div>
+            <div className="rounded-xl border border-sky-200 dark:border-sky-800/40 bg-gradient-to-b from-sky-50/60 to-white dark:from-sky-950/20 dark:to-slate-950/10 shadow-sm overflow-hidden">
+              <p className="text-[11px] text-muted-foreground uppercase tracking-wider px-3 py-2.5 bg-sky-100/60 dark:bg-sky-900/20 border-b border-sky-200/60 dark:border-sky-800/30">
+                Open Proposals
+              </p>
 
               {visibleActive.map((p) => {
                 const isYours = p.creator_id === currentUserId;
@@ -1323,40 +1252,6 @@ function DoublesProposalsTab({
             </div>
           )}
 
-          {accepted.length > 0 && (
-            <div className="overflow-hidden">
-              <p className="text-[11px] text-muted-foreground uppercase tracking-wider px-3 pb-2 border-b">
-                Matched
-              </p>
-              {accepted.slice(0, 5).map((p) => {
-                const t = teams[p.id];
-                const teamANames = t ? t.teamA.join(" & ") : p.creator.username;
-                const teamBNames = t ? t.teamB.join(" & ") : "";
-
-                return (
-                  <button
-                    key={p.id}
-                    onClick={() => onViewProposal(p.id)}
-                    className="w-full grid grid-cols-[1fr_4.5rem_1rem] gap-x-2 px-3 py-2.5 text-[13px] items-center border-b border-border/50 transition-all text-left opacity-60 hover:bg-muted/50 hover:shadow-sm hover:-translate-y-[1px]"
-                  >
-                    <div className="truncate">
-                      <span className="font-medium">{teamANames}</span>
-                      {teamBNames && (
-                        <>
-                          <span className="text-muted-foreground mx-1.5">vs</span>
-                          <span className="font-medium">{teamBNames}</span>
-                        </>
-                      )}
-                    </div>
-                    <span className="text-right">
-                      <span className={`text-[10px] ${L.badge} border rounded-full px-1.5 py-0.5`}>Matched</span>
-                    </span>
-                    <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-muted-foreground/50"><path d="m9 18 6-6-6-6"/></svg>
-                  </button>
-                );
-              })}
-            </div>
-          )}
         </div>
       )}
     </div>
@@ -1392,8 +1287,8 @@ function MatchesTab({
   };
 
   return (
-    <div className="overflow-hidden">
-      <div className="grid grid-cols-[1fr_5rem_4.5rem_1rem] gap-x-2 px-3 py-2 text-[11px] text-muted-foreground uppercase tracking-wider border-b">
+    <div className="rounded-xl border border-border bg-gradient-to-b from-violet-50/40 to-white dark:from-violet-950/15 dark:to-slate-950/10 shadow-sm overflow-hidden">
+      <div className="grid grid-cols-[1fr_5rem_4.5rem_1rem] gap-x-2 px-3 py-2.5 text-[11px] text-muted-foreground uppercase tracking-wider bg-violet-100/40 dark:bg-violet-900/15 border-b border-border/60">
         <span>Opponent</span>
         <span className="text-center">Date</span>
         <span className="text-right">Status</span>
@@ -1497,8 +1392,8 @@ function DoublesMatchesTab({
   };
 
   return (
-    <div className="overflow-hidden">
-      <div className="grid grid-cols-[1fr_4.5rem_1rem] gap-x-2 px-3 py-2 text-[11px] text-muted-foreground uppercase tracking-wider border-b">
+    <div className="rounded-xl border border-border bg-gradient-to-b from-violet-50/40 to-white dark:from-violet-950/15 dark:to-slate-950/10 shadow-sm overflow-hidden">
+      <div className="grid grid-cols-[1fr_4.5rem_1rem] gap-x-2 px-3 py-2.5 text-[11px] text-muted-foreground uppercase tracking-wider bg-violet-100/40 dark:bg-violet-900/15 border-b border-border/60">
         <span>Teams</span>
         <span className="text-right">Status</span>
         <span></span>
