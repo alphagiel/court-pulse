@@ -308,6 +308,27 @@ export function useProposals(tier: SkillTier, mode: MatchMode = "singles") {
   return { proposals, loading, refetch: fetch };
 }
 
+export function getSeasonRange(): { label: string; start: string; end: string; currentWeek: number; totalWeeks: number } {
+  const now = new Date();
+  const year = now.getFullYear();
+  const month = now.getMonth();
+  let start: string, end: string, label: string;
+  if (month >= 2 && month <= 4) { label = "Spring"; start = `${year}-03-01`; end = `${year}-06-01`; }
+  else if (month >= 5 && month <= 7) { label = "Summer"; start = `${year}-06-01`; end = `${year}-09-01`; }
+  else if (month >= 8 && month <= 10) { label = "Fall"; start = `${year}-09-01`; end = `${year}-12-01`; }
+  else {
+    label = "Winter";
+    start = month <= 1 ? `${year - 1}-12-01` : `${year}-12-01`;
+    end = month <= 1 ? `${year}-03-01` : `${year + 1}-03-01`;
+  }
+  const startDate = new Date(start);
+  const endDate = new Date(end);
+  const totalWeeks = Math.ceil((endDate.getTime() - startDate.getTime()) / (7 * 24 * 60 * 60 * 1000));
+  const elapsed = Math.floor((now.getTime() - startDate.getTime()) / (7 * 24 * 60 * 60 * 1000)) + 1;
+  const currentWeek = Math.min(Math.max(elapsed, 1), totalWeeks);
+  return { label, start, end, currentWeek, totalWeeks };
+}
+
 export function useMyMatches(userId: string | undefined, tier: SkillTier, mode: MatchMode = "singles") {
   const [matches, setMatches] = useState<MatchWithDetails[]>([]);
   const [loading, setLoading] = useState(true);
@@ -316,18 +337,19 @@ export function useMyMatches(userId: string | undefined, tier: SkillTier, mode: 
     if (!userId) { setLoading(false); return; }
     setLoading(true);
 
-    const oneWeekAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
+    const season = getSeasonRange();
 
-    // Active matches (pending/score_submitted/disputed) + confirmed within last week
+    // All matches for the current season
     const { data } = await supabase
       .from("matches")
       .select("*")
       .eq("mode", mode)
       .or(`player1_id.eq.${userId},player2_id.eq.${userId},player3_id.eq.${userId},player4_id.eq.${userId}`)
       .neq("status", "cancelled")
-      .gte("created_at", oneWeekAgo)
+      .gte("created_at", season.start)
+      .lt("created_at", season.end)
       .order("created_at", { ascending: false })
-      .limit(50);
+      .limit(100);
 
     if (!data || data.length === 0) {
       setMatches([]);
@@ -385,6 +407,90 @@ export function useMyMatches(userId: string | undefined, tier: SkillTier, mode: 
 
     return () => { supabase.removeChannel(channel); };
   }, [fetch, mode]);
+
+  return { matches, loading, refetch: fetch };
+}
+
+export interface TierMatchEntry extends MatchWithDetails {
+  proposedTime: string;
+}
+
+export function useTierMatches(tier: SkillTier, mode: MatchMode = "singles") {
+  const [matches, setMatches] = useState<TierMatchEntry[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  const fetch = useCallback(async () => {
+    setLoading(true);
+
+    const season = getSeasonRange();
+
+    const { data } = await supabase
+      .from("matches")
+      .select("*")
+      .eq("mode", mode)
+      .neq("status", "cancelled")
+      .gte("created_at", season.start)
+      .lt("created_at", season.end)
+      .order("created_at", { ascending: false })
+      .limit(200);
+
+    if (!data || data.length === 0) {
+      setMatches([]);
+      setLoading(false);
+      return;
+    }
+
+    const playerIds = [...new Set(data.flatMap((m: Match) => [m.player1_id, m.player2_id, m.player3_id, m.player4_id].filter(Boolean) as string[]))];
+    const proposalIds = [...new Set(data.map((m: Match) => m.proposal_id))];
+
+    const [profilesRes, proposalsRes] = await Promise.all([
+      supabase.from("profiles").select("*").in("id", playerIds),
+      supabase.from("proposals").select("*, parks(*)").in("id", proposalIds),
+    ]);
+
+    const profileMap = new Map((profilesRes.data || []).map((p: Profile) => [p.id, p]));
+    const tierLevels = SKILL_TIER_LEVELS[tier];
+
+    type ProposalWithPark = Proposal & { parks: Park };
+    const proposalMap = new Map(
+      (proposalsRes.data || []).map((p: ProposalWithPark) => [p.id, p])
+    );
+
+    // Filter to matches where player1 is in this tier
+    const enriched: TierMatchEntry[] = data
+      .filter((m: Match) => {
+        const p1 = profileMap.get(m.player1_id);
+        return p1 && tierLevels.includes(p1.skill_level as SkillLevel);
+      })
+      .map((m: Match) => {
+        const proposal = proposalMap.get(m.proposal_id) as ProposalWithPark | undefined;
+        return {
+          ...m,
+          player1: profileMap.get(m.player1_id)!,
+          player2: profileMap.get(m.player2_id)!,
+          player3: m.player3_id ? profileMap.get(m.player3_id) || null : null,
+          player4: m.player4_id ? profileMap.get(m.player4_id) || null : null,
+          park: proposal?.parks || { id: "", name: "Unknown", address: null, lat: 0, lng: 0, court_count: 0, created_at: "" },
+          proposedTime: proposal?.proposed_time || m.created_at,
+        };
+      });
+
+    setMatches(enriched);
+    setLoading(false);
+  }, [tier, mode]);
+
+  useEffect(() => {
+    fetch();
+
+    const channel = supabase
+      .channel(`tier_matches_${tier}_${mode}`)
+      .on("postgres_changes", { event: "*", schema: "public", table: "matches" }, () => {
+        fetch();
+      })
+      .subscribe();
+
+    return () => { supabase.removeChannel(channel); };
+  }, [fetch, tier, mode]);
 
   return { matches, loading, refetch: fetch };
 }
