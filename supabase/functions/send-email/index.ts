@@ -466,9 +466,10 @@ Deno.serve(async (req) => {
           await handlePartnerInvited(record);
         }
 
-        // Player left doubles (status dropped from pairing/forming)
+        // Player left doubles (status actually dropped)
         if (
           record.mode === "doubles" &&
+          record.status !== old_record?.status &&
           (record.status === "forming" || record.status === "open") &&
           (old_record?.status === "pairing" || old_record?.status === "forming")
         ) {
