@@ -18,6 +18,7 @@ import type {
   LadderRating,
 } from "@/types/database";
 import { Loader } from "@/components/loader";
+import { EditProposalModal } from "@/components/edit-proposal-modal";
 import { theme } from "@/lib/theme";
 
 const L = theme.ladder;
@@ -62,6 +63,7 @@ function ProposalDetailInner() {
   const [ratings, setRatings] = useState<Map<string, LadderRating>>(new Map());
   const [loading, setLoading] = useState(true);
   const [actionLoading, setActionLoading] = useState(false);
+  const [showEditModal, setShowEditModal] = useState(false);
 
   const { signups, loading: signupsLoading, refetch: refetchSignups } = useProposalSignups(proposalId);
 
@@ -576,20 +578,41 @@ function ProposalDetailInner() {
           </Card>
         )}
 
-        {/* Cancel (creator only, not yet accepted) */}
+        {/* Edit + Cancel (creator only, not yet accepted) */}
         {isCreator && proposal.status !== "accepted" && (
-          <Button
-            variant="outline"
-            disabled={actionLoading}
-            onClick={async () => {
-              setActionLoading(true);
-              await supabase.from("proposals").update({ status: "cancelled" }).eq("id", proposalId);
-              goBack();
-            }}
-            className="w-full text-red-500 hover:text-red-600 hover:bg-red-50"
-          >
-            Cancel Proposal
-          </Button>
+          <div className="space-y-2">
+            <Button
+              variant="outline"
+              onClick={() => setShowEditModal(true)}
+              className={`w-full ${L.buttonOutline}`}
+            >
+              Edit Proposal
+            </Button>
+            <Button
+              variant="outline"
+              disabled={actionLoading}
+              onClick={async () => {
+                setActionLoading(true);
+                await supabase.from("proposals").update({ status: "cancelled" }).eq("id", proposalId);
+                goBack();
+              }}
+              className="w-full text-red-500 hover:text-red-600 hover:bg-red-50"
+            >
+              Cancel Proposal
+            </Button>
+          </div>
+        )}
+
+        {showEditModal && proposal && (
+          <EditProposalModal
+            proposalId={proposal.id}
+            mode={proposal.mode}
+            currentParkId={proposal.park_id}
+            currentTime={proposal.proposed_time}
+            currentMessage={proposal.message}
+            onClose={() => setShowEditModal(false)}
+            onSaved={() => fetchProposal()}
+          />
         )}
       </div>
     </main>

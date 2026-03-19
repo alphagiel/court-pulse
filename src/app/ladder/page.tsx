@@ -33,6 +33,7 @@ import { SwipeTabs } from "@/components/swipe-tabs";
 import { Input } from "@/components/ui/input";
 import { theme } from "@/lib/theme";
 import { isTriangleZip } from "@/lib/geo";
+import { EditProposalModal } from "@/components/edit-proposal-modal";
 
 const L = theme.ladder;
 
@@ -541,6 +542,7 @@ function LadderPageInner() {
                   onCancel={handleCancelProposal}
                   actionId={actionId}
                   onCreateNew={() => router.push(`/ladder/proposals/new?tier=${selectedTier}&tab=proposals`)}
+                  onEdit={() => refetchProposals()}
                   readOnly={isReadOnly}
                 />
               )}
@@ -991,6 +993,7 @@ function ProposalsTab({
   onCancel,
   actionId,
   onCreateNew,
+  onEdit,
   readOnly,
 }: {
   proposals: ProposalWithDetails[];
@@ -1000,11 +1003,13 @@ function ProposalsTab({
   onCancel: (p: ProposalWithDetails) => void;
   actionId: string | null;
   onCreateNew: () => void;
+  onEdit: () => void;
   readOnly: boolean;
 }) {
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [showAllOpen, setShowAllOpen] = useState(false);
   const [showAllTaken, setShowAllTaken] = useState(false);
+  const [editingProposal, setEditingProposal] = useState<ProposalWithDetails | null>(null);
 
   if (loading) return <LoadingState text="Loading proposals..." />;
 
@@ -1069,17 +1074,27 @@ function ProposalsTab({
                           {p.message && <DetailRow label="Note" value={p.message} italic />}
                         </div>
                         {!readOnly && (
-                          <div className="mt-3">
+                          <div className="mt-3 space-y-2">
                             {isYours ? (
-                              <Button
-                                size="sm"
-                                variant="outline"
-                                onClick={() => onCancel(p)}
-                                disabled={actionId === p.id}
-                                className="w-full text-red-500 hover:text-red-600 hover:bg-red-50"
-                              >
-                                {actionId === p.id ? "Cancelling..." : "Cancel Proposal"}
-                              </Button>
+                              <>
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  onClick={() => setEditingProposal(p)}
+                                  className={`w-full ${L.buttonOutline}`}
+                                >
+                                  Edit Proposal
+                                </Button>
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  onClick={() => onCancel(p)}
+                                  disabled={actionId === p.id}
+                                  className="w-full text-red-500 hover:text-red-600 hover:bg-red-50"
+                                >
+                                  {actionId === p.id ? "Cancelling..." : "Cancel Proposal"}
+                                </Button>
+                              </>
                             ) : (
                               <Button
                                 size="sm"
@@ -1184,6 +1199,18 @@ function ProposalsTab({
             </div>
           )}
         </div>
+      )}
+
+      {editingProposal && (
+        <EditProposalModal
+          proposalId={editingProposal.id}
+          mode="singles"
+          currentParkId={editingProposal.park_id}
+          currentTime={editingProposal.proposed_time}
+          currentMessage={editingProposal.message}
+          onClose={() => setEditingProposal(null)}
+          onSaved={onEdit}
+        />
       )}
     </div>
   );
