@@ -656,6 +656,32 @@ interface RecentMatch {
   date: string;
 }
 
+// Helpers for doubles-aware match logic
+function getPlayerIds(m: Match): string[] {
+  return [m.player1_id, m.player2_id, m.player3_id, m.player4_id].filter(Boolean) as string[];
+}
+
+function isPlayerInMatch(m: Match, userId: string): boolean {
+  return getPlayerIds(m).includes(userId);
+}
+
+function didPlayerWin(m: Match, userId: string, mode: MatchMode): boolean {
+  if (mode === "singles") return m.winner_id === userId;
+  const teamA = [m.player1_id, m.player2_id].filter(Boolean);
+  const teamB = [m.player3_id, m.player4_id].filter(Boolean);
+  if (m.winning_team === "a") return teamA.includes(userId);
+  return teamB.includes(userId);
+}
+
+function getOpponentIds(m: Match, userId: string, mode: MatchMode): string[] {
+  if (mode === "singles") {
+    return [m.player1_id === userId ? m.player2_id : m.player1_id];
+  }
+  const teamA = [m.player1_id, m.player2_id].filter(Boolean) as string[];
+  const teamB = [m.player3_id, m.player4_id].filter(Boolean) as string[];
+  return teamA.includes(userId) ? teamB : teamA;
+}
+
 function usePlayerMatches(userId: string, mode: MatchMode, isExpanded: boolean) {
   const [recent, setRecent] = useState<RecentMatch[]>([]);
   const [bestWin, setBestWin] = useState<RecentMatch | null>(null);
@@ -670,13 +696,17 @@ function usePlayerMatches(userId: string, mode: MatchMode, isExpanded: boolean) 
     const season = getSeasonRange();
 
     (async () => {
-      // Fetch last 5 confirmed matches
+      // Fetch confirmed matches — for doubles, player could be in any of the 4 slots
+      const orFilter = mode === "singles"
+        ? `player1_id.eq.${userId},player2_id.eq.${userId}`
+        : `player1_id.eq.${userId},player2_id.eq.${userId},player3_id.eq.${userId},player4_id.eq.${userId}`;
+
       const { data: matches } = await supabase
         .from("matches")
         .select("*")
         .eq("mode", mode)
         .eq("status", "confirmed")
-        .or(`player1_id.eq.${userId},player2_id.eq.${userId}`)
+        .or(orFilter)
         .order("created_at", { ascending: false })
         .limit(5);
 
@@ -687,51 +717,57 @@ function usePlayerMatches(userId: string, mode: MatchMode, isExpanded: boolean) 
         return;
       }
 
-      // Gather opponent IDs
-      const opponentIds = [...new Set(matches.map((m: Match) =>
-        m.player1_id === userId ? m.player2_id : m.player1_id
-      ))];
+      // Gather all related player IDs (opponents, and partners for context)
+      const relatedIds = [...new Set(
+        matches.flatMap((m: Match) => getPlayerIds(m).filter((id) => id !== userId))
+      )];
 
       const [profilesRes, ratingsRes] = await Promise.all([
-        supabase.from("profiles").select("id, username").in("id", opponentIds),
-        supabase.from("ladder_ratings").select("user_id, elo_rating").eq("mode", mode).in("user_id", opponentIds),
+        supabase.from("profiles").select("id, username").in("id", relatedIds),
+        supabase.from("ladder_ratings").select("user_id, elo_rating").eq("mode", mode).in("user_id", relatedIds),
       ]);
 
       const profileMap = new Map((profilesRes.data || []).map((p: { id: string; username: string }) => [p.id, p.username]));
       const ratingMap = new Map((ratingsRes.data || []).map((r: { user_id: string; elo_rating: number }) => [r.user_id, r.elo_rating]));
 
       const recentList: RecentMatch[] = matches.map((m: Match) => {
-        const oppId = m.player1_id === userId ? m.player2_id : m.player1_id;
+        const oppIds = getOpponentIds(m, userId, mode);
+        const oppNames = oppIds.map((id) => profileMap.get(id) || "Unknown");
+        const avgOppElo = oppIds.length > 0
+          ? Math.round(oppIds.reduce((sum, id) => sum + (ratingMap.get(id) || 1200), 0) / oppIds.length)
+          : 1200;
         return {
-          opponentName: profileMap.get(oppId) || "Unknown",
-          opponentElo: ratingMap.get(oppId) || 1200,
-          won: m.winner_id === userId,
+          opponentName: oppNames.join(" & "),
+          opponentElo: avgOppElo,
+          won: didPlayerWin(m, userId, mode),
           date: m.created_at,
         };
       });
 
       setRecent(recentList);
 
-      // Best win this season — fetch separately for the full season window
+      // Best win this season
       const { data: seasonMatches } = await supabase
         .from("matches")
         .select("*")
         .eq("mode", mode)
         .eq("status", "confirmed")
-        .eq("winner_id", userId)
-        .or(`player1_id.eq.${userId},player2_id.eq.${userId}`)
+        .or(orFilter)
         .gte("created_at", season.start)
         .lt("created_at", season.end)
         .order("created_at", { ascending: false })
         .limit(20);
 
       if (seasonMatches && seasonMatches.length > 0) {
-        const seasonOppIds = [...new Set(seasonMatches.map((m: Match) =>
-          m.player1_id === userId ? m.player2_id : m.player1_id
-        ))];
+        // Only wins
+        const winMatches = seasonMatches.filter((m: Match) => didPlayerWin(m, userId, mode));
 
-        // Fetch any opponent profiles/ratings we don't already have
-        const missingIds = seasonOppIds.filter((id) => !profileMap.has(id));
+        const seasonRelatedIds = [...new Set(
+          winMatches.flatMap((m: Match) => getOpponentIds(m, userId, mode))
+        )];
+
+        // Fetch any profiles/ratings we don't already have
+        const missingIds = seasonRelatedIds.filter((id) => !profileMap.has(id));
         if (missingIds.length > 0) {
           const [moreProfiles, moreRatings] = await Promise.all([
             supabase.from("profiles").select("id, username").in("id", missingIds),
@@ -742,13 +778,16 @@ function usePlayerMatches(userId: string, mode: MatchMode, isExpanded: boolean) 
         }
 
         let best: RecentMatch | null = null;
-        for (const m of seasonMatches) {
-          const oppId = m.player1_id === userId ? m.player2_id : m.player1_id;
-          const oppElo = ratingMap.get(oppId) || 1200;
-          if (!best || oppElo > best.opponentElo) {
+        for (const m of winMatches) {
+          const oppIds = getOpponentIds(m, userId, mode);
+          const oppNames = oppIds.map((id) => profileMap.get(id) || "Unknown");
+          const avgOppElo = oppIds.length > 0
+            ? Math.round(oppIds.reduce((sum, id) => sum + (ratingMap.get(id) || 1200), 0) / oppIds.length)
+            : 1200;
+          if (!best || avgOppElo > best.opponentElo) {
             best = {
-              opponentName: profileMap.get(oppId) || "Unknown",
-              opponentElo: oppElo,
+              opponentName: oppNames.join(" & "),
+              opponentElo: avgOppElo,
               won: true,
               date: m.created_at,
             };
