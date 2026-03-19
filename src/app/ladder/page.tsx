@@ -960,7 +960,7 @@ function RankingsTab({
 
         {ranked.length === 0 ? (
           <p className="text-center py-6 text-[13px] text-muted-foreground">
-            No players have completed {MIN_MATCHES_TO_RANK} matches yet.
+            Rankings are shown after completing {MIN_MATCHES_TO_RANK} matches.
           </p>
         ) : (
           ranked.map((entry, i) => (
@@ -981,7 +981,7 @@ function RankingsTab({
       {unranked.length > 0 && (
         <div className="rounded-xl border border-dashed border-border/80 bg-muted/20 overflow-hidden">
           <p className="text-[11px] text-muted-foreground uppercase tracking-wider px-3 py-2.5 bg-muted/40 border-b border-border/40">
-            New Players — {MIN_MATCHES_TO_RANK} matches to qualify
+            New Players — {MIN_MATCHES_TO_RANK} matches needed to rank
           </p>
           {unranked.map((entry) => (
             <RankingRow
