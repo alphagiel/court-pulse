@@ -11,9 +11,12 @@ import {
   useLadderRankings,
   useProposals,
   useMyMatches,
+  useTierMatches,
   useTierPreviews,
   useSignupCounts,
+  getSeasonRange,
   type TierPreview,
+  type TierMatchEntry,
 } from "@/lib/ladder-hooks";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -136,6 +139,7 @@ function LadderPageInner() {
   const { rankings, loading: rankingsLoading, refetch: refetchRankings } = useLadderRankings(activeTier, mode);
   const { proposals, loading: proposalsLoading, refetch: refetchProposals } = useProposals(activeTier, mode);
   const { matches, loading: matchesLoading, refetch: refetchMatches } = useMyMatches(userId, activeTier, mode);
+  const { matches: tierMatches, loading: tierMatchesLoading } = useTierMatches(activeTier, mode);
 
   const isOwnTier = selectedTier === userTier;
   const isOutsideTriangle = !!profile?.zip_code && !isTriangleZip(profile.zip_code);
@@ -522,18 +526,11 @@ function LadderPageInner() {
         {/* Content tabs + swipeable content */}
         <SwipeTabs
           id="ladder-tabs"
-          tabs={
-            isReadOnly
-              ? [
-                  { value: "rankings" as Tab, label: "Rankings" },
-                  { value: "proposals" as Tab, label: "Proposals" },
-                ]
-              : [
-                  { value: "rankings" as Tab, label: "Rankings" },
-                  { value: "proposals" as Tab, label: "Proposals" },
-                  { value: "matches" as Tab, label: "Matches" },
-                ]
-          }
+          tabs={[
+            { value: "rankings" as Tab, label: "Rankings" },
+            { value: "proposals" as Tab, label: "Proposals" },
+            { value: "matches" as Tab, label: "Matches" },
+          ]}
           active={tab}
           onChange={handleSetTab}
         >
@@ -565,19 +562,25 @@ function LadderPageInner() {
                   readOnly={isReadOnly}
                 />
               )}
-              {activeTab === "matches" && !isReadOnly && !isDoubles && (
+              {activeTab === "matches" && !isDoubles && (
                 <MatchesTab
                   matches={matches}
                   loading={matchesLoading}
+                  tierMatches={tierMatches}
+                  tierMatchesLoading={tierMatchesLoading}
                   currentUserId={userId!}
+                  isReadOnly={isReadOnly}
                   onViewMatch={(id) => router.push(`/ladder/match/${id}?tier=${selectedTier}&tab=matches`)}
                 />
               )}
-              {activeTab === "matches" && !isReadOnly && isDoubles && (
+              {activeTab === "matches" && isDoubles && (
                 <DoublesMatchesTab
                   matches={matches}
                   loading={matchesLoading}
+                  tierMatches={tierMatches}
+                  tierMatchesLoading={tierMatchesLoading}
                   currentUserId={userId!}
+                  isReadOnly={isReadOnly}
                   onViewMatch={(id) => router.push(`/ladder/match/${id}?tier=${selectedTier}&mode=doubles&tab=matches`)}
                 />
               )}
@@ -647,32 +650,13 @@ function TierCard({
 
 const MIN_MATCHES_TO_RANK = 3;
 
-function getSeasonRange(): { label: string; start: string; end: string; currentWeek: number; totalWeeks: number } {
-  const now = new Date();
-  const year = now.getFullYear();
-  const month = now.getMonth(); // 0-indexed
-  let start: string, end: string, label: string;
-  if (month >= 2 && month <= 4) { label = "Spring"; start = `${year}-03-01`; end = `${year}-06-01`; }
-  else if (month >= 5 && month <= 7) { label = "Summer"; start = `${year}-06-01`; end = `${year}-09-01`; }
-  else if (month >= 8 && month <= 10) { label = "Fall"; start = `${year}-09-01`; end = `${year}-12-01`; }
-  else {
-    label = "Winter";
-    start = month <= 1 ? `${year - 1}-12-01` : `${year}-12-01`;
-    end = month <= 1 ? `${year}-03-01` : `${year + 1}-03-01`;
-  }
-  const startDate = new Date(start);
-  const endDate = new Date(end);
-  const totalWeeks = Math.ceil((endDate.getTime() - startDate.getTime()) / (7 * 24 * 60 * 60 * 1000));
-  const elapsed = Math.floor((now.getTime() - startDate.getTime()) / (7 * 24 * 60 * 60 * 1000)) + 1;
-  const currentWeek = Math.min(Math.max(elapsed, 1), totalWeeks);
-  return { label, start, end, currentWeek, totalWeeks };
-}
 
 interface RecentMatch {
   opponentName: string;
   opponentElo: number;
   won: boolean;
   date: string;
+  status?: string;
 }
 
 // Helpers for doubles-aware match logic
@@ -701,11 +685,75 @@ function getOpponentIds(m: Match, userId: string, mode: MatchMode): string[] {
   return teamA.includes(userId) ? teamB : teamA;
 }
 
-function usePlayerMatches(userId: string, mode: MatchMode, isExpanded: boolean) {
+function usePlayerMatches(userId: string, mode: MatchMode, isExpanded: boolean, showFullHistory: boolean = false) {
   const [recent, setRecent] = useState<RecentMatch[]>([]);
+  const [allMatches, setAllMatches] = useState<RecentMatch[]>([]);
   const [bestWin, setBestWin] = useState<RecentMatch | null>(null);
   const [loading, setLoading] = useState(false);
+  const [allLoading, setAllLoading] = useState(false);
   const fetchedRef = useRef<string | null>(null);
+  const fetchedAllRef = useRef<string | null>(null);
+
+  // Fetch full history when requested
+  useEffect(() => {
+    if (!showFullHistory || fetchedAllRef.current === userId) return;
+    fetchedAllRef.current = userId;
+    setAllLoading(true);
+
+    const season = getSeasonRange();
+    const orFilter = mode === "singles"
+      ? `player1_id.eq.${userId},player2_id.eq.${userId}`
+      : `player1_id.eq.${userId},player2_id.eq.${userId},player3_id.eq.${userId},player4_id.eq.${userId}`;
+
+    (async () => {
+      const { data: matches } = await supabase
+        .from("matches")
+        .select("*")
+        .eq("mode", mode)
+        .neq("status", "cancelled")
+        .or(orFilter)
+        .gte("created_at", season.start)
+        .lt("created_at", season.end)
+        .order("created_at", { ascending: false })
+        .limit(100);
+
+      if (!matches || matches.length === 0) {
+        setAllMatches([]);
+        setAllLoading(false);
+        return;
+      }
+
+      const relatedIds = [...new Set(
+        matches.flatMap((m: Match) => getPlayerIds(m).filter((id) => id !== userId))
+      )];
+
+      const [profilesRes, ratingsRes] = await Promise.all([
+        supabase.from("profiles").select("id, username").in("id", relatedIds),
+        supabase.from("ladder_ratings").select("user_id, elo_rating").eq("mode", mode).in("user_id", relatedIds),
+      ]);
+
+      const profileMap = new Map((profilesRes.data || []).map((p: { id: string; username: string }) => [p.id, p.username]));
+      const ratingMap = new Map((ratingsRes.data || []).map((r: { user_id: string; elo_rating: number }) => [r.user_id, r.elo_rating]));
+
+      const list: RecentMatch[] = matches.map((m: Match) => {
+        const oppIds = getOpponentIds(m, userId, mode);
+        const oppNames = oppIds.map((id) => profileMap.get(id) || "Unknown");
+        const avgOppElo = oppIds.length > 0
+          ? Math.round(oppIds.reduce((sum, id) => sum + (ratingMap.get(id) || 1200), 0) / oppIds.length)
+          : 1200;
+        return {
+          opponentName: oppNames.join(" & "),
+          opponentElo: avgOppElo,
+          won: m.status === "confirmed" ? didPlayerWin(m, userId, mode) : false,
+          date: m.created_at,
+          status: m.status,
+        };
+      });
+
+      setAllMatches(list);
+      setAllLoading(false);
+    })();
+  }, [showFullHistory, userId, mode]);
 
   useEffect(() => {
     if (!isExpanded || fetchedRef.current === userId) return;
@@ -821,7 +869,7 @@ function usePlayerMatches(userId: string, mode: MatchMode, isExpanded: boolean) 
     })();
   }, [isExpanded, userId, mode]);
 
-  return { recent, bestWin, loading, seasonLabel: getSeasonRange().label };
+  return { recent, allMatches, bestWin, loading, allLoading, seasonLabel: getSeasonRange().label };
 }
 
 function RankingRow({
@@ -841,7 +889,18 @@ function RankingRow({
   showRank: boolean;
   mode: MatchMode;
 }) {
-  const { recent, bestWin, loading: matchesLoading, seasonLabel } = usePlayerMatches(entry.user_id, mode, isExpanded);
+  const [showFullHistory, setShowFullHistory] = useState(false);
+  const [showAllHistory, setShowAllHistory] = useState(false);
+  const { recent, allMatches, bestWin, loading: matchesLoading, allLoading, seasonLabel } = usePlayerMatches(entry.user_id, mode, isExpanded, showFullHistory);
+
+  const historyVisible = showAllHistory ? allMatches : allMatches.slice(0, INITIAL_SHOW);
+
+  const statusLabel: Record<string, string> = {
+    pending: "Pending",
+    score_submitted: "Awaiting confirmation",
+    disputed: "Disputed",
+    confirmed: "",
+  };
 
   return (
     <div className={`transition-all ${isExpanded ? "rounded-lg border border-border shadow-sm my-1 overflow-hidden" : ""}`}>
@@ -879,39 +938,107 @@ function RankingRow({
             )}
           </div>
 
-          {/* Recent Matches */}
-          <div className="mt-3 pt-3 border-t border-border/30">
-            <p className="text-[11px] text-muted-foreground uppercase tracking-wider mb-2">Recent Matches</p>
-            {matchesLoading ? (
-              <Loader variant="inline" />
-            ) : recent.length === 0 ? (
-              <p className="text-[12px] text-muted-foreground">No confirmed matches yet</p>
-            ) : (
-              <div className="space-y-1">
-                {recent.map((m, i) => (
-                  <div key={i} className="flex items-center justify-between text-[12px]">
-                    <div className="flex items-center gap-1.5 min-w-0">
-                      <span className={`text-[10px] font-bold w-4 shrink-0 ${m.won ? theme.win : theme.loss}`}>
-                        {m.won ? "W" : "L"}
-                      </span>
-                      <span className="truncate">
-                        vs {m.opponentName}
-                      </span>
-                      <span className="text-muted-foreground/60 text-[10px] shrink-0">
-                        {m.opponentElo}
+          {/* Recent Matches (default view) */}
+          {!showFullHistory && (
+            <div className="mt-3 pt-3 border-t border-border/30">
+              <p className="text-[11px] text-muted-foreground uppercase tracking-wider mb-2">Recent Matches</p>
+              {matchesLoading ? (
+                <Loader variant="inline" />
+              ) : recent.length === 0 ? (
+                <p className="text-[12px] text-muted-foreground">No confirmed matches yet</p>
+              ) : (
+                <div className="space-y-1">
+                  {recent.map((m, i) => (
+                    <div key={i} className="flex items-center justify-between text-[12px]">
+                      <div className="flex items-center gap-1.5 min-w-0">
+                        <span className={`text-[10px] font-bold w-4 shrink-0 ${m.won ? theme.win : theme.loss}`}>
+                          {m.won ? "W" : "L"}
+                        </span>
+                        <span className="truncate">
+                          vs {m.opponentName}
+                        </span>
+                        <span className="text-muted-foreground/60 text-[10px] shrink-0">
+                          {m.opponentElo}
+                        </span>
+                      </div>
+                      <span className="text-muted-foreground text-[11px] shrink-0 ml-2">
+                        {formatDate(m.date)}
                       </span>
                     </div>
-                    <span className="text-muted-foreground text-[11px] shrink-0 ml-2">
-                      {formatDate(m.date)}
-                    </span>
-                  </div>
-                ))}
+                  ))}
+                  {recent.length > 0 && (
+                    <button
+                      onClick={() => setShowFullHistory(true)}
+                      className="text-[11px] text-muted-foreground hover:text-foreground transition-colors mt-1.5 underline underline-offset-2"
+                    >
+                      View all season matches
+                    </button>
+                  )}
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Full Season Match History */}
+          {showFullHistory && (
+            <div className="mt-3 pt-3 border-t border-border/30">
+              <div className="flex items-center justify-between mb-2">
+                <p className="text-[11px] text-muted-foreground uppercase tracking-wider">Season Matches — {seasonLabel}</p>
+                <button
+                  onClick={() => { setShowFullHistory(false); setShowAllHistory(false); }}
+                  className="text-[10px] text-muted-foreground hover:text-foreground transition-colors"
+                >
+                  Back to recent
+                </button>
               </div>
-            )}
-          </div>
+              {allLoading ? (
+                <Loader variant="inline" />
+              ) : allMatches.length === 0 ? (
+                <p className="text-[12px] text-muted-foreground">No matches this season</p>
+              ) : (
+                <div className="space-y-1">
+                  {historyVisible.map((m, i) => (
+                    <div key={i} className="flex items-center justify-between text-[12px]">
+                      <div className="flex items-center gap-1.5 min-w-0">
+                        {m.status === "confirmed" ? (
+                          <span className={`text-[10px] font-bold w-4 shrink-0 ${m.won ? theme.win : theme.loss}`}>
+                            {m.won ? "W" : "L"}
+                          </span>
+                        ) : (
+                          <span className="text-[10px] font-bold w-4 shrink-0 text-amber-500">-</span>
+                        )}
+                        <span className="truncate">
+                          vs {m.opponentName}
+                        </span>
+                        <span className="text-muted-foreground/60 text-[10px] shrink-0">
+                          {m.opponentElo}
+                        </span>
+                        {m.status && m.status !== "confirmed" && statusLabel[m.status] && (
+                          <span className="text-amber-600 text-[9px] shrink-0">
+                            {statusLabel[m.status]}
+                          </span>
+                        )}
+                      </div>
+                      <span className="text-muted-foreground text-[11px] shrink-0 ml-2">
+                        {formatDate(m.date)}
+                      </span>
+                    </div>
+                  ))}
+                  {!showAllHistory && allMatches.length > INITIAL_SHOW && (
+                    <button
+                      onClick={() => setShowAllHistory(true)}
+                      className="w-full text-center text-[11px] text-muted-foreground hover:text-foreground transition-colors mt-1"
+                    >
+                      Show {allMatches.length - INITIAL_SHOW} more
+                    </button>
+                  )}
+                </div>
+              )}
+            </div>
+          )}
 
           {/* Best Win This Season */}
-          {!matchesLoading && bestWin && (
+          {!matchesLoading && bestWin && !showFullHistory && (
             <div className="mt-3 pt-3 border-t border-border/30">
               <p className="text-[11px] text-muted-foreground uppercase tracking-wider mb-1.5">Best Win — {seasonLabel}</p>
               <p className="text-[12px]">
@@ -1260,106 +1387,258 @@ function DoublesProposalsTab({
 
 // --- Singles Matches Tab ---
 
+type TierFilter = "today" | "this_week" | "upcoming";
+
+function getWeekRange(): { start: Date; end: Date } {
+  const now = new Date();
+  const dayOfWeek = now.getDay(); // 0 = Sunday
+  const start = new Date(now);
+  start.setDate(now.getDate() - dayOfWeek);
+  start.setHours(0, 0, 0, 0);
+  const end = new Date(start);
+  end.setDate(start.getDate() + 7);
+  return { start, end };
+}
+
+function filterTierMatches(matches: TierMatchEntry[], filter: TierFilter): TierMatchEntry[] {
+  const now = new Date();
+  const todayStart = new Date(now);
+  todayStart.setHours(0, 0, 0, 0);
+  const todayEnd = new Date(todayStart);
+  todayEnd.setDate(todayStart.getDate() + 1);
+
+  switch (filter) {
+    case "today": {
+      return matches.filter((m) => {
+        const t = new Date(m.proposedTime);
+        return t >= todayStart && t < todayEnd;
+      });
+    }
+    case "this_week": {
+      const { start, end } = getWeekRange();
+      return matches.filter((m) => {
+        const t = new Date(m.proposedTime);
+        return t >= start && t < end;
+      });
+    }
+    case "upcoming": {
+      return matches.filter((m) => {
+        const t = new Date(m.proposedTime);
+        return t >= now && m.status !== "confirmed" && m.status !== "cancelled";
+      });
+    }
+  }
+}
+
+const STATUS_BADGE: Record<string, { text: string; className: string }> = {
+  pending: { text: "Pending", className: "text-amber-700 bg-amber-50 border-amber-200" },
+  score_submitted: { text: "Confirm", className: "text-blue-700 bg-blue-50 border-blue-200" },
+  confirmed: { text: "Done", className: L.badge },
+  disputed: { text: "Disputed", className: "text-red-700 bg-red-50 border-red-200" },
+};
+
 function MatchesTab({
   matches,
   loading,
+  tierMatches,
+  tierMatchesLoading,
   currentUserId,
+  isReadOnly,
   onViewMatch,
 }: {
   matches: MatchWithDetails[];
   loading: boolean;
+  tierMatches: TierMatchEntry[];
+  tierMatchesLoading: boolean;
   currentUserId: string;
+  isReadOnly: boolean;
   onViewMatch: (id: string) => void;
 }) {
   const [expandedId, setExpandedId] = useState<string | null>(null);
-  const [showAll, setShowAll] = useState(false);
+  const [showAllMy, setShowAllMy] = useState(false);
+  const [showAllTier, setShowAllTier] = useState(false);
+  const [tierFilter, setTierFilter] = useState<TierFilter>("this_week");
 
-  if (loading) return <LoadingState text="Loading matches..." />;
-  if (matches.length === 0) return <EmptyState text="No matches yet. Accept or create a proposal!" />;
+  // Sort my matches: upcoming/active on top, completed on bottom
+  const activeStatuses = ["pending", "score_submitted", "disputed"];
+  const myActive = matches
+    .filter((m) => activeStatuses.includes(m.status))
+    .sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime());
+  const myCompleted = matches
+    .filter((m) => m.status === "confirmed")
+    .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+  const myOrdered = [...myActive, ...myCompleted];
+  const myVisible = showAllMy ? myOrdered : myOrdered.slice(0, INITIAL_SHOW);
 
-  const visible = showAll ? matches : matches.slice(0, INITIAL_SHOW);
+  // Tier matches filtered
+  const filteredTier = filterTierMatches(tierMatches, tierFilter);
+  const tierVisible = showAllTier ? filteredTier : filteredTier.slice(0, INITIAL_SHOW);
 
-  const statusBadge: Record<string, { text: string; className: string }> = {
-    pending: { text: "Pending", className: "text-amber-700 bg-amber-50 border-amber-200" },
-    score_submitted: { text: "Confirm", className: "text-blue-700 bg-blue-50 border-blue-200" },
-    confirmed: { text: "Done", className: L.badge },
-    disputed: { text: "Disputed", className: "text-red-700 bg-red-50 border-red-200" },
-  };
+  const filterLabels: { value: TierFilter; label: string }[] = [
+    { value: "today", label: "Today" },
+    { value: "this_week", label: "This Week" },
+    { value: "upcoming", label: "Upcoming" },
+  ];
 
   return (
-    <div className="rounded-xl border border-border bg-gradient-to-b from-violet-50/40 to-white dark:from-violet-950/15 dark:to-slate-950/10 shadow-sm overflow-hidden">
-      <div className="grid grid-cols-[1fr_5rem_4.5rem_1rem] gap-x-2 px-3 py-2.5 text-[11px] text-muted-foreground uppercase tracking-wider bg-violet-100/40 dark:bg-violet-900/15 border-b border-border/60">
-        <span>Opponent</span>
-        <span className="text-center">Date</span>
-        <span className="text-right">Status</span>
-        <span></span>
-      </div>
-
-      {visible.map((m) => {
-        const opponent = m.player1_id === currentUserId ? m.player2 : m.player1;
-        const badge = statusBadge[m.status] || statusBadge.pending;
-        const isExpanded = expandedId === m.id;
-        const isWin = m.status === "confirmed" && m.winner_id === currentUserId;
-        const isLoss = m.status === "confirmed" && m.winner_id && m.winner_id !== currentUserId;
-
-        return (
-          <div key={m.id} className={`transition-all ${isExpanded ? "rounded-lg border border-border shadow-sm my-1 overflow-hidden" : ""}`}>
-            <button
-              onClick={() => setExpandedId(isExpanded ? null : m.id)}
-              className={`w-full grid grid-cols-[1fr_5rem_4.5rem_1rem] gap-x-2 px-3 py-2.5 text-[13px] items-center transition-all text-left ${
-                isExpanded
-                  ? isWin ? L.rowExpanded : isLoss ? "bg-red-100/60" : "bg-muted/80"
-                  : `border-b border-border/50 hover:shadow-sm hover:-translate-y-[1px] ${isWin ? L.rowHighlight : isLoss ? "bg-red-50/30 hover:bg-red-50/50" : "hover:bg-muted/50"}`
-              }`}
-            >
-              <span className="font-medium truncate">
-                vs {opponent.username}
-                {isWin && <span className={`${theme.winBold} ml-1 text-[11px]`}>W</span>}
-                {isLoss && <span className="text-red-500 ml-1 text-[11px] font-bold">L</span>}
-              </span>
-              <span className="text-center text-muted-foreground text-[12px] truncate">{formatDate(m.created_at)}</span>
-              <span className="text-right">
-                <span className={`text-[10px] border rounded-full px-1.5 py-0.5 ${badge.className}`}>{badge.text}</span>
-              </span>
-              <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={`text-muted-foreground/50 transition-transform ${isExpanded ? "rotate-180" : ""}`}><path d="m6 9 6 6 6-6"/></svg>
-            </button>
-
-            {isExpanded && (
-              <div className={`px-3 py-3 animate-unfold ${isWin ? L.rowDetail : isLoss ? "bg-red-50/20" : "bg-muted/30"}`}>
-                <div className="space-y-1.5 text-[13px]">
-                  <DetailRow label="Park" value={m.park.name} />
-                  <DetailRow label="Date" value={formatDateTime(m.created_at)} />
-                  {m.status === "confirmed" && m.player1_scores && m.player2_scores && (
-                    <DetailRow
-                      label="Score"
-                      value={m.player1_scores.map((s, i) => `${s}-${m.player2_scores![i]}`).join(", ")}
-                    />
-                  )}
-                </div>
-                <div className="mt-3">
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    onClick={() => onViewMatch(m.id)}
-                    className="w-full"
-                  >
-                    View Match Details
-                  </Button>
-                </div>
+    <div className="space-y-5">
+      {/* Section 1: My Matches */}
+      {!isReadOnly && (
+        <div>
+          <p className="text-[11px] text-muted-foreground uppercase tracking-wider mb-2 px-1">My Matches</p>
+          {loading ? (
+            <LoadingState text="Loading matches..." />
+          ) : myOrdered.length === 0 ? (
+            <EmptyState text="No matches yet. Accept or create a proposal!" />
+          ) : (
+            <div className="rounded-xl border border-border bg-gradient-to-b from-violet-50/40 to-white dark:from-violet-950/15 dark:to-slate-950/10 shadow-sm overflow-hidden">
+              <div className="grid grid-cols-[1fr_5rem_4.5rem_1rem] gap-x-2 px-3 py-2.5 text-[11px] text-muted-foreground uppercase tracking-wider bg-violet-100/40 dark:bg-violet-900/15 border-b border-border/60">
+                <span>Opponent</span>
+                <span className="text-center">Date</span>
+                <span className="text-right">Status</span>
+                <span></span>
               </div>
+
+              {myVisible.map((m) => {
+                const opponent = m.player1_id === currentUserId ? m.player2 : m.player1;
+                const badge = STATUS_BADGE[m.status] || STATUS_BADGE.pending;
+                const isExpanded = expandedId === m.id;
+                const isWin = m.status === "confirmed" && m.winner_id === currentUserId;
+                const isLoss = m.status === "confirmed" && m.winner_id && m.winner_id !== currentUserId;
+
+                return (
+                  <div key={m.id} className={`transition-all ${isExpanded ? "rounded-lg border border-border shadow-sm my-1 overflow-hidden" : ""}`}>
+                    <button
+                      onClick={() => setExpandedId(isExpanded ? null : m.id)}
+                      className={`w-full grid grid-cols-[1fr_5rem_4.5rem_1rem] gap-x-2 px-3 py-2.5 text-[13px] items-center transition-all text-left ${
+                        isExpanded
+                          ? isWin ? L.rowExpanded : isLoss ? "bg-red-100/60" : "bg-muted/80"
+                          : `border-b border-border/50 hover:shadow-sm hover:-translate-y-[1px] ${isWin ? L.rowHighlight : isLoss ? "bg-red-50/30 hover:bg-red-50/50" : "hover:bg-muted/50"}`
+                      }`}
+                    >
+                      <span className="font-medium truncate">
+                        vs {opponent.username}
+                        {isWin && <span className={`${theme.winBold} ml-1 text-[11px]`}>W</span>}
+                        {isLoss && <span className="text-red-500 ml-1 text-[11px] font-bold">L</span>}
+                      </span>
+                      <span className="text-center text-muted-foreground text-[12px] truncate">{formatDate(m.created_at)}</span>
+                      <span className="text-right">
+                        <span className={`text-[10px] border rounded-full px-1.5 py-0.5 ${badge.className}`}>{badge.text}</span>
+                      </span>
+                      <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={`text-muted-foreground/50 transition-transform ${isExpanded ? "rotate-180" : ""}`}><path d="m6 9 6 6 6-6"/></svg>
+                    </button>
+
+                    {isExpanded && (
+                      <div className={`px-3 py-3 animate-unfold ${isWin ? L.rowDetail : isLoss ? "bg-red-50/20" : "bg-muted/30"}`}>
+                        <div className="space-y-1.5 text-[13px]">
+                          <DetailRow label="Park" value={m.park.name} />
+                          <DetailRow label="Date" value={formatDateTime(m.created_at)} />
+                          {m.status === "confirmed" && m.player1_scores && m.player2_scores && (
+                            <DetailRow
+                              label="Score"
+                              value={m.player1_scores.map((s, i) => `${s}-${m.player2_scores![i]}`).join(", ")}
+                            />
+                          )}
+                        </div>
+                        <div className="mt-3">
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => onViewMatch(m.id)}
+                            className="w-full"
+                          >
+                            View Match Details
+                          </Button>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+
+              {!showAllMy && myOrdered.length > INITIAL_SHOW && (
+                <button
+                  onClick={() => setShowAllMy(true)}
+                  className="w-full text-center text-[12px] text-muted-foreground hover:text-foreground py-2 transition-colors"
+                >
+                  Show {myOrdered.length - INITIAL_SHOW} more matches
+                </button>
+              )}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Section 2: Tier Activity */}
+      <div>
+        <div className="flex items-center justify-between mb-2 px-1">
+          <p className="text-[11px] text-muted-foreground uppercase tracking-wider">Tier Activity</p>
+          <div className="flex gap-1">
+            {filterLabels.map((f) => (
+              <button
+                key={f.value}
+                onClick={() => { setTierFilter(f.value); setShowAllTier(false); }}
+                className={`text-[10px] px-2 py-0.5 rounded-full border transition-colors ${
+                  tierFilter === f.value
+                    ? `${L.badge} font-medium`
+                    : "text-muted-foreground border-border hover:bg-muted/50"
+                }`}
+              >
+                {f.label}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {tierMatchesLoading ? (
+          <LoadingState text="Loading matches..." />
+        ) : filteredTier.length === 0 ? (
+          <EmptyState text={`No matches ${tierFilter === "today" ? "today" : tierFilter === "this_week" ? "this week" : "upcoming"}.`} />
+        ) : (
+          <div className="rounded-xl border border-border bg-gradient-to-b from-slate-50 to-white dark:from-slate-900/40 dark:to-slate-950/20 shadow-sm overflow-hidden">
+            <div className="grid grid-cols-[1fr_5rem_4.5rem_1rem] gap-x-2 px-3 py-2.5 text-[11px] text-muted-foreground uppercase tracking-wider bg-slate-100/80 dark:bg-slate-800/40 border-b border-border/60">
+              <span>Players</span>
+              <span className="text-center">Date</span>
+              <span className="text-right">Status</span>
+              <span></span>
+            </div>
+
+            {tierVisible.map((m) => {
+              const badge = STATUS_BADGE[m.status] || STATUS_BADGE.pending;
+              return (
+                <button
+                  key={m.id}
+                  onClick={() => onViewMatch(m.id)}
+                  className="w-full grid grid-cols-[1fr_5rem_4.5rem_1rem] gap-x-2 px-3 py-2.5 text-[13px] items-center border-b border-border/50 transition-all text-left hover:bg-muted/50 hover:shadow-sm hover:-translate-y-[1px]"
+                >
+                  <span className="font-medium truncate">
+                    {m.player1.username} vs {m.player2.username}
+                    {m.status === "confirmed" && m.player1_scores && m.player2_scores && (
+                      <span className="text-muted-foreground text-[11px] ml-1.5">
+                        {m.player1_scores.map((s, i) => `${s}-${m.player2_scores![i]}`).join(", ")}
+                      </span>
+                    )}
+                  </span>
+                  <span className="text-center text-muted-foreground text-[12px] truncate">{formatDate(m.proposedTime)}</span>
+                  <span className="text-right">
+                    <span className={`text-[10px] border rounded-full px-1.5 py-0.5 ${badge.className}`}>{badge.text}</span>
+                  </span>
+                  <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-muted-foreground/50"><path d="m9 18 6-6-6-6"/></svg>
+                </button>
+              );
+            })}
+
+            {!showAllTier && filteredTier.length > INITIAL_SHOW && (
+              <button
+                onClick={() => setShowAllTier(true)}
+                className="w-full text-center text-[12px] text-muted-foreground hover:text-foreground py-2 transition-colors"
+              >
+                Show {filteredTier.length - INITIAL_SHOW} more
+              </button>
             )}
           </div>
-        );
-      })}
-
-      {!showAll && matches.length > INITIAL_SHOW && (
-        <button
-          onClick={() => setShowAll(true)}
-          className="w-full text-center text-[12px] text-muted-foreground hover:text-foreground py-2 transition-colors"
-        >
-          Show {matches.length - INITIAL_SHOW} more matches
-        </button>
-      )}
+        )}
+      </div>
     </div>
   );
 }
@@ -1369,79 +1648,179 @@ function MatchesTab({
 function DoublesMatchesTab({
   matches,
   loading,
+  tierMatches,
+  tierMatchesLoading,
   currentUserId,
+  isReadOnly,
   onViewMatch,
 }: {
   matches: MatchWithDetails[];
   loading: boolean;
+  tierMatches: TierMatchEntry[];
+  tierMatchesLoading: boolean;
   currentUserId: string;
+  isReadOnly: boolean;
   onViewMatch: (id: string) => void;
 }) {
-  const [showAll, setShowAll] = useState(false);
+  const [showAllMy, setShowAllMy] = useState(false);
+  const [showAllTier, setShowAllTier] = useState(false);
+  const [tierFilter, setTierFilter] = useState<TierFilter>("this_week");
 
-  if (loading) return <LoadingState text="Loading doubles matches..." />;
-  if (matches.length === 0) return <EmptyState text="No doubles matches yet." />;
+  // Sort my matches: active on top, completed on bottom
+  const activeStatuses = ["pending", "score_submitted", "disputed"];
+  const myActive = matches
+    .filter((m) => activeStatuses.includes(m.status))
+    .sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime());
+  const myCompleted = matches
+    .filter((m) => m.status === "confirmed")
+    .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+  const myOrdered = [...myActive, ...myCompleted];
+  const myVisible = showAllMy ? myOrdered : myOrdered.slice(0, INITIAL_SHOW);
 
-  const visible = showAll ? matches : matches.slice(0, INITIAL_SHOW);
+  // Tier matches filtered
+  const filteredTier = filterTierMatches(tierMatches, tierFilter);
+  const tierVisible = showAllTier ? filteredTier : filteredTier.slice(0, INITIAL_SHOW);
 
-  const statusBadge: Record<string, { text: string; className: string }> = {
-    pending: { text: "Pending", className: "text-amber-700 bg-amber-50 border-amber-200" },
-    score_submitted: { text: "Confirm", className: "text-blue-700 bg-blue-50 border-blue-200" },
-    confirmed: { text: "Done", className: L.badge },
-    disputed: { text: "Disputed", className: "text-red-700 bg-red-50 border-red-200" },
-  };
+  const filterLabels: { value: TierFilter; label: string }[] = [
+    { value: "today", label: "Today" },
+    { value: "this_week", label: "This Week" },
+    { value: "upcoming", label: "Upcoming" },
+  ];
 
   return (
-    <div className="rounded-xl border border-border bg-gradient-to-b from-violet-50/40 to-white dark:from-violet-950/15 dark:to-slate-950/10 shadow-sm overflow-hidden">
-      <div className="grid grid-cols-[1fr_4.5rem_1rem] gap-x-2 px-3 py-2.5 text-[11px] text-muted-foreground uppercase tracking-wider bg-violet-100/40 dark:bg-violet-900/15 border-b border-border/60">
-        <span>Teams</span>
-        <span className="text-right">Status</span>
-        <span></span>
-      </div>
+    <div className="space-y-5">
+      {/* Section 1: My Matches */}
+      {!isReadOnly && (
+        <div>
+          <p className="text-[11px] text-muted-foreground uppercase tracking-wider mb-2 px-1">My Matches</p>
+          {loading ? (
+            <LoadingState text="Loading doubles matches..." />
+          ) : myOrdered.length === 0 ? (
+            <EmptyState text="No doubles matches yet." />
+          ) : (
+            <div className="rounded-xl border border-border bg-gradient-to-b from-violet-50/40 to-white dark:from-violet-950/15 dark:to-slate-950/10 shadow-sm overflow-hidden">
+              <div className="grid grid-cols-[1fr_4.5rem_1rem] gap-x-2 px-3 py-2.5 text-[11px] text-muted-foreground uppercase tracking-wider bg-violet-100/40 dark:bg-violet-900/15 border-b border-border/60">
+                <span>Teams</span>
+                <span className="text-right">Status</span>
+                <span></span>
+              </div>
 
-      {visible.map((m) => {
-        const badge = statusBadge[m.status] || statusBadge.pending;
-        const teamAIds = [m.player1_id, m.player2_id];
-        const isTeamA = teamAIds.includes(currentUserId);
-        const isWin = m.status === "confirmed" && (
-          (m.winning_team === "a" && isTeamA) || (m.winning_team === "b" && !isTeamA)
-        );
-        const isLoss = m.status === "confirmed" && m.winning_team && !isWin;
+              {myVisible.map((m) => {
+                const badge = STATUS_BADGE[m.status] || STATUS_BADGE.pending;
+                const teamAIds = [m.player1_id, m.player2_id];
+                const isTeamA = teamAIds.includes(currentUserId);
+                const isWin = m.status === "confirmed" && (
+                  (m.winning_team === "a" && isTeamA) || (m.winning_team === "b" && !isTeamA)
+                );
+                const isLoss = m.status === "confirmed" && m.winning_team && !isWin;
 
-        const teamANames = [m.player1.username, m.player2.username].join(" & ");
-        const teamBNames = [m.player3?.username || "?", m.player4?.username || "?"].join(" & ");
+                const teamANames = [m.player1.username, m.player2.username].join(" & ");
+                const teamBNames = [m.player3?.username || "?", m.player4?.username || "?"].join(" & ");
 
-        return (
-          <button
-            key={m.id}
-            onClick={() => onViewMatch(m.id)}
-            className={`w-full grid grid-cols-[1fr_4.5rem_1rem] gap-x-2 px-3 py-2.5 text-[13px] items-center border-b border-border/50 transition-all text-left hover:shadow-sm hover:-translate-y-[1px] ${
-              isWin ? L.rowHighlight : isLoss ? "bg-red-50/30 hover:bg-red-50/50" : "hover:bg-muted/50"
-            }`}
-          >
-            <div className="truncate">
-              <span className="font-medium">{teamANames}</span>
-              <span className="text-muted-foreground mx-1.5">vs</span>
-              <span className="font-medium">{teamBNames}</span>
-              {isWin && <span className={`${theme.winBold} ml-1 text-[11px]`}>W</span>}
-              {isLoss && <span className="text-red-500 ml-1 text-[11px] font-bold">L</span>}
+                return (
+                  <button
+                    key={m.id}
+                    onClick={() => onViewMatch(m.id)}
+                    className={`w-full grid grid-cols-[1fr_4.5rem_1rem] gap-x-2 px-3 py-2.5 text-[13px] items-center border-b border-border/50 transition-all text-left hover:shadow-sm hover:-translate-y-[1px] ${
+                      isWin ? L.rowHighlight : isLoss ? "bg-red-50/30 hover:bg-red-50/50" : "hover:bg-muted/50"
+                    }`}
+                  >
+                    <div className="truncate">
+                      <span className="font-medium">{teamANames}</span>
+                      <span className="text-muted-foreground mx-1.5">vs</span>
+                      <span className="font-medium">{teamBNames}</span>
+                      {isWin && <span className={`${theme.winBold} ml-1 text-[11px]`}>W</span>}
+                      {isLoss && <span className="text-red-500 ml-1 text-[11px] font-bold">L</span>}
+                    </div>
+                    <span className="text-right">
+                      <span className={`text-[10px] border rounded-full px-1.5 py-0.5 ${badge.className}`}>{badge.text}</span>
+                    </span>
+                    <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-muted-foreground/50"><path d="m9 18 6-6-6-6"/></svg>
+                  </button>
+                );
+              })}
+
+              {!showAllMy && myOrdered.length > INITIAL_SHOW && (
+                <button
+                  onClick={() => setShowAllMy(true)}
+                  className="w-full text-center text-[12px] text-muted-foreground hover:text-foreground py-2 transition-colors"
+                >
+                  Show {myOrdered.length - INITIAL_SHOW} more
+                </button>
+              )}
             </div>
-            <span className="text-right">
-              <span className={`text-[10px] border rounded-full px-1.5 py-0.5 ${badge.className}`}>{badge.text}</span>
-            </span>
-            <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-muted-foreground/50"><path d="m9 18 6-6-6-6"/></svg>
-          </button>
-        );
-      })}
-
-      {!showAll && matches.length > INITIAL_SHOW && (
-        <button
-          onClick={() => setShowAll(true)}
-          className="w-full text-center text-[12px] text-muted-foreground hover:text-foreground py-2 transition-colors"
-        >
-          Show {matches.length - INITIAL_SHOW} more
-        </button>
+          )}
+        </div>
       )}
+
+      {/* Section 2: Tier Activity */}
+      <div>
+        <div className="flex items-center justify-between mb-2 px-1">
+          <p className="text-[11px] text-muted-foreground uppercase tracking-wider">Tier Activity</p>
+          <div className="flex gap-1">
+            {filterLabels.map((f) => (
+              <button
+                key={f.value}
+                onClick={() => { setTierFilter(f.value); setShowAllTier(false); }}
+                className={`text-[10px] px-2 py-0.5 rounded-full border transition-colors ${
+                  tierFilter === f.value
+                    ? `${L.badge} font-medium`
+                    : "text-muted-foreground border-border hover:bg-muted/50"
+                }`}
+              >
+                {f.label}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {tierMatchesLoading ? (
+          <LoadingState text="Loading doubles matches..." />
+        ) : filteredTier.length === 0 ? (
+          <EmptyState text={`No doubles matches ${tierFilter === "today" ? "today" : tierFilter === "this_week" ? "this week" : "upcoming"}.`} />
+        ) : (
+          <div className="rounded-xl border border-border bg-gradient-to-b from-slate-50 to-white dark:from-slate-900/40 dark:to-slate-950/20 shadow-sm overflow-hidden">
+            <div className="grid grid-cols-[1fr_4.5rem_1rem] gap-x-2 px-3 py-2.5 text-[11px] text-muted-foreground uppercase tracking-wider bg-slate-100/80 dark:bg-slate-800/40 border-b border-border/60">
+              <span>Teams</span>
+              <span className="text-right">Status</span>
+              <span></span>
+            </div>
+
+            {tierVisible.map((m) => {
+              const badge = STATUS_BADGE[m.status] || STATUS_BADGE.pending;
+              const teamANames = [m.player1.username, m.player2.username].join(" & ");
+              const teamBNames = [m.player3?.username || "?", m.player4?.username || "?"].join(" & ");
+
+              return (
+                <button
+                  key={m.id}
+                  onClick={() => onViewMatch(m.id)}
+                  className="w-full grid grid-cols-[1fr_4.5rem_1rem] gap-x-2 px-3 py-2.5 text-[13px] items-center border-b border-border/50 transition-all text-left hover:bg-muted/50 hover:shadow-sm hover:-translate-y-[1px]"
+                >
+                  <div className="truncate">
+                    <span className="font-medium">{teamANames}</span>
+                    <span className="text-muted-foreground mx-1.5">vs</span>
+                    <span className="font-medium">{teamBNames}</span>
+                  </div>
+                  <span className="text-right">
+                    <span className={`text-[10px] border rounded-full px-1.5 py-0.5 ${badge.className}`}>{badge.text}</span>
+                  </span>
+                  <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-muted-foreground/50"><path d="m9 18 6-6-6-6"/></svg>
+                </button>
+              );
+            })}
+
+            {!showAllTier && filteredTier.length > INITIAL_SHOW && (
+              <button
+                onClick={() => setShowAllTier(true)}
+                className="w-full text-center text-[12px] text-muted-foreground hover:text-foreground py-2 transition-colors"
+              >
+                Show {filteredTier.length - INITIAL_SHOW} more
+              </button>
+            )}
+          </div>
+        )}
+      </div>
     </div>
   );
 }
