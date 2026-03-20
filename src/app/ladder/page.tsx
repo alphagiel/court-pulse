@@ -30,7 +30,7 @@ import type {
   SkillTier,
   MatchMode,
 } from "@/types/database";
-import { getSkillTier, SKILL_TIER_LABELS } from "@/types/database";
+import { getSkillTier, SKILL_TIER_LABELS, proposalLocationName } from "@/types/database";
 import { Loader } from "@/components/loader";
 import { SwipeTabs } from "@/components/swipe-tabs";
 import { Input } from "@/components/ui/input";
@@ -1304,7 +1304,7 @@ function ProposalsTab({
                       <div className={`px-3 py-3 animate-unfold ${isYours ? L.rowDetail : "bg-muted/30"}`}>
                         <div className="space-y-1.5 text-[13px]">
                           <DetailRow label="Skill" value={p.creator.skill_level} />
-                          <DetailRow label="Park" value={p.park.name} />
+                          <DetailRow label="Park" value={proposalLocationName(p)} />
                           <DetailRow label="When" value={formatDateTime(p.proposed_time)} />
                           {p.message && <DetailRow label="Note" value={p.message} italic />}
                         </div>
@@ -1367,6 +1367,7 @@ function ProposalsTab({
           proposalId={editingProposal.id}
           mode="singles"
           currentParkId={editingProposal.park_id}
+          currentCustomLocation={editingProposal.custom_location}
           currentTime={editingProposal.proposed_time}
           currentMessage={editingProposal.message}
           onClose={() => setEditingProposal(null)}
@@ -1449,7 +1450,7 @@ function DoublesProposalsTab({
                         {isYours && <span className={`${L.accent} ml-1 text-[11px]`}>you</span>}
                       </span>
                       <span className="text-[11px] text-muted-foreground ml-1.5">
-                        {p.park.name}
+                        {proposalLocationName(p)}
                       </span>
                     </div>
                     <span className="text-center font-semibold tabular-nums">
@@ -1628,7 +1629,7 @@ function MatchesTab({
                     {isExpanded && (
                       <div className={`px-3 py-3 animate-unfold ${isWin ? L.rowDetail : isLoss ? "bg-red-50/20" : "bg-muted/30"}`}>
                         <div className="space-y-1.5 text-[13px]">
-                          <DetailRow label="Park" value={m.park.name} />
+                          <DetailRow label="Park" value={m.park?.name || m.customLocation || "TBD"} />
                           <DetailRow label="Date" value={formatDateTime(m.created_at)} />
                           {m.status === "confirmed" && m.player1_scores && m.player2_scores && (
                             <DetailRow

@@ -5,7 +5,7 @@ import { useRouter, useParams, useSearchParams } from "next/navigation";
 import { useAuth } from "@/lib/auth-context";
 import { supabase } from "@/lib/supabase";
 import { useProposalSignups } from "@/lib/ladder-hooks";
-import { getSkillTier } from "@/types/database";
+import { getSkillTier, proposalLocationName } from "@/types/database";
 
 import { CourtPairing } from "@/components/court-pairing";
 import { Button } from "@/components/ui/button";
@@ -58,7 +58,7 @@ function ProposalDetailInner() {
     router.push(`/ladder${qs ? `?${qs}` : ""}`);
   };
 
-  const [proposal, setProposal] = useState<(Proposal & { creator: Profile; park: Park }) | null>(null);
+  const [proposal, setProposal] = useState<(Proposal & { creator: Profile; park: Park | null }) | null>(null);
   const [ratings, setRatings] = useState<Map<string, LadderRating>>(new Map());
   const [loading, setLoading] = useState(true);
   const [actionLoading, setActionLoading] = useState(false);
@@ -78,13 +78,15 @@ function ProposalDetailInner() {
     // Fetch creator profile and park separately to avoid FK naming issues
     const [creatorRes, parkRes] = await Promise.all([
       supabase.from("profiles").select("*").eq("id", data.creator_id).single(),
-      supabase.from("parks").select("*").eq("id", data.park_id).single(),
+      data.park_id
+        ? supabase.from("parks").select("*").eq("id", data.park_id).single()
+        : Promise.resolve({ data: null }),
     ]);
 
     setProposal({
       ...data,
       creator: creatorRes.data!,
-      park: parkRes.data!,
+      park: parkRes.data || null,
     });
     setLoading(false);
   }, [proposalId]);
@@ -394,7 +396,7 @@ function ProposalDetailInner() {
                 <p className="text-[12px] text-muted-foreground">Organizer</p>
               </div>
               <div className="text-right">
-                <p className="text-[13px] font-medium">{proposal.park.name}</p>
+                <p className="text-[13px] font-medium">{proposalLocationName(proposal)}</p>
                 <p className="text-[12px] text-muted-foreground">{formatDateTime(proposal.proposed_time)}</p>
               </div>
             </div>
@@ -607,6 +609,7 @@ function ProposalDetailInner() {
             proposalId={proposal.id}
             mode={proposal.mode}
             currentParkId={proposal.park_id}
+            currentCustomLocation={proposal.custom_location}
             currentTime={proposal.proposed_time}
             currentMessage={proposal.message}
             onClose={() => setShowEditModal(false)}

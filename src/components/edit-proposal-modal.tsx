@@ -12,7 +12,8 @@ import type { Park } from "@/types/database";
 interface EditProposalModalProps {
   proposalId: string;
   mode: "singles" | "doubles";
-  currentParkId: string;
+  currentParkId: string | null;
+  currentCustomLocation: string | null;
   currentTime: string; // ISO string
   currentMessage: string | null;
   onClose: () => void;
@@ -23,6 +24,7 @@ export function EditProposalModal({
   proposalId,
   mode,
   currentParkId,
+  currentCustomLocation,
   currentTime,
   currentMessage,
   onClose,
@@ -36,7 +38,9 @@ export function EditProposalModal({
   const initDate = `${currentDate.getFullYear()}-${String(currentDate.getMonth() + 1).padStart(2, "0")}-${String(currentDate.getDate()).padStart(2, "0")}`;
   const initTime = `${String(currentDate.getHours()).padStart(2, "0")}:${String(currentDate.getMinutes()).padStart(2, "0")}`;
 
-  const [parkId, setParkId] = useState(currentParkId);
+  const [parkId, setParkId] = useState(currentParkId || (currentCustomLocation ? "__other__" : ""));
+  const [customLocation, setCustomLocation] = useState(currentCustomLocation || "");
+  const isCustomLocation = parkId === "__other__";
   const [date, setDate] = useState(initDate);
   const [time, setTime] = useState(initTime);
   const [message, setMessage] = useState(currentMessage || "");
@@ -68,7 +72,8 @@ export function EditProposalModal({
 
       if (!isDoubles) {
         updates.proposed_time = new Date(`${date}T${time}:00`).toISOString();
-        updates.park_id = parkId;
+        updates.park_id = isCustomLocation ? null : parkId;
+        updates.custom_location = isCustomLocation ? customLocation.trim() : null;
       }
 
       await supabase
@@ -86,11 +91,13 @@ export function EditProposalModal({
   };
 
   // Check if anything actually changed
+  const currentParkValue = currentParkId || (currentCustomLocation ? "__other__" : "");
   const hasChanges = isDoubles
     ? message.trim() !== (currentMessage || "")
     : (
         message.trim() !== (currentMessage || "") ||
-        parkId !== currentParkId ||
+        parkId !== currentParkValue ||
+        (isCustomLocation && customLocation.trim() !== (currentCustomLocation || "")) ||
         date !== initDate ||
         time !== initTime
       );
@@ -125,10 +132,24 @@ export function EditProposalModal({
               <label className="text-[14px] font-medium">Court</label>
               <Dropdown
                 value={parkId}
-                onChange={setParkId}
-                options={parks.map((p) => ({ value: p.id, label: p.name }))}
+                onChange={(v) => { setParkId(v); if (v !== "__other__") setCustomLocation(""); }}
+                options={[
+                  ...parks.map((p) => ({ value: p.id, label: p.name })),
+                  { value: "__other__", label: "Other..." },
+                ]}
                 placeholder="Select a court..."
               />
+              {isCustomLocation && (
+                <input
+                  type="text"
+                  value={customLocation}
+                  onChange={(e) => setCustomLocation(e.target.value.slice(0, 100))}
+                  placeholder="Enter court name or address..."
+                  className="w-full rounded-xl border border-input bg-background px-3 py-3 text-[15px] focus:outline-none focus:ring-2 focus:ring-ring"
+                  autoFocus
+                  maxLength={100}
+                />
+              )}
             </div>
           )}
 

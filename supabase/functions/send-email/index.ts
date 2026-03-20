@@ -157,6 +157,14 @@ async function getTierPlayerIds(creatorId: string): Promise<string[]> {
 
 // --- Event handlers ---
 
+async function getLocationName(record: Record<string, unknown>): Promise<string> {
+  if (record.park_id) {
+    const park = await getPark(record.park_id as string);
+    return park?.name || (record.custom_location as string) || "TBD";
+  }
+  return (record.custom_location as string) || "TBD";
+}
+
 async function handleProposalCreated(record: Record<string, unknown>) {
   // Re-fetch proposal from DB — webhook payload may not include all columns (e.g. mode)
   const { data: proposal } = await supabase
@@ -167,8 +175,8 @@ async function handleProposalCreated(record: Record<string, unknown>) {
 
   const fresh = proposal || record;
   const creator = await getProfile(fresh.creator_id as string);
-  const park = await getPark(fresh.park_id as string);
-  if (!creator || !park) return;
+  if (!creator) return;
+  const parkName = await getLocationName(fresh);
 
   const mode = (fresh.mode as string) || "singles";
   const playerIds = await getTierPlayerIds(fresh.creator_id as string);
@@ -180,7 +188,7 @@ async function handleProposalCreated(record: Record<string, unknown>) {
   const { subject, html } = newProposalEmail({
     creatorName: creator.username,
     mode: mode as "singles" | "doubles",
-    parkName: park.name,
+    parkName,
     dateTime: formatDateTime(fresh.proposed_time as string),
     proposalUrl,
   });
@@ -211,13 +219,14 @@ async function handleProposalCreated(record: Record<string, unknown>) {
 async function handleProposalAccepted(record: Record<string, unknown>) {
   const creator = await getProfile(record.creator_id as string);
   const acceptor = await getProfile(record.accepted_by as string);
-  const park = await getPark(record.park_id as string);
-  if (!creator || !acceptor || !park) return;
+  if (!creator || !acceptor) return;
 
   if (await isOptedOut(record.creator_id as string, "singles")) return;
 
   const creatorEmail = await getUserEmail(record.creator_id as string);
   if (!creatorEmail) return;
+
+  const parkName = await getLocationName(record);
 
   const { data: match } = await supabase
     .from("matches")
@@ -232,7 +241,7 @@ async function handleProposalAccepted(record: Record<string, unknown>) {
   const { subject, html } = proposalAcceptedEmail({
     creatorName: creator.username,
     acceptedByName: acceptor.username,
-    parkName: park.name,
+    parkName,
     dateTime: formatDateTime(record.proposed_time as string),
     matchUrl,
   });
@@ -243,8 +252,7 @@ async function handleProposalAccepted(record: Record<string, unknown>) {
 
 async function handleDoublesFilled(record: Record<string, unknown>) {
   const proposalId = record.id as string;
-  const park = await getPark(record.park_id as string);
-  if (!park) return;
+  const parkName = await getLocationName(record);
 
   const { data: signups } = await supabase
     .from("proposal_signups")
@@ -284,7 +292,7 @@ async function handleDoublesFilled(record: Record<string, unknown>) {
       playerName,
       playerNames: allNames,
       organizerName,
-      parkName: park.name,
+      parkName,
       dateTime: formatDateTime(record.proposed_time as string),
       proposalUrl,
       isOrganizer: playerId === creatorId,
@@ -303,20 +311,20 @@ async function handlePartnerInvited(record: Record<string, unknown>) {
 
   const creator = await getProfile(record.creator_id as string);
   const partner = await getProfile(partnerId);
-  const park = await getPark(record.park_id as string);
-  if (!creator || !partner || !park) return;
+  if (!creator || !partner) return;
 
   if (await isOptedOut(partnerId, "doubles")) return;
 
   const partnerEmail = await getUserEmail(partnerId);
   if (!partnerEmail) return;
 
+  const parkName = await getLocationName(record);
   const proposalUrl = `${APP_URL}/ladder/proposals/${record.id}?mode=doubles`;
 
   const { subject, html } = partnerInviteEmail({
     invitedName: partner.username,
     creatorName: creator.username,
-    parkName: park.name,
+    parkName,
     dateTime: formatDateTime(record.proposed_time as string),
     proposalUrl,
   });
@@ -331,20 +339,21 @@ async function handlePlayerLeft(record: Record<string, unknown>, oldRecord: Reco
 
   const creatorId = record.creator_id as string;
   const creator = await getProfile(creatorId);
-  const park = await getPark(record.park_id as string);
-  if (!creator || !park) return;
+  if (!creator) return;
 
   if (await isOptedOut(creatorId, "doubles")) return;
 
   const creatorEmail = await getUserEmail(creatorId);
   if (!creatorEmail) return;
 
+  const parkName = await getLocationName(record);
+
   // Figure out who left by comparing old signups — we can't easily diff here,
   // so just send a generic "a player left" message
   const { subject, html } = playerLeftEmail({
     organizerName: creator.username,
     playerName: "A player",
-    parkName: park.name,
+    parkName,
     dateTime: formatDateTime(record.proposed_time as string),
     proposalUrl: `${APP_URL}/ladder/proposals/${record.id}?mode=doubles`,
   });

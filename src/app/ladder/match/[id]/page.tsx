@@ -37,18 +37,10 @@ interface MatchDetail extends Match {
   player2: Profile;
   player3: Profile | null;
   player4: Profile | null;
-  park: Park;
+  park: Park | null;
+  customLocation: string | null;
 }
 
-const defaultPark: Park = {
-  id: "",
-  name: "Unknown",
-  address: null,
-  lat: 0,
-  lng: 0,
-  court_count: 0,
-  created_at: "",
-};
 
 export default function MatchPage() {
   return (
@@ -125,7 +117,8 @@ function MatchPageInner() {
       player2: profileMap.get(m.player2_id)!,
       player3: m.player3_id ? profileMap.get(m.player3_id) || null : null,
       player4: m.player4_id ? profileMap.get(m.player4_id) || null : null,
-      park: proposal?.parks || defaultPark,
+      park: proposal?.parks || null,
+      customLocation: proposal?.custom_location || null,
     });
 
     if (m.player1_scores && m.player2_scores) {
@@ -623,7 +616,7 @@ function MatchPageInner() {
               </div>
             )}
             <div className="text-center text-[12px] text-muted-foreground">
-              {match.park.name} &middot; {formatDateTime(match.created_at)}
+              {match.park?.name || match.customLocation || "TBD"} &middot; {formatDateTime(match.created_at)}
             </div>
           </CardContent>
         </Card>
