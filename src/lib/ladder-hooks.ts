@@ -264,11 +264,13 @@ export function useProposals(tier: SkillTier, mode: MatchMode = "singles") {
         ...data.filter((p: Proposal) => p.acceptor_partner_id).map((p: Proposal) => p.acceptor_partner_id!),
       ]),
     ];
-    const parkIds = [...new Set(data.map((p: Proposal) => p.park_id))];
+    const parkIds = [...new Set(data.map((p: Proposal) => p.park_id).filter(Boolean) as string[])];
 
     const [profilesRes, parksRes] = await Promise.all([
       supabase.from("profiles").select("*").in("id", personIds),
-      supabase.from("parks").select("*").in("id", parkIds),
+      parkIds.length > 0
+        ? supabase.from("parks").select("*").in("id", parkIds)
+        : Promise.resolve({ data: [] }),
     ]);
 
     const profileMap = new Map((profilesRes.data || []).map((p: Profile) => [p.id, p]));
@@ -285,7 +287,7 @@ export function useProposals(tier: SkillTier, mode: MatchMode = "singles") {
         ...p,
         creator: profileMap.get(p.creator_id)!,
         acceptor: p.accepted_by ? profileMap.get(p.accepted_by) || null : null,
-        park: parkMap.get(p.park_id)!,
+        park: p.park_id ? parkMap.get(p.park_id) || null : null,
       }));
 
     setProposals(enriched);
@@ -387,7 +389,8 @@ export function useMyMatches(userId: string | undefined, tier: SkillTier, mode: 
           player2: profileMap.get(m.player2_id)!,
           player3: m.player3_id ? profileMap.get(m.player3_id) || null : null,
           player4: m.player4_id ? profileMap.get(m.player4_id) || null : null,
-          park: proposal?.parks || { id: "", name: "Unknown", address: null, lat: 0, lng: 0, court_count: 0, created_at: "" },
+          park: proposal?.parks || null,
+          customLocation: proposal?.custom_location || null,
         };
       });
 
@@ -470,7 +473,8 @@ export function useTierMatches(tier: SkillTier, mode: MatchMode = "singles") {
           player2: profileMap.get(m.player2_id)!,
           player3: m.player3_id ? profileMap.get(m.player3_id) || null : null,
           player4: m.player4_id ? profileMap.get(m.player4_id) || null : null,
-          park: proposal?.parks || { id: "", name: "Unknown", address: null, lat: 0, lng: 0, court_count: 0, created_at: "" },
+          park: proposal?.parks || null,
+          customLocation: proposal?.custom_location || null,
           proposedTime: proposal?.proposed_time || m.created_at,
         };
       });

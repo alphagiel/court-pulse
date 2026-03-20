@@ -114,7 +114,8 @@ export interface LadderMember {
 export interface Proposal {
   id: string;
   creator_id: string;
-  park_id: string;
+  park_id: string | null;
+  custom_location: string | null;
   proposed_time: string;
   message: string | null;
   status: ProposalStatus;
@@ -174,7 +175,12 @@ export interface LadderRating {
 export interface ProposalWithDetails extends Proposal {
   creator: Profile;
   acceptor: Profile | null;
-  park: Park;
+  park: Park | null;
+}
+
+/** Display name for a proposal's location — park name or custom_location */
+export function proposalLocationName(p: { park?: Park | null; custom_location?: string | null }): string {
+  return p.park?.name || p.custom_location || "TBD";
 }
 
 export interface MatchWithDetails extends Match {
@@ -182,7 +188,8 @@ export interface MatchWithDetails extends Match {
   player2: Profile;
   player3: Profile | null;
   player4: Profile | null;
-  park: Park;
+  park: Park | null;
+  customLocation: string | null;
 }
 
 export interface ProposalSignupWithProfile extends ProposalSignup {

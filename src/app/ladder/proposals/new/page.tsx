@@ -46,6 +46,7 @@ function NewProposalPageInner() {
   const L = modeTheme(mode);
   const [parks, setParks] = useState<Park[]>([]);
   const [parkId, setParkId] = useState("");
+  const [customLocation, setCustomLocation] = useState("");
   const [date, setDate] = useState("");
   const [time, setTime] = useState("");
   const [message, setMessage] = useState("");
@@ -114,8 +115,11 @@ function NewProposalPageInner() {
     return <Loader />;
   }
 
+  const isCustomLocation = parkId === "__other__";
+  const hasLocation = isCustomLocation ? customLocation.trim().length > 0 : !!parkId;
+
   const handleSubmit = async () => {
-    if (!parkId || !date || !time || !userId) return;
+    if (!hasLocation || !date || !time || !userId) return;
     setSubmitting(true);
     try {
       const proposedTime = new Date(`${date}T${time}:00`).toISOString();
@@ -127,7 +131,8 @@ function NewProposalPageInner() {
       // Create the proposal
       const { data: proposal, error } = await supabase.from("proposals").insert({
         creator_id: userId,
-        park_id: parkId,
+        park_id: isCustomLocation ? null : parkId,
+        custom_location: isCustomLocation ? customLocation.trim() : null,
         proposed_time: proposedTime,
         message: message.trim() || null,
         expires_at: expiresAt,
@@ -157,7 +162,7 @@ function NewProposalPageInner() {
     }
   };
 
-  const isValid = parkId && date && time &&
+  const isValid = hasLocation && date && time &&
     (mode === "singles" || seekingPartner || partnerId);
 
   return (
@@ -240,10 +245,24 @@ function NewProposalPageInner() {
               <label className="text-[14px] font-medium">Court</label>
               <Dropdown
                 value={parkId}
-                onChange={setParkId}
-                options={parks.map((p) => ({ value: p.id, label: p.name }))}
+                onChange={(v) => { setParkId(v); if (v !== "__other__") setCustomLocation(""); }}
+                options={[
+                  ...parks.map((p) => ({ value: p.id, label: p.name })),
+                  { value: "__other__", label: "Other..." },
+                ]}
                 placeholder="Select a court..."
               />
+              {isCustomLocation && (
+                <input
+                  type="text"
+                  value={customLocation}
+                  onChange={(e) => setCustomLocation(e.target.value.slice(0, 100))}
+                  placeholder="Enter court name or address..."
+                  className="w-full rounded-xl border border-input bg-background px-3 py-3 text-[15px] focus:outline-none focus:ring-2 focus:ring-ring"
+                  autoFocus
+                  maxLength={100}
+                />
+              )}
             </div>
 
             {/* Date */}
