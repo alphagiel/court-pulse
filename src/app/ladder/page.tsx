@@ -36,8 +36,11 @@ import { Input } from "@/components/ui/input";
 import { theme } from "@/lib/theme";
 import { isTriangleZip } from "@/lib/geo";
 import { EditProposalModal } from "@/components/edit-proposal-modal";
+import { WeatherForecast } from "@/components/weather-forecast";
 
 const L = theme.ladder;
+const D = theme.doubles;
+function modeTheme(m: MatchMode) { return m === "doubles" ? D : L; }
 
 function formatDate(dateStr: string): string {
   const d = new Date(dateStr);
@@ -241,9 +244,8 @@ function LadderPageInner() {
       <main className="min-h-screen bg-background">
         <div className="max-w-lg mx-auto px-4 py-8 sm:px-6 space-y-8">
           <AppHeader
-            title="Ladder"
-            subtitle="Compete & climb the rankings"
-            backHref="/"
+            title="Court Pulse"
+            subtitle="Add your zip code to get started"
           />
           <Card>
             <CardContent className="pt-6 space-y-4">
@@ -303,17 +305,13 @@ function LadderPageInner() {
       <main className="min-h-screen bg-background">
         <div className="max-w-lg mx-auto px-4 py-8 sm:px-6 space-y-6">
           <AppHeader
-            title="Ladder"
-            subtitle="Compete & climb the rankings"
-            backHref="/"
+            title="Court Pulse"
+            subtitle="Your local pickleball ladder"
           />
 
           <div className={`rounded-xl border ${L.cardActive} p-4 text-center space-y-2`}>
             <p className="text-[14px] font-medium">
               The ladder is currently available for players in the NC Triangle area (Raleigh, Durham, Chapel Hill).
-            </p>
-            <p className="text-[13px] text-muted-foreground">
-              Pickup is available everywhere!
             </p>
             <p className="text-[12px] text-muted-foreground">
               You can update your zip code in{" "}
@@ -335,6 +333,7 @@ function LadderPageInner() {
                   key={preview.tier}
                   preview={preview}
                   isUserTier={preview.tier === userTier}
+                  mode={mode}
                   onSelect={() => {
                     handleSetTier(preview.tier, "proposals");
                   }}
@@ -353,9 +352,8 @@ function LadderPageInner() {
       <main className="min-h-screen bg-background">
         <div className="max-w-lg mx-auto px-4 py-8 sm:px-6 space-y-8">
           <AppHeader
-            title="Ladder"
-            subtitle="Compete & climb the rankings"
-            backHref="/"
+            title="Court Pulse"
+            subtitle="Your local pickleball ladder"
           />
 
           <Card>
@@ -381,18 +379,30 @@ function LadderPageInner() {
 
   // --- Landing page: mode + tier cards ---
   if (selectedTier === null) {
+    const season = getSeasonRange();
+    // Gather top performer across all tiers
+    const allTopPlayers = previews.flatMap((p) => p.topPlayers);
+    const topPerformer = allTopPlayers.length > 0
+      ? allTopPlayers.reduce((best, cur) => cur.elo_rating > best.elo_rating ? cur : best)
+      : null;
+    const totalPlayers = previews.reduce((sum, p) => sum + p.playerCount, 0);
+    const totalProposals = previews.reduce((sum, p) => sum + p.openProposalsSingles + p.openProposalsDoubles, 0);
+
+    const T = modeTheme(mode);
+
     return (
-      <main className={`min-h-screen ${L.bg}`}>
-        <div className="max-w-lg mx-auto px-4 py-8 sm:px-6 space-y-6">
-          <AppHeader
-            title="Ladder"
-            subtitle={`${TIER_SHORT[userTier]}`}
-            backHref="/"
-          />
+      <main className={`min-h-screen ${T.bg} transition-colors duration-300`}>
+        <div className="max-w-5xl mx-auto px-4 py-8 sm:px-6">
+          <div className="max-w-lg mx-auto lg:max-w-none">
+            <AppHeader
+              title="Court Pulse"
+              subtitle="Your local pickleball ladder"
+            />
+          </div>
 
           {/* Outside Triangle banner for existing members */}
           {isOutsideTriangle && (
-            <div className="rounded-xl border border-amber-200 bg-amber-50 dark:border-amber-900 dark:bg-amber-950/30 p-4 text-center space-y-1">
+            <div className="max-w-lg mx-auto lg:max-w-none mt-4 rounded-xl border border-amber-200 bg-amber-50 dark:border-amber-900 dark:bg-amber-950/30 p-4 text-center space-y-1">
               <p className="text-[13px] font-medium text-amber-800 dark:text-amber-300">
                 The ladder is currently available for NC Triangle players. You&apos;re in view-only mode.
               </p>
@@ -405,71 +415,120 @@ function LadderPageInner() {
             </div>
           )}
 
-          {/* Mode selection */}
-          <div className="grid grid-cols-2 gap-3">
-            <button
-              onClick={() => handleSetMode("singles")}
-              className={`flex flex-col items-center gap-1.5 rounded-xl border p-4 shadow-sm transition-colors ${
-                mode === "singles"
-                  ? L.cardActive
-                  : "border-border bg-muted/40 hover:bg-muted/60"
-              }`}
-            >
-              <svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/></svg>
-              <span className="text-[15px] font-semibold">Singles</span>
-              <span className="text-[12px] text-muted-foreground">1 v 1</span>
-            </button>
-            <button
-              onClick={() => handleSetMode("doubles")}
-              className={`flex flex-col items-center gap-1.5 rounded-xl border p-4 shadow-sm transition-colors ${
-                mode === "doubles"
-                  ? L.cardActive
-                  : "border-border bg-muted/40 hover:bg-muted/60"
-              }`}
-            >
-              <svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
-              <span className="text-[15px] font-semibold">Doubles</span>
-              <span className="text-[12px] text-muted-foreground">2 v 2</span>
-            </button>
+          {/* Two-column layout: main + sidebar on desktop */}
+          <div className="mt-6 flex flex-col lg:flex-row gap-6">
+            {/* Main content */}
+            <div className="flex-1 space-y-5 min-w-0">
+              {/* Mode toggle (compact pill) */}
+              <div className="flex gap-1 bg-muted rounded-lg p-1 max-w-xs">
+                {(["singles", "doubles"] as MatchMode[]).map((m) => (
+                  <button
+                    key={m}
+                    onClick={() => handleSetMode(m)}
+                    className="flex-1 relative z-10 text-[13px] font-medium py-2 rounded-md transition-colors capitalize"
+                  >
+                    {mode === m && (
+                      <motion.div
+                        layoutId="landing-mode-indicator"
+                        className={`absolute inset-0 rounded-md ${modeTheme(m).toggle} shadow-sm`}
+                        transition={{ type: "spring", stiffness: 400, damping: 30 }}
+                      />
+                    )}
+                    <span className={`relative z-10 ${mode === m ? "text-white" : "text-muted-foreground hover:text-foreground"}`}>
+                      {m === "singles" ? "Singles" : "Doubles"}
+                    </span>
+                  </button>
+                ))}
+              </div>
+
+              {/* Tier rows */}
+              {previewsLoading ? (
+                <div className="space-y-3">
+                  {[1, 2, 3].map((i) => <SkeletonTierCard key={i} />)}
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  {previews.map((preview) => (
+                    <TierCard
+                      key={preview.tier}
+                      preview={preview}
+                      isUserTier={preview.tier === userTier}
+                      mode={mode}
+                      onSelect={() => {
+                        handleSetTier(preview.tier, "proposals");
+                      }}
+                    />
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {/* Sidebar — stacks below on mobile, right column on desktop */}
+            <div className="lg:w-72 xl:w-80 space-y-5 shrink-0">
+              {/* Season + stats card */}
+              <Card>
+                <CardContent className="p-4 space-y-3">
+                  <div className="flex items-center gap-2">
+                    <div className={`w-2 h-2 rounded-full ${T.dot} animate-pulse transition-colors duration-300`} />
+                    <h3 className="text-[13px] font-semibold">{season.label} Season</h3>
+                    <span className="text-[11px] text-muted-foreground ml-auto">
+                      Week {season.currentWeek}/{season.totalWeeks}
+                    </span>
+                  </div>
+                  <hr className="border-border" />
+                  <div className="grid grid-cols-3 gap-2 text-center">
+                    <div>
+                      <p className="text-[18px] font-bold">{totalPlayers}</p>
+                      <p className="text-[10px] text-muted-foreground">Players</p>
+                    </div>
+                    <div>
+                      <p className="text-[18px] font-bold">{totalProposals}</p>
+                      <p className="text-[10px] text-muted-foreground">Open</p>
+                    </div>
+                    <div>
+                      <p className="text-[18px] font-bold">{previews.reduce((s, p) => s + p.totalMatches, 0)}</p>
+                      <p className="text-[10px] text-muted-foreground">Matches</p>
+                    </div>
+                  </div>
+                  {topPerformer && (
+                    <>
+                      <hr className="border-border" />
+                      <div className="flex items-center justify-between text-[12px]">
+                        <span className="text-muted-foreground">Top rated</span>
+                        <span className="font-semibold">{topPerformer.username} · {topPerformer.elo_rating}</span>
+                      </div>
+                    </>
+                  )}
+                </CardContent>
+              </Card>
+
+              {/* Weather */}
+              <WeatherForecast />
+
+              {/* Announcements placeholder */}
+              <Card>
+                <CardContent className="p-4 space-y-3">
+                  <h3 className="text-[13px] font-semibold">Announcements</h3>
+                  <hr className="border-border" />
+                  <div className="space-y-2.5">
+                    <div className="flex gap-2 text-[12px]">
+                      <span className="text-muted-foreground shrink-0">New</span>
+                      <p>Singles & doubles ladder is live — join your tier and start competing!</p>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            </div>
           </div>
-
-          {/* Tier cards */}
-          {previewsLoading ? (
-            <div className="grid grid-cols-1 min-[360px]:grid-cols-3 gap-2.5">
-              {[1, 2, 3].map((i) => <SkeletonTierCard key={i} />)}
-            </div>
-          ) : (
-            <div className="grid grid-cols-1 min-[360px]:grid-cols-3 gap-2.5">
-              {previews.map((preview) => (
-                <TierCard
-                  key={preview.tier}
-                  preview={preview}
-                  isUserTier={preview.tier === userTier}
-                  onSelect={() => {
-                    handleSetTier(preview.tier, "proposals");
-                  }}
-                />
-              ))}
-            </div>
-          )}
-
-          {/* Season counter */}
-          {(() => {
-            const s = getSeasonRange();
-            return (
-              <p className="text-[12px] text-muted-foreground tracking-wide">
-                {s.label} Season <span className="mx-1">—</span> Week {s.currentWeek}/{s.totalWeeks}
-              </p>
-            );
-          })()}
         </div>
       </main>
     );
   }
 
   // --- Tier detail view ---
+  const detailT = modeTheme(mode);
   return (
-    <main className={`min-h-screen ${L.bg}`}>
+    <main className={`min-h-screen ${detailT.bg} transition-colors duration-300`}>
       <div className="max-w-lg mx-auto px-4 py-8 sm:px-6 space-y-5">
         <AppHeader
           title={`${TIER_SHORT[selectedTier]} ${isDoubles ? "Doubles" : "Ladder"}`}
@@ -485,7 +544,7 @@ function LadderPageInner() {
                   `/ladder/proposals/new?tier=${selectedTier}${isDoubles ? "&mode=doubles" : ""}&tab=proposals`
                 )
               }
-              className={`w-12 h-12 flex items-center justify-center rounded-full ${L.button} shadow-md active:scale-95 transition-all shrink-0`}
+              className={`w-12 h-12 flex items-center justify-center rounded-full ${detailT.button} shadow-md active:scale-95 transition-all shrink-0`}
               aria-label={isDoubles ? "Create Doubles Proposal" : "Propose a Match"}
             >
               <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
@@ -504,7 +563,7 @@ function LadderPageInner() {
               {mode === m && (
                 <motion.div
                   layoutId="mode-indicator"
-                  className={`absolute inset-0 rounded-md ${L.toggle} shadow-sm`}
+                  className={`absolute inset-0 rounded-md ${modeTheme(m).toggle} shadow-sm`}
                   transition={{ type: "spring", stiffness: 400, damping: 30 }}
                 />
               )}
@@ -592,57 +651,87 @@ function LadderPageInner() {
   );
 }
 
-// --- Tier Landing Card ---
+// --- Tier accent colors ---
+const TIER_ACCENT: Record<SkillTier, { border: string; bg: string; badge: string; text: string }> = {
+  beginner: {
+    border: "border-l-emerald-400",
+    bg: "hover:bg-emerald-50/40 dark:hover:bg-emerald-950/20",
+    badge: "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-400",
+    text: "text-emerald-600 dark:text-emerald-400",
+  },
+  intermediate: {
+    border: "border-l-sky-400",
+    bg: "hover:bg-sky-50/40 dark:hover:bg-sky-950/20",
+    badge: "bg-sky-100 text-sky-700 dark:bg-sky-900/40 dark:text-sky-400",
+    text: "text-sky-600 dark:text-sky-400",
+  },
+  advanced: {
+    border: "border-l-violet-400",
+    bg: "hover:bg-violet-50/40 dark:hover:bg-violet-950/20",
+    badge: "bg-violet-100 text-violet-700 dark:bg-violet-900/40 dark:text-violet-400",
+    text: "text-violet-600 dark:text-violet-400",
+  },
+};
+
+// --- Tier Landing Card (full-width row) ---
 
 function TierCard({
   preview,
   isUserTier,
+  mode,
   onSelect,
 }: {
   preview: TierPreview;
   isUserTier: boolean;
+  mode: MatchMode;
   onSelect: () => void;
 }) {
+  const openProposals = mode === "doubles" ? preview.openProposalsDoubles : preview.openProposalsSingles;
+  const accent = TIER_ACCENT[preview.tier];
+
   return (
-    <Card
-      className="cursor-pointer transition-all shadow-sm hover:shadow-md hover:border-foreground/20 hover:bg-muted/50 flex flex-col"
+    <div
       onClick={onSelect}
+      className={`cursor-pointer rounded-xl border border-l-4 ${accent.border} bg-card shadow-sm transition-all hover:shadow-lg ${accent.bg} ${
+        isUserTier ? "ring-1 ring-sky-400/30" : ""
+      }`}
     >
-      <CardContent className="p-3 flex flex-col gap-[15px]">
-        {/* Tier header */}
-        <div>
-          <h3 className="text-[13px] font-semibold leading-tight">
-            {TIER_SHORT[preview.tier]}
-          </h3>
-          <p className="text-[10px] text-muted-foreground inline-flex items-center gap-1.5">
-            {TIER_RANGE[preview.tier]}
+      <div className="px-4 py-4 sm:px-5">
+        {/* Header: tier name + badge + chevron */}
+        <div className="flex items-center justify-between mb-3">
+          <div className="flex items-center gap-2.5">
+            <h3 className="text-[16px] font-bold tracking-tight">
+              {TIER_SHORT[preview.tier]}
+            </h3>
+            <span className="text-[11px] text-muted-foreground">{TIER_RANGE[preview.tier]}</span>
             {isUserTier && (
-              <>
-                <span className="text-border">|</span>
-                <span className={`inline-block w-2 h-2 rounded-full ${L.dot} shrink-0 animate-pulse`} title="Your tier" />
-              </>
+              <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full ${accent.badge}`}>
+                You
+              </span>
             )}
-          </p>
+          </div>
+          <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-muted-foreground/40"><path d="m9 18 6-6-6-6" /></svg>
         </div>
 
-        <hr className="border-border" />
-
-        <div className="space-y-1 text-[10px]">
-          <div className="flex justify-between">
-            <span className="text-muted-foreground">Players</span>
-            <span className="font-semibold">{preview.playerCount}</span>
+        {/* Stats */}
+        <div className="flex items-end gap-5 sm:gap-6">
+          <div>
+            <p className="text-[20px] font-bold leading-none">{preview.playerCount}</p>
+            <p className="text-[10px] text-muted-foreground mt-1">Players</p>
           </div>
-          <div className="flex justify-between">
-            <span className="text-muted-foreground">Proposals</span>
-            <span className="font-semibold">{preview.openProposalsSingles + preview.openProposalsDoubles}</span>
+          <div className="w-px h-7 bg-border/50" />
+          <div>
+            <p className="text-[20px] font-bold leading-none">{openProposals}</p>
+            <p className="text-[10px] text-muted-foreground mt-1">Open</p>
           </div>
-          <div className="flex justify-between">
-            <span className="text-muted-foreground">Matches</span>
-            <span className="font-semibold">{preview.totalMatches}</span>
+          <div className="w-px h-7 bg-border/50" />
+          <div>
+            <p className="text-[20px] font-bold leading-none">{preview.totalMatches}</p>
+            <p className="text-[10px] text-muted-foreground mt-1">Matches</p>
           </div>
         </div>
-      </CardContent>
-    </Card>
+      </div>
+    </div>
   );
 }
 
@@ -1903,20 +1992,19 @@ function Shimmer({ className }: { className?: string }) {
 
 function SkeletonTierCard() {
   return (
-    <Card className="flex flex-col">
-      <CardContent className="p-3 flex flex-col gap-[15px]">
+    <div className="rounded-xl border border-l-4 border-l-muted bg-card shadow-sm">
+      <div className="px-5 py-5 sm:px-6 space-y-4">
         <div>
-          <Shimmer className="h-4 w-20 mb-1" />
-          <Shimmer className="h-3 w-14" />
+          <Shimmer className="h-5 w-28 mb-1.5" />
+          <Shimmer className="h-3 w-16" />
         </div>
-        <hr className="border-border" />
-        <div className="space-y-1.5">
-          <div className="flex justify-between"><Shimmer className="h-3 w-12" /><Shimmer className="h-3 w-5" /></div>
-          <div className="flex justify-between"><Shimmer className="h-3 w-14" /><Shimmer className="h-3 w-5" /></div>
-          <div className="flex justify-between"><Shimmer className="h-3 w-12" /><Shimmer className="h-3 w-5" /></div>
+        <div className="flex items-end gap-6">
+          <div><Shimmer className="h-7 w-8 mb-1" /><Shimmer className="h-3 w-12" /></div>
+          <div><Shimmer className="h-7 w-8 mb-1" /><Shimmer className="h-3 w-10" /></div>
+          <div><Shimmer className="h-7 w-8 mb-1" /><Shimmer className="h-3 w-14" /></div>
         </div>
-      </CardContent>
-    </Card>
+      </div>
+    </div>
   );
 }
 
