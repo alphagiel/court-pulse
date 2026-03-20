@@ -19,9 +19,7 @@ import type {
 } from "@/types/database";
 import { Loader } from "@/components/loader";
 import { EditProposalModal } from "@/components/edit-proposal-modal";
-import { theme } from "@/lib/theme";
-
-const L = theme.ladder;
+import { modeTheme } from "@/lib/theme";
 
 function formatDateTime(dateStr: string): string {
   const d = new Date(dateStr);
@@ -50,6 +48,7 @@ function ProposalDetailInner() {
   const tabParam = searchParams.get("tab");
   const proposalId = params.id as string;
   const userId = user?.id;
+  const L = modeTheme(modeParam === "doubles" ? "doubles" : "singles");
   const goBack = () => {
     const params = new URLSearchParams();
     if (tierParam) params.set("tier", tierParam);

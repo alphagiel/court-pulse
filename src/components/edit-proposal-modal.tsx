@@ -6,10 +6,8 @@ import { Button } from "@/components/ui/button";
 import { Dropdown } from "@/components/dropdown";
 import { DatePicker } from "@/components/date-picker";
 import { TimePicker } from "@/components/time-picker";
-import { theme } from "@/lib/theme";
+import { modeTheme } from "@/lib/theme";
 import type { Park } from "@/types/database";
-
-const L = theme.ladder;
 
 interface EditProposalModalProps {
   proposalId: string;
@@ -31,6 +29,7 @@ export function EditProposalModal({
   onSaved,
 }: EditProposalModalProps) {
   const isDoubles = mode === "doubles";
+  const L = modeTheme(mode);
 
   // Parse current date/time from ISO
   const currentDate = new Date(currentTime);

@@ -33,14 +33,12 @@ import { getSkillTier, SKILL_TIER_LABELS } from "@/types/database";
 import { Loader } from "@/components/loader";
 import { SwipeTabs } from "@/components/swipe-tabs";
 import { Input } from "@/components/ui/input";
-import { theme } from "@/lib/theme";
+import { theme, modeTheme } from "@/lib/theme";
 import { isTriangleZip } from "@/lib/geo";
 import { EditProposalModal } from "@/components/edit-proposal-modal";
 import { WeatherForecast } from "@/components/weather-forecast";
 
 const L = theme.ladder;
-const D = theme.doubles;
-function modeTheme(m: MatchMode) { return m === "doubles" ? D : L; }
 
 function formatDate(dateStr: string): string {
   const d = new Date(dateStr);

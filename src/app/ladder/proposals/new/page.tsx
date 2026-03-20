@@ -15,9 +15,7 @@ import { Dropdown } from "@/components/dropdown";
 import { DatePicker } from "@/components/date-picker";
 import { motion } from "framer-motion";
 import { TimePicker } from "@/components/time-picker";
-import { theme } from "@/lib/theme";
-
-const L = theme.ladder;
+import { modeTheme } from "@/lib/theme";
 
 export default function NewProposalPage() {
   return (
@@ -45,6 +43,7 @@ function NewProposalPageInner() {
   const { member, loading: memberLoading } = useLadderMembership(userId);
 
   const [mode, setMode] = useState<MatchMode>(modeParam === "doubles" ? "doubles" : "singles");
+  const L = modeTheme(mode);
   const [parks, setParks] = useState<Park[]>([]);
   const [parkId, setParkId] = useState("");
   const [date, setDate] = useState("");
