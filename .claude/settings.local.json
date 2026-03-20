@@ -12,7 +12,8 @@
       "Bash(npx next:*)",
       "Bash(npx tsc:*)",
       "Bash(grep:*)",
-      "Bash(find /C/Users/lfage/Sandbox/full-stack/court-pulse -type f \\\\\\(-name *.sql -o -name *.ts -o -name *.tsx \\\\\\))"
+      "Bash(find /C/Users/lfage/Sandbox/full-stack/court-pulse -type f \\\\\\(-name *.sql -o -name *.ts -o -name *.tsx \\\\\\))",
+      "Bash(find /c/Users/lfage/Sandbox/full-stack/court-pulse/src/app -name *auth* -o -name *callback*)"
     ]
   }
 }

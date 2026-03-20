@@ -441,39 +441,48 @@ Deno.serve(async (req) => {
         await handleProposalCreated(record);
       }
 
-      // Proposal updated
+      // Proposal updated — re-fetch full row since webhook payload may omit columns (e.g. mode)
       if (type === "UPDATE") {
+        const { data: freshProposal } = await supabase
+          .from("proposals")
+          .select("*")
+          .eq("id", record.id as string)
+          .single();
+
+        const prop = freshProposal || record;
+        const propMode = (prop.mode as string) || "singles";
+
         // Singles accepted
         if (
-          record.mode === "singles" &&
-          record.status === "accepted" &&
+          propMode === "singles" &&
+          prop.status === "accepted" &&
           old_record?.status !== "accepted"
         ) {
-          await handleProposalAccepted(record);
+          await handleProposalAccepted(prop);
         }
 
         // Doubles filled (moved to pairing)
         if (
-          record.mode === "doubles" &&
-          record.status === "pairing" &&
+          propMode === "doubles" &&
+          prop.status === "pairing" &&
           old_record?.status !== "pairing"
         ) {
-          await handleDoublesFilled(record);
+          await handleDoublesFilled(prop);
         }
 
         // Partner invited
-        if (record.partner_id && !old_record?.partner_id) {
-          await handlePartnerInvited(record);
+        if (prop.partner_id && !old_record?.partner_id) {
+          await handlePartnerInvited(prop);
         }
 
         // Player left doubles (status actually dropped)
         if (
-          record.mode === "doubles" &&
-          record.status !== old_record?.status &&
-          (record.status === "forming" || record.status === "open") &&
+          propMode === "doubles" &&
+          prop.status !== old_record?.status &&
+          (prop.status === "forming" || prop.status === "open") &&
           (old_record?.status === "pairing" || old_record?.status === "forming")
         ) {
-          await handlePlayerLeft(record, old_record);
+          await handlePlayerLeft(prop, old_record);
         }
       }
     }
