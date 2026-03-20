@@ -130,10 +130,12 @@ function MatchPageInner() {
     });
 
     if (m.player1_scores && m.player2_scores) {
-      setScores({
-        p1: m.player1_scores.map(String),
-        p2: m.player2_scores.map(String),
-      });
+      const pad = (arr: number[]) => {
+        const s = arr.map(String);
+        while (s.length < 3) s.push("");
+        return s;
+      };
+      setScores({ p1: pad(m.player1_scores), p2: pad(m.player2_scores) });
     }
 
     setLoading(false);
@@ -143,8 +145,13 @@ function MatchPageInner() {
     fetchMatch();
   }, [fetchMatch]);
 
+  useEffect(() => {
+    if (!authLoading && !user) {
+      router.replace("/login");
+    }
+  }, [authLoading, user, router]);
+
   if (!authLoading && !user) {
-    router.replace("/login");
     return null;
   }
   if (loading || authLoading) {
@@ -803,13 +810,6 @@ function MatchPageInner() {
                 <p className="text-[12px] text-red-500 text-center">
                   Score was disputed. Any player can correct and resubmit.
                 </p>
-                <Button
-                  onClick={handleSubmitScore}
-                  disabled={submitting}
-                  className="w-full"
-                >
-                  {submitting ? "Submitting..." : "Resubmit Score"}
-                </Button>
                 <p className="text-[11px] text-muted-foreground text-center">
                   If no action is taken, the current score will auto-confirm
                   after 24 hours.
