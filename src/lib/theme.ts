@@ -52,3 +52,10 @@ export const theme = {
   loss: "text-red-500",
   lossBold: "text-red-500 font-bold",
 } as const;
+
+export type ThemeSection = { [K in keyof typeof theme.ladder]: string };
+
+/** Returns the theme for a given match mode — sky for singles, amber for doubles. */
+export function modeTheme(mode: "singles" | "doubles"): ThemeSection {
+  return mode === "doubles" ? theme.doubles : theme.ladder;
+}

@@ -17,9 +17,7 @@ import type {
   Team,
 } from "@/types/database";
 import { Loader } from "@/components/loader";
-import { theme } from "@/lib/theme";
-
-const L = theme.ladder;
+import { modeTheme } from "@/lib/theme";
 
 function formatDateTime(dateStr: string): string {
   const d = new Date(dateStr);
@@ -79,6 +77,7 @@ function MatchPageInner() {
   const matchId = params.id as string;
   const userId = user?.id;
 
+  const L = modeTheme(modeParam === "doubles" ? "doubles" : "singles");
   const [match, setMatch] = useState<MatchDetail | null>(null);
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
