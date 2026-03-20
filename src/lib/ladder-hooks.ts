@@ -658,3 +658,104 @@ export function useSignupTeams(proposalIds: string[]) {
 
   return { teams };
 }
+
+// --- Action banners: accepted singles + filled doubles ---
+
+export interface ActionBanner {
+  id: string;
+  type: "singles_accepted" | "doubles_filled";
+  message: string;
+  url: string;
+}
+
+export function useActionBanners(userId: string | undefined) {
+  const [banners, setBanners] = useState<ActionBanner[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  const fetch = useCallback(async () => {
+    if (!userId) { setLoading(false); return; }
+
+    const now = new Date().toISOString();
+
+    // Singles: proposals I created that were accepted (match exists)
+    const { data: accepted } = await supabase
+      .from("proposals")
+      .select("id, proposed_time, park:parks(name), acceptor:profiles!proposals_accepted_by_fkey(username), matches(id)")
+      .eq("creator_id", userId)
+      .eq("mode", "singles")
+      .eq("status", "accepted")
+      .gte("proposed_time", now);
+
+    // Doubles: proposals I'm signed up for that are in pairing status
+    const { data: mySignups } = await supabase
+      .from("proposal_signups")
+      .select("proposal_id")
+      .eq("user_id", userId);
+
+    const signupIds = (mySignups || []).map((s: { proposal_id: string }) => s.proposal_id);
+
+    let filledProposals: Array<Record<string, unknown>> = [];
+    if (signupIds.length > 0) {
+      const { data } = await supabase
+        .from("proposals")
+        .select("id, proposed_time, park:parks(name)")
+        .in("id", signupIds)
+        .eq("mode", "doubles")
+        .eq("status", "pairing")
+        .gte("proposed_time", now);
+      filledProposals = data || [];
+    }
+
+    const result: ActionBanner[] = [];
+
+    for (const p of accepted || []) {
+      const matchArr = p.matches as unknown as Array<{ id: string }> | null;
+      const match = matchArr?.[0];
+      const acceptor = p.acceptor as unknown as { username: string } | null;
+      const acceptorName = acceptor?.username || "Someone";
+      const park = p.park as unknown as { name: string } | null;
+      const parkName = park?.name || "";
+      result.push({
+        id: `singles-${p.id}`,
+        type: "singles_accepted",
+        message: `${acceptorName} accepted your proposal${parkName ? ` at ${parkName}` : ""}`,
+        url: match ? `/ladder/match/${match.id}` : `/ladder?tab=matches`,
+      });
+    }
+
+    for (const p of filledProposals) {
+      const park = p.park as unknown as { name: string } | null;
+      const parkName = park?.name || "";
+      result.push({
+        id: `doubles-${p.id}`,
+        type: "doubles_filled",
+        message: `Your doubles event${parkName ? ` at ${parkName}` : ""} has 4 players — arrange the pairing`,
+        url: `/ladder/proposals/${p.id}?mode=doubles`,
+      });
+    }
+
+    setBanners(result);
+    setLoading(false);
+  }, [userId]);
+
+  useEffect(() => { fetch(); }, [fetch]);
+
+  const dismiss = (bannerId: string) => {
+    const dismissed = JSON.parse(sessionStorage.getItem("dismissed_banners") || "[]");
+    dismissed.push(bannerId);
+    sessionStorage.setItem("dismissed_banners", JSON.stringify(dismissed));
+    setBanners((prev) => prev.filter((b) => b.id !== bannerId));
+  };
+
+  // Filter out already-dismissed banners on mount
+  useEffect(() => {
+    if (banners.length === 0) return;
+    const dismissed: string[] = JSON.parse(sessionStorage.getItem("dismissed_banners") || "[]");
+    if (dismissed.length > 0) {
+      setBanners((prev) => prev.filter((b) => !dismissed.includes(b.id)));
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [loading]);
+
+  return { banners, loading, dismiss };
+}

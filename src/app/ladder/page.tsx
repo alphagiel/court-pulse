@@ -14,6 +14,7 @@ import {
   useTierMatches,
   useTierPreviews,
   useSignupCounts,
+  useActionBanners,
   getSeasonRange,
   type TierPreview,
   type TierMatchEntry,
@@ -37,6 +38,7 @@ import { theme, modeTheme } from "@/lib/theme";
 import { isTriangleZip } from "@/lib/geo";
 import { EditProposalModal } from "@/components/edit-proposal-modal";
 import { WeatherForecast } from "@/components/weather-forecast";
+import { ActionBannerStack } from "@/components/action-banner";
 
 const L = theme.ladder;
 
@@ -142,6 +144,7 @@ function LadderPageInner() {
   const { matches, loading: matchesLoading, refetch: refetchMatches } = useMyMatches(userId, activeTier, mode);
   const { matches: tierMatches, loading: tierMatchesLoading } = useTierMatches(activeTier, mode);
 
+  const { banners, dismiss: dismissBanner } = useActionBanners(userId);
   const isOwnTier = selectedTier === userTier;
   const isOutsideTriangle = !!profile?.zip_code && !isTriangleZip(profile.zip_code);
   const isReadOnly = isOutsideTriangle || (selectedTier !== null && !isOwnTier);
@@ -397,6 +400,13 @@ function LadderPageInner() {
               subtitle="Your local pickleball ladder"
             />
           </div>
+
+          {/* Action banners (accepted proposals, filled doubles) */}
+          {banners.length > 0 && (
+            <div className="max-w-lg mx-auto lg:max-w-none mt-4">
+              <ActionBannerStack banners={banners} onDismiss={dismissBanner} />
+            </div>
+          )}
 
           {/* Outside Triangle banner for existing members */}
           {isOutsideTriangle && (

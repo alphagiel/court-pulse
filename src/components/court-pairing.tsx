@@ -281,12 +281,14 @@ export function CourtPairing({
   return (
     <div className="space-y-3">
       {/* Controls — above the court */}
-      {isCreator && !disabled && (
+      {!disabled && (
         <div className="flex items-center justify-between">
           <p className="text-[12px] text-muted-foreground">
             {selected
               ? "Now tap another player to swap"
-              : "Tap a player to rearrange teams"}
+              : isCreator
+                ? "Tap a player to rearrange teams"
+                : "Tap to preview swaps — organizer saves"}
           </p>
           <button
             onClick={handleAutoBalance}
@@ -303,18 +305,6 @@ export function CourtPairing({
             }`} />
             Auto-balance
           </button>
-        </div>
-      )}
-
-      {/* Participant info — above the court */}
-      {!isCreator && !disabled && (
-        <div className="text-center space-y-1">
-          <p className="text-[12px] text-muted-foreground">
-            Preview pairings below. Only the organizer can save changes.
-          </p>
-          <p className="text-[11px] text-muted-foreground/70">
-            On match day, discuss and the organizer can rearrange before scores are submitted.
-          </p>
         </div>
       )}
 
