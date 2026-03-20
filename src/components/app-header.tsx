@@ -111,29 +111,11 @@ export function AppHeader({
               <button
                 onClick={() => {
                   setMenuOpen(false);
-                  router.push("/");
-                }}
-                className="w-full text-left px-3 py-2 text-[13px] text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
-              >
-                Home
-              </button>
-              <button
-                onClick={() => {
-                  setMenuOpen(false);
-                  router.push("/pickup");
-                }}
-                className="w-full text-left px-3 py-2 text-[13px] text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
-              >
-                Pickup
-              </button>
-              <button
-                onClick={() => {
-                  setMenuOpen(false);
                   router.push("/ladder");
                 }}
                 className="w-full text-left px-3 py-2 text-[13px] text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
               >
-                Ladder
+                Home
               </button>
               <button
                 onClick={() => {
