@@ -500,19 +500,38 @@ function MatchPageInner() {
     return null;
   })();
 
+  const isAutoConfirmed =
+    match.status === "confirmed" && !match.confirmed_by;
+
   const statusLabel: Record<string, string> = {
     pending: "Awaiting score",
     score_submitted: "Awaiting confirmation",
-    confirmed: "Confirmed",
+    confirmed: isAutoConfirmed ? "Auto-confirmed" : "Confirmed",
     disputed: "Disputed",
   };
 
   const statusColor: Record<string, string> = {
     pending: "bg-amber-100 text-amber-800",
     score_submitted: "bg-blue-100 text-blue-800",
-    confirmed: "bg-sky-100 text-sky-800",
+    confirmed: isAutoConfirmed
+      ? "bg-orange-100 text-orange-800"
+      : "bg-sky-100 text-sky-800",
     disputed: "bg-red-100 text-red-800",
   };
+
+  // Auto-confirm countdown
+  const autoConfirmTime = match.played_at
+    ? new Date(new Date(match.played_at).getTime() + 24 * 60 * 60 * 1000)
+    : null;
+  const hoursUntilAutoConfirm =
+    autoConfirmTime && match.status === "score_submitted"
+      ? Math.max(
+          0,
+          Math.round(
+            (autoConfirmTime.getTime() - Date.now()) / (1000 * 60 * 60),
+          ),
+        )
+      : null;
 
   return (
     <main className={`min-h-screen ${L.bg}`}>
@@ -763,9 +782,19 @@ function MatchPageInner() {
               </div>
             )}
 
+            {match.status === "score_submitted" &&
+              hoursUntilAutoConfirm !== null && (
+                <p className="text-[11px] text-muted-foreground text-center mt-1">
+                  Score will auto-confirm in ~{hoursUntilAutoConfirm}h if not
+                  confirmed or disputed.
+                </p>
+              )}
+
             {match.status === "confirmed" && (
               <p className="text-[12px] text-muted-foreground text-center">
-                Match confirmed. Ratings have been updated.
+                {isAutoConfirmed
+                  ? "Score was auto-confirmed after 24 hours. Ratings have been updated."
+                  : "Match confirmed. Ratings have been updated."}
               </p>
             )}
 
@@ -781,6 +810,10 @@ function MatchPageInner() {
                 >
                   {submitting ? "Submitting..." : "Resubmit Score"}
                 </Button>
+                <p className="text-[11px] text-muted-foreground text-center">
+                  If no action is taken, the current score will auto-confirm
+                  after 24 hours.
+                </p>
               </div>
             )}
           </CardContent>
