@@ -572,7 +572,7 @@ export default function PickupPage() {
                     </button>
                     <button
                       onClick={() => { setShowAddCourt(false); setCourtSubmitted(false); setCourtName(""); setCourtAddress(""); setCourtSearch(""); setCourtResults([]); }}
-                      className={`flex-1 text-[13px] font-medium py-2 rounded-lg ${theme.pickup.button}`}
+                      className={`flex-1 text-[13px] font-medium py-2 rounded-lg ${theme.ladder.button}`}
                     >
                       Done
                     </button>
@@ -720,7 +720,7 @@ export default function PickupPage() {
                       }
                     }}
                     disabled={!courtName.trim() || !courtAddress.trim() || courtSubmitting}
-                    className={`w-full ${theme.pickup.button}`}
+                    className={`w-full ${theme.ladder.button}`}
                   >
                     {courtSubmitting ? "Submitting..." : "Submit Court"}
                   </Button>
