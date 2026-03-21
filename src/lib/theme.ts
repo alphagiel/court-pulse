@@ -4,20 +4,6 @@
  */
 
 export const theme = {
-  pickup: {
-    bg: "bg-green-50/40 dark:bg-green-950/10",
-    cardActive: "border-green-400 bg-green-50 dark:border-green-700 dark:bg-green-950/20",
-    button: "bg-green-600 hover:bg-green-700 text-white",
-    buttonOutline: "border-green-300 text-green-700 hover:bg-green-50 hover:border-green-400 dark:border-green-700 dark:text-green-400 dark:hover:bg-green-950/30 dark:hover:border-green-600",
-    accent: "text-green-600 dark:text-green-400",
-    accentBold: "text-green-600 dark:text-green-400 font-bold",
-    badge: "text-green-700 bg-green-50 border-green-200 dark:text-green-300 dark:bg-green-950/40 dark:border-green-800",
-    rowHighlight: "bg-green-50/60 hover:bg-green-50 dark:bg-green-950/20 dark:hover:bg-green-950/30",
-    rowExpanded: "bg-green-100/80 dark:bg-green-950/30",
-    rowDetail: "bg-green-50/40 dark:bg-green-950/20",
-    dot: "bg-green-500",
-    toggle: "bg-green-600",
-  },
   ladder: {
     bg: "bg-sky-50/40 dark:bg-sky-950/10",
     cardActive: "border-sky-400 bg-sky-50 dark:border-sky-700 dark:bg-sky-950/20",
