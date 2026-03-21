@@ -151,8 +151,12 @@ function LadderPageInner() {
   const isDoubles = mode === "doubles";
 
   // Redirect if not authenticated
-  if (!authLoading && !user) { router.replace("/login"); return null; }
-  if (!authLoading && user && !profile) { router.replace("/setup"); return null; }
+  useEffect(() => {
+    if (!authLoading && !user) router.replace("/login");
+    else if (!authLoading && user && !profile) router.replace("/setup");
+  }, [authLoading, user, profile, router]);
+
+  if (!authLoading && (!user || !profile)) return null;
 
   const handleRegister = async () => {
     if (!userId || !profile) return;
