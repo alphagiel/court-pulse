@@ -294,7 +294,7 @@ export function CourtPairing({
             onClick={handleAutoBalance}
             className={`inline-flex items-center gap-1.5 text-[11px] font-medium px-3 py-1 rounded-full transition-colors shrink-0 ${
               autoBalanced
-                ? "bg-sky-100 text-sky-700"
+                ? "bg-sky-100 text-sky-700 dark:bg-sky-950/40 dark:text-sky-400"
                 : "bg-muted text-muted-foreground"
             }`}
           >
@@ -309,14 +309,14 @@ export function CourtPairing({
       )}
 
       {/* Court */}
-      <div className="relative rounded-xl border-2 border-sky-600/30 bg-sky-950/5 overflow-hidden">
+      <div className="relative rounded-xl border-2 border-sky-600/30 bg-sky-950/5 dark:bg-sky-950/20 overflow-hidden">
         <div className="px-3 py-3">
           {/* Team labels */}
           <div className="flex justify-between mb-3">
-            <span className="text-[11px] font-semibold uppercase tracking-wider text-sky-700">
+            <span className="text-[11px] font-semibold uppercase tracking-wider text-sky-700 dark:text-sky-400">
               Team A
             </span>
-            <span className="text-[11px] font-semibold uppercase tracking-wider text-sky-700">
+            <span className="text-[11px] font-semibold uppercase tracking-wider text-sky-700 dark:text-sky-400">
               Team B
             </span>
           </div>
@@ -369,10 +369,10 @@ export function CourtPairing({
             <span
               className={`text-[11px] font-medium px-2 py-0.5 rounded-full ${
                 eloDiff <= 20
-                  ? "bg-sky-100 text-sky-700"
+                  ? "bg-sky-100 text-sky-700 dark:bg-sky-950/40 dark:text-sky-300"
                   : eloDiff <= 50
-                    ? "bg-amber-100 text-amber-700"
-                    : "bg-red-100 text-red-700"
+                    ? "bg-amber-100 text-amber-700 dark:bg-amber-950/40 dark:text-amber-300"
+                    : "bg-red-100 text-red-700 dark:bg-red-950/40 dark:text-red-300"
               }`}
             >
               {eloDiff === 0 ? "Perfectly balanced" : `${eloDiff} ELO gap`}
@@ -417,7 +417,7 @@ const PlayerChip = forwardRef<
         relative flex items-center gap-1.5 px-1.5 py-1.5 rounded-lg border-2 text-left w-full overflow-hidden transition-colors duration-200
         ${canInteract ? "cursor-pointer active:scale-[0.97]" : "cursor-default"}
         ${highlighted
-          ? "border-sky-500 bg-sky-50 shadow-sm shadow-sky-200/50"
+          ? "border-sky-500 bg-sky-50 shadow-sm shadow-sky-200/50 dark:bg-sky-950/40 dark:shadow-sky-500/20"
           : "border-border bg-card hover:border-muted-foreground/30"
         }
       `}

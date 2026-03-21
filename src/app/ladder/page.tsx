@@ -660,24 +660,30 @@ function LadderPageInner() {
 }
 
 // --- Tier accent colors ---
-const TIER_ACCENT: Record<SkillTier, { border: string; bg: string; badge: string; text: string }> = {
+const TIER_ACCENT: Record<SkillTier, { border: string; bg: string; badge: string; text: string; glow: string; gradient: string }> = {
   beginner: {
     border: "border-l-emerald-400",
     bg: "hover:bg-emerald-50/40 dark:hover:bg-emerald-950/20",
     badge: "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-400",
     text: "text-emerald-600 dark:text-emerald-400",
+    glow: "shadow-emerald-200/50 dark:shadow-emerald-500/20",
+    gradient: "from-emerald-50/30 to-transparent dark:from-emerald-950/15 dark:to-transparent",
   },
   intermediate: {
     border: "border-l-sky-400",
     bg: "hover:bg-sky-50/40 dark:hover:bg-sky-950/20",
     badge: "bg-sky-100 text-sky-700 dark:bg-sky-900/40 dark:text-sky-400",
     text: "text-sky-600 dark:text-sky-400",
+    glow: "shadow-sky-200/50 dark:shadow-sky-500/20",
+    gradient: "from-sky-50/30 to-transparent dark:from-sky-950/15 dark:to-transparent",
   },
   advanced: {
     border: "border-l-violet-400",
     bg: "hover:bg-violet-50/40 dark:hover:bg-violet-950/20",
     badge: "bg-violet-100 text-violet-700 dark:bg-violet-900/40 dark:text-violet-400",
     text: "text-violet-600 dark:text-violet-400",
+    glow: "shadow-violet-200/50 dark:shadow-violet-500/20",
+    gradient: "from-violet-50/30 to-transparent dark:from-violet-950/15 dark:to-transparent",
   },
 };
 
@@ -700,8 +706,8 @@ function TierCard({
   return (
     <div
       onClick={onSelect}
-      className={`cursor-pointer rounded-xl border border-l-4 ${accent.border} bg-card shadow-sm transition-all hover:shadow-lg ${accent.bg} ${
-        isUserTier ? "ring-1 ring-sky-400/30" : ""
+      className={`cursor-pointer rounded-xl border border-l-4 ${accent.border} bg-gradient-to-r ${accent.gradient} shadow-sm transition-all duration-200 hover:shadow-lg hover:-translate-y-[1px] ${accent.bg} ${
+        isUserTier ? `ring-1 ring-sky-400/30 shadow-md ${accent.glow}` : ""
       }`}
     >
       <div className="px-4 py-4 sm:px-5">
@@ -1325,7 +1331,7 @@ function ProposalsTab({
                                   variant="outline"
                                   onClick={() => onCancel(p)}
                                   disabled={actionId === p.id}
-                                  className="w-full text-red-500 hover:text-red-600 hover:bg-red-50"
+                                  className="w-full text-red-500 hover:text-red-600 hover:bg-red-50 dark:text-red-400 dark:hover:text-red-300 dark:hover:bg-red-950/30"
                                 >
                                   {actionId === p.id ? "Cancelling..." : "Cancel Proposal"}
                                 </Button>
@@ -1408,8 +1414,8 @@ function DoublesProposalsTab({
 
   const statusInfo: Record<string, { text: string; className: string }> = {
     open: { text: "Open", className: L.badge },
-    forming: { text: "Forming", className: "text-blue-700 bg-blue-50 border-blue-200" },
-    pairing: { text: "Pairing", className: "text-amber-700 bg-amber-50 border-amber-200" },
+    forming: { text: "Forming", className: "text-blue-700 bg-blue-50 border-blue-200 dark:text-blue-300 dark:bg-blue-950/40 dark:border-blue-800" },
+    pairing: { text: "Pairing", className: "text-amber-700 bg-amber-50 border-amber-200 dark:text-amber-300 dark:bg-amber-950/40 dark:border-amber-800" },
     accepted: { text: "Matched", className: L.badge },
   };
 
@@ -1529,10 +1535,10 @@ function filterTierMatches(matches: TierMatchEntry[], filter: TierFilter): TierM
 }
 
 const STATUS_BADGE: Record<string, { text: string; className: string }> = {
-  pending: { text: "Pending", className: "text-amber-700 bg-amber-50 border-amber-200" },
-  score_submitted: { text: "Confirm", className: "text-blue-700 bg-blue-50 border-blue-200" },
+  pending: { text: "Pending", className: "text-amber-700 bg-amber-50 border-amber-200 dark:text-amber-300 dark:bg-amber-950/40 dark:border-amber-800" },
+  score_submitted: { text: "Confirm", className: "text-blue-700 bg-blue-50 border-blue-200 dark:text-blue-300 dark:bg-blue-950/40 dark:border-blue-800" },
   confirmed: { text: "Done", className: L.badge },
-  disputed: { text: "Disputed", className: "text-red-700 bg-red-50 border-red-200" },
+  disputed: { text: "Disputed", className: "text-red-700 bg-red-50 border-red-200 dark:text-red-300 dark:bg-red-950/40 dark:border-red-800" },
 };
 
 function MatchesTab({
@@ -1627,7 +1633,7 @@ function MatchesTab({
                     </button>
 
                     {isExpanded && (
-                      <div className={`px-3 py-3 animate-unfold ${isWin ? L.rowDetail : isLoss ? "bg-red-50/20" : "bg-muted/30"}`}>
+                      <div className={`px-3 py-3 animate-unfold ${isWin ? L.rowDetail : isLoss ? "bg-red-50/20 dark:bg-red-950/20" : "bg-muted/30"}`}>
                         <div className="space-y-1.5 text-[13px]">
                           <DetailRow label="Park" value={m.park?.name || m.customLocation || "TBD"} />
                           <DetailRow label="Date" value={formatDateTime(m.created_at)} />
