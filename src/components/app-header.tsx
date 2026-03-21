@@ -107,7 +107,7 @@ export function AppHeader({
 
           {/* Dropdown */}
           {menuOpen && (
-            <div className="absolute right-0 top-10 z-50 bg-card border border-border rounded-lg shadow-lg py-1 min-w-[140px]">
+            <div className="absolute right-0 top-10 z-50 bg-card/95 backdrop-blur-sm border border-border rounded-lg shadow-lg py-1 min-w-[140px]">
               <button
                 onClick={() => {
                   setMenuOpen(false);
@@ -152,7 +152,7 @@ export function AppHeader({
                   setMenuOpen(false);
                   signOut();
                 }}
-                className="w-full text-left px-3 py-2 text-[13px] text-red-500 hover:text-red-600 hover:bg-red-50 transition-colors"
+                className="w-full text-left px-3 py-2 text-[13px] text-red-500 hover:text-red-600 hover:bg-red-50 dark:text-red-400 dark:hover:text-red-300 dark:hover:bg-red-950/30 transition-colors"
               >
                 Sign out
               </button>
