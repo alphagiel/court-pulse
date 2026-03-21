@@ -672,7 +672,7 @@ export function useActionBanners(userId: string | undefined) {
     // Singles: proposals I created that were accepted (match exists)
     const { data: accepted } = await supabase
       .from("proposals")
-      .select("id, proposed_time, park:parks(name), acceptor:profiles!proposals_accepted_by_fkey(username), matches(id)")
+      .select("id, proposed_time, location_name, acceptor:profiles!proposals_accepted_by_fkey(username), matches(id)")
       .eq("creator_id", userId)
       .eq("mode", "singles")
       .eq("status", "accepted")
@@ -690,7 +690,7 @@ export function useActionBanners(userId: string | undefined) {
     if (signupIds.length > 0) {
       const { data } = await supabase
         .from("proposals")
-        .select("id, proposed_time, park:parks(name)")
+        .select("id, proposed_time, location_name")
         .in("id", signupIds)
         .eq("mode", "doubles")
         .eq("status", "pairing")
@@ -705,23 +705,21 @@ export function useActionBanners(userId: string | undefined) {
       const match = matchArr?.[0];
       const acceptor = p.acceptor as unknown as { username: string } | null;
       const acceptorName = acceptor?.username || "Someone";
-      const park = p.park as unknown as { name: string } | null;
-      const parkName = park?.name || "";
+      const locName = (p.location_name as string) || "";
       result.push({
         id: `singles-${p.id}`,
         type: "singles_accepted",
-        message: `${acceptorName} accepted your proposal${parkName ? ` at ${parkName}` : ""}`,
+        message: `${acceptorName} accepted your proposal${locName ? ` at ${locName}` : ""}`,
         url: match ? `/ladder/match/${match.id}` : `/ladder?tab=matches`,
       });
     }
 
     for (const p of filledProposals) {
-      const park = p.park as unknown as { name: string } | null;
-      const parkName = park?.name || "";
+      const locName = (p.location_name as string) || "";
       result.push({
         id: `doubles-${p.id}`,
         type: "doubles_filled",
-        message: `Your doubles event${parkName ? ` at ${parkName}` : ""} has 4 players — arrange the pairing`,
+        message: `Your doubles event${locName ? ` at ${locName}` : ""} has 4 players — arrange the pairing`,
         url: `/ladder/proposals/${p.id}?mode=doubles`,
       });
     }
