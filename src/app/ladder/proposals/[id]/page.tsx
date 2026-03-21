@@ -14,7 +14,6 @@ import { AppHeader } from "@/components/app-header";
 import type {
   Proposal,
   Profile,
-  Park,
   LadderRating,
 } from "@/types/database";
 import { Loader } from "@/components/loader";
@@ -58,7 +57,7 @@ function ProposalDetailInner() {
     router.push(`/ladder${qs ? `?${qs}` : ""}`);
   };
 
-  const [proposal, setProposal] = useState<(Proposal & { creator: Profile; park: Park | null }) | null>(null);
+  const [proposal, setProposal] = useState<(Proposal & { creator: Profile }) | null>(null);
   const [ratings, setRatings] = useState<Map<string, LadderRating>>(new Map());
   const [loading, setLoading] = useState(true);
   const [actionLoading, setActionLoading] = useState(false);
@@ -75,18 +74,12 @@ function ProposalDetailInner() {
 
     if (!data) { setLoading(false); return; }
 
-    // Fetch creator profile and park separately to avoid FK naming issues
-    const [creatorRes, parkRes] = await Promise.all([
-      supabase.from("profiles").select("*").eq("id", data.creator_id).single(),
-      data.park_id
-        ? supabase.from("parks").select("*").eq("id", data.park_id).single()
-        : Promise.resolve({ data: null }),
-    ]);
+    // Fetch creator profile
+    const creatorRes = await supabase.from("profiles").select("*").eq("id", data.creator_id).single();
 
     setProposal({
       ...data,
       creator: creatorRes.data!,
-      park: parkRes.data || null,
     });
     setLoading(false);
   }, [proposalId]);
@@ -608,8 +601,8 @@ function ProposalDetailInner() {
           <EditProposalModal
             proposalId={proposal.id}
             mode={proposal.mode}
-            currentParkId={proposal.park_id}
-            currentCustomLocation={proposal.custom_location}
+            currentLocationName={proposal.location_name}
+            currentLocationAddress={proposal.location_address}
             currentTime={proposal.proposed_time}
             currentMessage={proposal.message}
             onClose={() => setShowEditModal(false)}

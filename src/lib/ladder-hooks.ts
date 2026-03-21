@@ -8,7 +8,6 @@ import type {
   LadderRating,
   LadderMember,
   Profile,
-  Park,
   ProposalWithDetails,
   MatchWithDetails,
   LadderRankEntry,
@@ -264,17 +263,9 @@ export function useProposals(tier: SkillTier, mode: MatchMode = "singles") {
         ...data.filter((p: Proposal) => p.acceptor_partner_id).map((p: Proposal) => p.acceptor_partner_id!),
       ]),
     ];
-    const parkIds = [...new Set(data.map((p: Proposal) => p.park_id).filter(Boolean) as string[])];
-
-    const [profilesRes, parksRes] = await Promise.all([
-      supabase.from("profiles").select("*").in("id", personIds),
-      parkIds.length > 0
-        ? supabase.from("parks").select("*").in("id", parkIds)
-        : Promise.resolve({ data: [] }),
-    ]);
+    const profilesRes = await supabase.from("profiles").select("*").in("id", personIds);
 
     const profileMap = new Map((profilesRes.data || []).map((p: Profile) => [p.id, p]));
-    const parkMap = new Map((parksRes.data || []).map((p: Park) => [p.id, p]));
     const tierLevels = SKILL_TIER_LEVELS[tier];
 
     // Filter to this tier based on creator's skill level
@@ -287,7 +278,6 @@ export function useProposals(tier: SkillTier, mode: MatchMode = "singles") {
         ...p,
         creator: profileMap.get(p.creator_id)!,
         acceptor: p.accepted_by ? profileMap.get(p.accepted_by) || null : null,
-        park: p.park_id ? parkMap.get(p.park_id) || null : null,
       }));
 
     setProposals(enriched);
@@ -364,15 +354,14 @@ export function useMyMatches(userId: string | undefined, tier: SkillTier, mode: 
 
     const [profilesRes, proposalsRes] = await Promise.all([
       supabase.from("profiles").select("*").in("id", playerIds),
-      supabase.from("proposals").select("*, parks(*)").in("id", proposalIds),
+      supabase.from("proposals").select("*").in("id", proposalIds),
     ]);
 
     const profileMap = new Map((profilesRes.data || []).map((p: Profile) => [p.id, p]));
     const tierLevels = SKILL_TIER_LEVELS[tier];
 
-    type ProposalWithPark = Proposal & { parks: Park };
     const proposalMap = new Map(
-      (proposalsRes.data || []).map((p: ProposalWithPark) => [p.id, p])
+      (proposalsRes.data || []).map((p: Proposal) => [p.id, p])
     );
 
     const enriched: MatchWithDetails[] = data
@@ -382,15 +371,15 @@ export function useMyMatches(userId: string | undefined, tier: SkillTier, mode: 
         return userProfile && tierLevels.includes(userProfile.skill_level as SkillLevel);
       })
       .map((m: Match) => {
-        const proposal = proposalMap.get(m.proposal_id) as ProposalWithPark | undefined;
+        const proposal = proposalMap.get(m.proposal_id);
         return {
           ...m,
           player1: profileMap.get(m.player1_id)!,
           player2: profileMap.get(m.player2_id)!,
           player3: m.player3_id ? profileMap.get(m.player3_id) || null : null,
           player4: m.player4_id ? profileMap.get(m.player4_id) || null : null,
-          park: proposal?.parks || null,
-          customLocation: proposal?.custom_location || null,
+          locationName: proposal?.location_name || null,
+          locationAddress: proposal?.location_address || null,
         };
       });
 
@@ -448,15 +437,14 @@ export function useTierMatches(tier: SkillTier, mode: MatchMode = "singles") {
 
     const [profilesRes, proposalsRes] = await Promise.all([
       supabase.from("profiles").select("*").in("id", playerIds),
-      supabase.from("proposals").select("*, parks(*)").in("id", proposalIds),
+      supabase.from("proposals").select("*").in("id", proposalIds),
     ]);
 
     const profileMap = new Map((profilesRes.data || []).map((p: Profile) => [p.id, p]));
     const tierLevels = SKILL_TIER_LEVELS[tier];
 
-    type ProposalWithPark = Proposal & { parks: Park };
     const proposalMap = new Map(
-      (proposalsRes.data || []).map((p: ProposalWithPark) => [p.id, p])
+      (proposalsRes.data || []).map((p: Proposal) => [p.id, p])
     );
 
     // Filter to matches where player1 is in this tier
@@ -466,15 +454,15 @@ export function useTierMatches(tier: SkillTier, mode: MatchMode = "singles") {
         return p1 && tierLevels.includes(p1.skill_level as SkillLevel);
       })
       .map((m: Match) => {
-        const proposal = proposalMap.get(m.proposal_id) as ProposalWithPark | undefined;
+        const proposal = proposalMap.get(m.proposal_id);
         return {
           ...m,
           player1: profileMap.get(m.player1_id)!,
           player2: profileMap.get(m.player2_id)!,
           player3: m.player3_id ? profileMap.get(m.player3_id) || null : null,
           player4: m.player4_id ? profileMap.get(m.player4_id) || null : null,
-          park: proposal?.parks || null,
-          customLocation: proposal?.custom_location || null,
+          locationName: proposal?.location_name || null,
+          locationAddress: proposal?.location_address || null,
           proposedTime: proposal?.proposed_time || m.created_at,
         };
       });
