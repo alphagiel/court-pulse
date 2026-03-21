@@ -1372,8 +1372,8 @@ function ProposalsTab({
         <EditProposalModal
           proposalId={editingProposal.id}
           mode="singles"
-          currentParkId={editingProposal.park_id}
-          currentCustomLocation={editingProposal.custom_location}
+          currentLocationName={editingProposal.location_name}
+          currentLocationAddress={editingProposal.location_address}
           currentTime={editingProposal.proposed_time}
           currentMessage={editingProposal.message}
           onClose={() => setEditingProposal(null)}
@@ -1635,7 +1635,7 @@ function MatchesTab({
                     {isExpanded && (
                       <div className={`px-3 py-3 animate-unfold ${isWin ? L.rowDetail : isLoss ? "bg-red-50/20 dark:bg-red-950/20" : "bg-muted/30"}`}>
                         <div className="space-y-1.5 text-[13px]">
-                          <DetailRow label="Park" value={m.park?.name || m.customLocation || "TBD"} />
+                          <DetailRow label="Park" value={m.locationName || "TBD"} />
                           <DetailRow label="Date" value={formatDateTime(m.created_at)} />
                           {m.status === "confirmed" && m.player1_scores && m.player2_scores && (
                             <DetailRow

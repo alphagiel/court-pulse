@@ -1,19 +1,18 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { supabase } from "@/lib/supabase";
 import { Button } from "@/components/ui/button";
-import { Dropdown } from "@/components/dropdown";
 import { DatePicker } from "@/components/date-picker";
 import { TimePicker } from "@/components/time-picker";
 import { modeTheme } from "@/lib/theme";
-import type { Park } from "@/types/database";
+import { AddressAutocomplete } from "@/components/address-autocomplete";
 
 interface EditProposalModalProps {
   proposalId: string;
   mode: "singles" | "doubles";
-  currentParkId: string | null;
-  currentCustomLocation: string | null;
+  currentLocationName: string;
+  currentLocationAddress: string | null;
   currentTime: string; // ISO string
   currentMessage: string | null;
   onClose: () => void;
@@ -23,8 +22,8 @@ interface EditProposalModalProps {
 export function EditProposalModal({
   proposalId,
   mode,
-  currentParkId,
-  currentCustomLocation,
+  currentLocationName,
+  currentLocationAddress,
   currentTime,
   currentMessage,
   onClose,
@@ -38,20 +37,12 @@ export function EditProposalModal({
   const initDate = `${currentDate.getFullYear()}-${String(currentDate.getMonth() + 1).padStart(2, "0")}-${String(currentDate.getDate()).padStart(2, "0")}`;
   const initTime = `${String(currentDate.getHours()).padStart(2, "0")}:${String(currentDate.getMinutes()).padStart(2, "0")}`;
 
-  const [parkId, setParkId] = useState(currentParkId || (currentCustomLocation ? "__other__" : ""));
-  const [customLocation, setCustomLocation] = useState(currentCustomLocation || "");
-  const isCustomLocation = parkId === "__other__";
+  const [locationName, setLocationName] = useState(currentLocationName);
+  const [locationAddress, setLocationAddress] = useState(currentLocationAddress || "");
   const [date, setDate] = useState(initDate);
   const [time, setTime] = useState(initTime);
   const [message, setMessage] = useState(currentMessage || "");
-  const [parks, setParks] = useState<Park[]>([]);
   const [saving, setSaving] = useState(false);
-
-  useEffect(() => {
-    supabase.from("parks").select("*").order("name").then(({ data }) => {
-      if (data) setParks(data);
-    });
-  }, []);
 
   const todayStr = (() => {
     const d = new Date();
@@ -72,8 +63,8 @@ export function EditProposalModal({
 
       if (!isDoubles) {
         updates.proposed_time = new Date(`${date}T${time}:00`).toISOString();
-        updates.park_id = isCustomLocation ? null : parkId;
-        updates.custom_location = isCustomLocation ? customLocation.trim() : null;
+        updates.location_name = locationName.trim();
+        updates.location_address = locationAddress.trim() || null;
       }
 
       await supabase
@@ -91,13 +82,12 @@ export function EditProposalModal({
   };
 
   // Check if anything actually changed
-  const currentParkValue = currentParkId || (currentCustomLocation ? "__other__" : "");
   const hasChanges = isDoubles
     ? message.trim() !== (currentMessage || "")
     : (
         message.trim() !== (currentMessage || "") ||
-        parkId !== currentParkValue ||
-        (isCustomLocation && customLocation.trim() !== (currentCustomLocation || "")) ||
+        locationName.trim() !== currentLocationName ||
+        locationAddress.trim() !== (currentLocationAddress || "") ||
         date !== initDate ||
         time !== initTime
       );
@@ -126,30 +116,30 @@ export function EditProposalModal({
             </div>
           )}
 
-          {/* Park (singles only) */}
+          {/* Court name (singles only) */}
           {!isDoubles && (
             <div className="space-y-1.5">
-              <label className="text-[14px] font-medium">Court</label>
-              <Dropdown
-                value={parkId}
-                onChange={(v) => { setParkId(v); if (v !== "__other__") setCustomLocation(""); }}
-                options={[
-                  ...parks.map((p) => ({ value: p.id, label: p.name })),
-                  { value: "__other__", label: "Other..." },
-                ]}
-                placeholder="Select a court..."
+              <label className="text-[14px] font-medium">Court / Park Name</label>
+              <input
+                type="text"
+                value={locationName}
+                onChange={(e) => setLocationName(e.target.value.slice(0, 100))}
+                placeholder="e.g. Marsh Creek Park"
+                className="w-full rounded-xl border border-input bg-background px-3 py-3 text-[15px] focus:outline-none focus:ring-2 focus:ring-ring"
+                maxLength={100}
               />
-              {isCustomLocation && (
-                <input
-                  type="text"
-                  value={customLocation}
-                  onChange={(e) => setCustomLocation(e.target.value.slice(0, 100))}
-                  placeholder="Enter court name or address..."
-                  className="w-full rounded-xl border border-input bg-background px-3 py-3 text-[15px] focus:outline-none focus:ring-2 focus:ring-ring"
-                  autoFocus
-                  maxLength={100}
-                />
-              )}
+            </div>
+          )}
+
+          {/* Address (singles only) */}
+          {!isDoubles && (
+            <div className="space-y-1.5">
+              <label className="text-[14px] font-medium">Address <span className="text-muted-foreground font-normal">(optional)</span></label>
+              <AddressAutocomplete
+                value={locationAddress}
+                onChange={setLocationAddress}
+                placeholder="Start typing an address..."
+              />
             </div>
           )}
 

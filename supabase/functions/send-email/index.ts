@@ -65,11 +65,6 @@ async function getProfile(userId: string) {
   return data;
 }
 
-async function getPark(parkId: string) {
-  const { data } = await supabase.from("parks").select("*").eq("id", parkId).single();
-  return data;
-}
-
 async function getUserEmail(userId: string): Promise<string | null> {
   const { data } = await supabase.auth.admin.getUserById(userId);
   return data?.user?.email || null;
@@ -157,12 +152,8 @@ async function getTierPlayerIds(creatorId: string): Promise<string[]> {
 
 // --- Event handlers ---
 
-async function getLocationName(record: Record<string, unknown>): Promise<string> {
-  if (record.park_id) {
-    const park = await getPark(record.park_id as string);
-    return park?.name || (record.custom_location as string) || "TBD";
-  }
-  return (record.custom_location as string) || "TBD";
+function getLocationName(record: Record<string, unknown>): string {
+  return (record.location_name as string) || "TBD";
 }
 
 async function handleProposalCreated(record: Record<string, unknown>) {
@@ -176,7 +167,7 @@ async function handleProposalCreated(record: Record<string, unknown>) {
   const fresh = proposal || record;
   const creator = await getProfile(fresh.creator_id as string);
   if (!creator) return;
-  const parkName = await getLocationName(fresh);
+  const parkName = getLocationName(fresh);
 
   const mode = (fresh.mode as string) || "singles";
   const playerIds = await getTierPlayerIds(fresh.creator_id as string);
@@ -226,7 +217,7 @@ async function handleProposalAccepted(record: Record<string, unknown>) {
   const creatorEmail = await getUserEmail(record.creator_id as string);
   if (!creatorEmail) return;
 
-  const parkName = await getLocationName(record);
+  const parkName = getLocationName(record);
 
   const { data: match } = await supabase
     .from("matches")
@@ -252,7 +243,7 @@ async function handleProposalAccepted(record: Record<string, unknown>) {
 
 async function handleDoublesFilled(record: Record<string, unknown>) {
   const proposalId = record.id as string;
-  const parkName = await getLocationName(record);
+  const parkName = getLocationName(record);
 
   const { data: signups } = await supabase
     .from("proposal_signups")
@@ -318,7 +309,7 @@ async function handlePartnerInvited(record: Record<string, unknown>) {
   const partnerEmail = await getUserEmail(partnerId);
   if (!partnerEmail) return;
 
-  const parkName = await getLocationName(record);
+  const parkName = getLocationName(record);
   const proposalUrl = `${APP_URL}/ladder/proposals/${record.id}?mode=doubles`;
 
   const { subject, html } = partnerInviteEmail({
@@ -346,7 +337,7 @@ async function handlePlayerLeft(record: Record<string, unknown>, oldRecord: Reco
   const creatorEmail = await getUserEmail(creatorId);
   if (!creatorEmail) return;
 
-  const parkName = await getLocationName(record);
+  const parkName = getLocationName(record);
 
   // Figure out who left by comparing old signups — we can't easily diff here,
   // so just send a generic "a player left" message

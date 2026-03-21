@@ -8,10 +8,11 @@ import { useLadderMembership } from "@/lib/ladder-hooks";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { AppHeader } from "@/components/app-header";
-import type { Park, Profile, MatchMode, SkillLevel } from "@/types/database";
+import type { Profile, MatchMode, SkillLevel } from "@/types/database";
 import { SKILL_TIER_LEVELS, getSkillTier } from "@/types/database";
 import { Loader } from "@/components/loader";
 import { Dropdown } from "@/components/dropdown";
+import { AddressAutocomplete } from "@/components/address-autocomplete";
 import { DatePicker } from "@/components/date-picker";
 import { motion } from "framer-motion";
 import { TimePicker } from "@/components/time-picker";
@@ -44,9 +45,8 @@ function NewProposalPageInner() {
 
   const [mode, setMode] = useState<MatchMode>(modeParam === "doubles" ? "doubles" : "singles");
   const L = modeTheme(mode);
-  const [parks, setParks] = useState<Park[]>([]);
-  const [parkId, setParkId] = useState("");
-  const [customLocation, setCustomLocation] = useState("");
+  const [locationName, setLocationName] = useState("");
+  const [locationAddress, setLocationAddress] = useState("");
   const [date, setDate] = useState("");
   const [time, setTime] = useState("");
   const [message, setMessage] = useState("");
@@ -56,12 +56,6 @@ function NewProposalPageInner() {
   const [seekingPartner, setSeekingPartner] = useState(true);
   const [partnerId, setPartnerId] = useState("");
   const [tierMembers, setTierMembers] = useState<Profile[]>([]);
-
-  useEffect(() => {
-    supabase.from("parks").select("*").order("name").then(({ data }) => {
-      if (data) setParks(data);
-    });
-  }, []);
 
   // Fetch tier members for partner picker (doubles with partner)
   useEffect(() => {
@@ -115,8 +109,7 @@ function NewProposalPageInner() {
     return <Loader />;
   }
 
-  const isCustomLocation = parkId === "__other__";
-  const hasLocation = isCustomLocation ? customLocation.trim().length > 0 : !!parkId;
+  const hasLocation = locationName.trim().length > 0;
 
   const handleSubmit = async () => {
     if (!hasLocation || !date || !time || !userId) return;
@@ -131,8 +124,8 @@ function NewProposalPageInner() {
       // Create the proposal
       const { data: proposal, error } = await supabase.from("proposals").insert({
         creator_id: userId,
-        park_id: isCustomLocation ? null : parkId,
-        custom_location: isCustomLocation ? customLocation.trim() : null,
+        location_name: locationName.trim(),
+        location_address: locationAddress.trim() || null,
         proposed_time: proposedTime,
         message: message.trim() || null,
         expires_at: expiresAt,
@@ -240,29 +233,27 @@ function NewProposalPageInner() {
               </div>
             )}
 
-            {/* Park select */}
+            {/* Court name */}
             <div className="space-y-1.5">
-              <label className="text-[14px] font-medium">Court</label>
-              <Dropdown
-                value={parkId}
-                onChange={(v) => { setParkId(v); if (v !== "__other__") setCustomLocation(""); }}
-                options={[
-                  ...parks.map((p) => ({ value: p.id, label: p.name })),
-                  { value: "__other__", label: "Other..." },
-                ]}
-                placeholder="Select a court..."
+              <label className="text-[14px] font-medium">Court / Park Name</label>
+              <input
+                type="text"
+                value={locationName}
+                onChange={(e) => setLocationName(e.target.value.slice(0, 100))}
+                placeholder="e.g. Marsh Creek Park"
+                className="w-full rounded-xl border border-input bg-background px-3 py-3 text-[15px] focus:outline-none focus:ring-2 focus:ring-ring"
+                maxLength={100}
               />
-              {isCustomLocation && (
-                <input
-                  type="text"
-                  value={customLocation}
-                  onChange={(e) => setCustomLocation(e.target.value.slice(0, 100))}
-                  placeholder="Enter court name or address..."
-                  className="w-full rounded-xl border border-input bg-background px-3 py-3 text-[15px] focus:outline-none focus:ring-2 focus:ring-ring"
-                  autoFocus
-                  maxLength={100}
-                />
-              )}
+            </div>
+
+            {/* Address */}
+            <div className="space-y-1.5">
+              <label className="text-[14px] font-medium">Address <span className="text-muted-foreground font-normal">(optional)</span></label>
+              <AddressAutocomplete
+                value={locationAddress}
+                onChange={setLocationAddress}
+                placeholder="Start typing an address..."
+              />
             </div>
 
             {/* Date */}
