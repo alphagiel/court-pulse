@@ -29,7 +29,9 @@ export function AddressAutocomplete({ value, onChange, placeholder }: AddressAut
         `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(query)}&format=json&limit=5&countrycodes=us`
       );
       const data: NominatimResult[] = await res.json();
-      setSuggestions(data.map((r) => r.display_name));
+      const names = data.map((r) => r.display_name);
+      setSuggestions(names);
+      setShowSuggestions(names.length > 0);
     } catch {
       setSuggestions([]);
     }

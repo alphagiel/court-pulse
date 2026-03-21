@@ -101,11 +101,13 @@ function NewProposalPageInner() {
     setTime("17:00");
   }, [todayStr]);
 
-  if (!authLoading && !user) { router.replace("/login"); return null; }
-  if (!authLoading && user && !profile) { router.replace("/setup"); return null; }
-  if (!memberLoading && !member) { router.replace("/ladder"); return null; }
+  useEffect(() => {
+    if (!authLoading && !user) router.replace("/login");
+    else if (!authLoading && user && !profile) router.replace("/setup");
+    else if (!memberLoading && !member) router.replace("/ladder");
+  }, [authLoading, user, profile, memberLoading, member, router]);
 
-  if (authLoading || memberLoading) {
+  if (authLoading || memberLoading || !user || !profile || !member) {
     return <Loader />;
   }
 
