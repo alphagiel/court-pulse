@@ -38,6 +38,7 @@ interface MatchDetail extends Match {
   player4: Profile | null;
   locationName: string | null;
   locationAddress: string | null;
+  proposedTime: string | null;
 }
 
 
@@ -118,6 +119,7 @@ function MatchPageInner() {
       player4: m.player4_id ? profileMap.get(m.player4_id) || null : null,
       locationName: proposal?.location_name || null,
       locationAddress: proposal?.location_address || null,
+      proposedTime: proposal?.proposed_time || null,
     });
 
     if (m.player1_scores && m.player2_scores) {
@@ -615,7 +617,7 @@ function MatchPageInner() {
               </div>
             )}
             <div className="text-center text-[12px] text-muted-foreground">
-              {match.locationName || "TBD"} &middot; {formatDateTime(match.created_at)}
+              {match.locationName || "TBD"} &middot; {formatDateTime(match.proposedTime || match.created_at)}
             </div>
           </CardContent>
         </Card>
