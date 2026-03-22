@@ -1518,20 +1518,20 @@ function filterTierMatches(matches: TierMatchEntry[], filter: TierFilter): TierM
   switch (filter) {
     case "today": {
       return matches.filter((m) => {
-        const t = new Date(m.proposedTime);
+        const t = new Date(m.proposedTime || m.created_at);
         return t >= todayStart && t < todayEnd;
       });
     }
     case "this_week": {
       const { start, end } = getWeekRange();
       return matches.filter((m) => {
-        const t = new Date(m.proposedTime);
+        const t = new Date(m.proposedTime || m.created_at);
         return t >= start && t < end;
       });
     }
     case "upcoming": {
       return matches.filter((m) => {
-        const t = new Date(m.proposedTime);
+        const t = new Date(m.proposedTime || m.created_at);
         return t >= now && m.status !== "confirmed" && m.status !== "cancelled";
       });
     }
@@ -1629,7 +1629,7 @@ function MatchesTab({
                         {isWin && <span className={`${theme.winBold} ml-1 text-[11px]`}>W</span>}
                         {isLoss && <span className="text-red-500 ml-1 text-[11px] font-bold">L</span>}
                       </span>
-                      <span className="text-center text-muted-foreground text-[12px] truncate">{formatDate(m.created_at)}</span>
+                      <span className="text-center text-muted-foreground text-[12px] truncate">{formatDate(m.proposedTime || m.created_at)}</span>
                       <span className="text-right">
                         <span className={`text-[10px] border rounded-full px-1.5 py-0.5 ${badge.className}`}>{badge.text}</span>
                       </span>
@@ -1640,7 +1640,7 @@ function MatchesTab({
                       <div className={`px-3 py-3 animate-unfold ${isWin ? L.rowDetail : isLoss ? "bg-red-50/20 dark:bg-red-950/20" : "bg-muted/30"}`}>
                         <div className="space-y-1.5 text-[13px]">
                           <DetailRow label="Park" value={m.locationName || "TBD"} />
-                          <DetailRow label="Date" value={formatDateTime(m.created_at)} />
+                          <DetailRow label="Date" value={formatDateTime(m.proposedTime || m.created_at)} />
                           {m.status === "confirmed" && m.player1_scores && m.player2_scores && (
                             <DetailRow
                               label="Score"
@@ -1727,7 +1727,7 @@ function MatchesTab({
                       </span>
                     )}
                   </span>
-                  <span className="text-center text-muted-foreground text-[12px] truncate">{formatDate(m.proposedTime)}</span>
+                  <span className="text-center text-muted-foreground text-[12px] truncate">{formatDate(m.proposedTime || m.created_at)}</span>
                   <span className="text-right">
                     <span className={`text-[10px] border rounded-full px-1.5 py-0.5 ${badge.className}`}>{badge.text}</span>
                   </span>

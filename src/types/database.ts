@@ -189,6 +189,7 @@ export interface MatchWithDetails extends Match {
   player4: Profile | null;
   locationName: string | null;
   locationAddress: string | null;
+  proposedTime: string | null;
 }
 
 export interface ProposalSignupWithProfile extends ProposalSignup {

@@ -380,6 +380,7 @@ export function useMyMatches(userId: string | undefined, tier: SkillTier, mode: 
           player4: m.player4_id ? profileMap.get(m.player4_id) || null : null,
           locationName: proposal?.location_name || null,
           locationAddress: proposal?.location_address || null,
+          proposedTime: proposal?.proposed_time || null,
         };
       });
 
@@ -403,9 +404,7 @@ export function useMyMatches(userId: string | undefined, tier: SkillTier, mode: 
   return { matches, loading, refetch: fetch };
 }
 
-export interface TierMatchEntry extends MatchWithDetails {
-  proposedTime: string;
-}
+export type TierMatchEntry = MatchWithDetails;
 
 export function useTierMatches(tier: SkillTier, mode: MatchMode = "singles") {
   const [matches, setMatches] = useState<TierMatchEntry[]>([]);
@@ -463,7 +462,7 @@ export function useTierMatches(tier: SkillTier, mode: MatchMode = "singles") {
           player4: m.player4_id ? profileMap.get(m.player4_id) || null : null,
           locationName: proposal?.location_name || null,
           locationAddress: proposal?.location_address || null,
-          proposedTime: proposal?.proposed_time || m.created_at,
+          proposedTime: proposal?.proposed_time || null,
         };
       });
 
