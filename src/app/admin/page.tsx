@@ -8,6 +8,12 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { AppHeader } from "@/components/app-header";
 import { Loader } from "@/components/loader";
+import { createBracket } from "@/lib/playoff-utils";
+import { usePlayoffBracket } from "@/lib/playoff-hooks";
+import { getSeasonRange } from "@/lib/ladder-hooks";
+import type { SkillTier } from "@/types/database";
+import { SKILL_TIER_LEVELS, SKILL_TIER_LABELS } from "@/types/database";
+import type { LadderRating, Profile, SkillLevel } from "@/types/database";
 
 const ADMIN_IDS = (process.env.NEXT_PUBLIC_ADMIN_IDS || "").split(",").map((s) => s.trim()).filter(Boolean);
 
@@ -36,7 +42,7 @@ interface FeedbackItem {
 export default function AdminPage() {
   const { user, loading: authLoading } = useAuth();
   const router = useRouter();
-  const [section, setSection] = useState<"parks" | "feedback">("parks");
+  const [section, setSection] = useState<"parks" | "feedback" | "playoffs">("parks");
 
   // Park submissions state
   const [submissions, setSubmissions] = useState<ParkSubmission[]>([]);
@@ -280,6 +286,16 @@ export default function AdminPage() {
               </span>
             )}
           </button>
+          <button
+            onClick={() => setSection("playoffs")}
+            className={`flex-1 text-[13px] font-medium py-2 rounded-md transition-colors ${
+              section === "playoffs"
+                ? "bg-background text-foreground shadow-sm"
+                : "text-muted-foreground hover:text-foreground"
+            }`}
+          >
+            Playoffs
+          </button>
         </div>
 
         {/* Parks section */}
@@ -501,7 +517,186 @@ export default function AdminPage() {
             )}
           </>
         )}
+        {/* Playoffs section */}
+        {section === "playoffs" && <PlayoffsSection />}
       </div>
     </main>
+  );
+}
+
+function PlayoffsSection() {
+  const season = getSeasonRange();
+  const tiers: SkillTier[] = ["beginner", "intermediate", "advanced"];
+  const [tierCounts, setTierCounts] = useState<Record<SkillTier, number>>({ beginner: 0, intermediate: 0, advanced: 0 });
+  const [tierPlayers, setTierPlayers] = useState<Record<SkillTier, { user_id: string; elo_rating: number }[]>>({ beginner: [], intermediate: [], advanced: [] });
+  const [loading, setLoading] = useState(true);
+  const [starting, setStarting] = useState<SkillTier | null>(null);
+  const [cancelling, setCancelling] = useState<SkillTier | null>(null);
+  const [confirmCancel, setConfirmCancel] = useState<SkillTier | null>(null);
+
+  const { bracket: beginnerBracket, refetch: refetchBeginner } = usePlayoffBracket("beginner");
+  const { bracket: intermediateBracket, refetch: refetchIntermediate } = usePlayoffBracket("intermediate");
+  const { bracket: advancedBracket, refetch: refetchAdvanced } = usePlayoffBracket("advanced");
+
+  const brackets: Record<SkillTier, typeof beginnerBracket> = {
+    beginner: beginnerBracket,
+    intermediate: intermediateBracket,
+    advanced: advancedBracket,
+  };
+  const refetches: Record<SkillTier, () => Promise<void>> = {
+    beginner: refetchBeginner,
+    intermediate: refetchIntermediate,
+    advanced: refetchAdvanced,
+  };
+
+  useEffect(() => {
+    (async () => {
+      const { data: ratings } = await supabase
+        .from("ladder_ratings")
+        .select("*")
+        .eq("mode", "singles")
+        .order("elo_rating", { ascending: false });
+
+      const { data: profiles } = await supabase
+        .from("profiles")
+        .select("id, skill_level");
+
+      if (!ratings || !profiles) { setLoading(false); return; }
+
+      const profileMap = new Map(profiles.map((p: { id: string; skill_level: string }) => [p.id, p]));
+      const counts: Record<SkillTier, number> = { beginner: 0, intermediate: 0, advanced: 0 };
+      const players: Record<SkillTier, { user_id: string; elo_rating: number }[]> = { beginner: [], intermediate: [], advanced: [] };
+
+      for (const r of ratings as LadderRating[]) {
+        const p = profileMap.get(r.user_id);
+        if (!p) continue;
+        for (const tier of tiers) {
+          if (SKILL_TIER_LEVELS[tier].includes(p.skill_level as SkillLevel)) {
+            counts[tier]++;
+            players[tier].push({ user_id: r.user_id, elo_rating: r.elo_rating });
+            break;
+          }
+        }
+      }
+
+      setTierCounts(counts);
+      setTierPlayers(players);
+      setLoading(false);
+    })();
+  }, []);
+
+  const handleStart = async (tier: SkillTier) => {
+    setStarting(tier);
+    try {
+      await createBracket(tier, "singles", tierPlayers[tier]);
+      await refetches[tier]();
+    } catch (err) {
+      console.error("Start playoffs error:", err);
+    } finally {
+      setStarting(null);
+    }
+  };
+
+  const handleCancel = async (tier: SkillTier) => {
+    if (confirmCancel !== tier) { setConfirmCancel(tier); return; }
+    setCancelling(tier);
+    try {
+      const bracket = brackets[tier];
+      if (bracket) {
+        await supabase
+          .from("playoff_brackets")
+          .update({ status: "cancelled" })
+          .eq("id", bracket.id);
+        await refetches[tier]();
+      }
+    } catch (err) {
+      console.error("Cancel playoffs error:", err);
+    } finally {
+      setCancelling(null);
+      setConfirmCancel(null);
+    }
+  };
+
+  if (loading) return <Loader />;
+
+  return (
+    <div className="space-y-4">
+      <div className="text-center">
+        <p className="text-[13px] text-muted-foreground">
+          {season.label} Season — Week {season.currentWeek}/{season.totalWeeks}
+        </p>
+      </div>
+
+      {tiers.map((tier) => {
+        const bracket = brackets[tier];
+        const count = tierCounts[tier];
+        const hasEnough = count >= 8;
+        const isActive = bracket?.status === "active";
+        const isCompleted = bracket?.status === "completed";
+
+        return (
+          <Card key={tier}>
+            <CardContent className="pt-4 space-y-3">
+              <div className="flex items-start justify-between gap-2">
+                <div>
+                  <p className="text-[15px] font-semibold">{SKILL_TIER_LABELS[tier]}</p>
+                  <p className="text-[12px] text-muted-foreground">
+                    <span className={hasEnough ? "text-green-600 font-medium" : "text-red-500 font-medium"}>
+                      {count} players
+                    </span>
+                    {" "}(8 required)
+                  </p>
+                </div>
+                {bracket && (
+                  <span className={`text-[10px] font-medium px-2 py-0.5 rounded-full border shrink-0 ${
+                    isActive ? "text-blue-700 bg-blue-50 border-blue-200" :
+                    isCompleted ? "text-green-700 bg-green-50 border-green-200" :
+                    "text-gray-700 bg-gray-50 border-gray-200"
+                  }`}>
+                    {bracket.status.charAt(0).toUpperCase() + bracket.status.slice(1)}
+                  </span>
+                )}
+              </div>
+
+              {isActive && (
+                <a
+                  href={`/ladder/playoffs?tier=${tier}`}
+                  className="block text-[12px] text-sky-600 hover:underline font-medium"
+                >
+                  View Bracket →
+                </a>
+              )}
+
+              <div className="flex gap-2">
+                {!bracket || bracket.status === "cancelled" ? (
+                  <Button
+                    onClick={() => handleStart(tier)}
+                    disabled={!hasEnough || starting === tier}
+                    className="flex-1 bg-sky-600 hover:bg-sky-700 text-white"
+                    size="sm"
+                  >
+                    {starting === tier ? "Starting..." : "Start Playoffs"}
+                  </Button>
+                ) : isActive ? (
+                  <Button
+                    onClick={() => handleCancel(tier)}
+                    disabled={cancelling === tier}
+                    variant="outline"
+                    className={`flex-1 ${
+                      confirmCancel === tier
+                        ? "text-red-600 border-red-300 hover:bg-red-50"
+                        : "text-muted-foreground"
+                    }`}
+                    size="sm"
+                  >
+                    {cancelling === tier ? "Cancelling..." : confirmCancel === tier ? "Confirm Cancel?" : "Cancel Playoffs"}
+                  </Button>
+                ) : null}
+              </div>
+            </CardContent>
+          </Card>
+        );
+      })}
+    </div>
   );
 }

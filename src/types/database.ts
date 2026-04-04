@@ -207,6 +207,61 @@ export interface LadderRankEntry {
   last_played: string | null;
 }
 
+// --- Playoff System ---
+
+export type PlayoffStatus = "active" | "completed" | "cancelled";
+export type PlayoffRound = 1 | 2 | 3;
+
+export const ROUND_LABELS: Record<PlayoffRound, string> = {
+  1: "Quarterfinal",
+  2: "Semifinal",
+  3: "Final",
+};
+
+export interface PlayoffBracket {
+  id: string;
+  season: string;
+  tier: string;
+  mode: MatchMode;
+  status: PlayoffStatus;
+  champion_id: string | null;
+  created_at: string;
+  completed_at: string | null;
+}
+
+export interface PlayoffSeed {
+  id: string;
+  bracket_id: string;
+  user_id: string;
+  seed: number;
+  elo_at_seed: number;
+}
+
+export interface PlayoffSeedWithProfile extends PlayoffSeed {
+  profile: Profile;
+}
+
+export interface PlayoffMatch {
+  id: string;
+  bracket_id: string;
+  round: PlayoffRound;
+  position: number;
+  match_id: string | null;
+  player1_id: string | null;
+  player2_id: string | null;
+  winner_id: string | null;
+  forfeit: boolean;
+  forfeit_deadline: string | null;
+  created_at: string;
+}
+
+export interface PlayoffMatchWithDetails extends PlayoffMatch {
+  player1: Profile | null;
+  player2: Profile | null;
+  winner: Profile | null;
+  matchData: Match | null;
+}
+
 export interface Database {
   public: {
     Tables: {

@@ -5,6 +5,7 @@ import { useRouter, useParams, useSearchParams } from "next/navigation";
 import { useAuth } from "@/lib/auth-context";
 import { supabase } from "@/lib/supabase";
 import { calculateElo, calculateDoublesElo } from "@/lib/elo";
+import { advancePlayoffBracket } from "@/lib/playoff-utils";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { AppHeader } from "@/components/app-header";
@@ -14,9 +15,12 @@ import type {
   Proposal,
   LadderRating,
   Team,
+  PlayoffMatch,
 } from "@/types/database";
+import { ROUND_LABELS, type PlayoffRound } from "@/types/database";
 import { Loader } from "@/components/loader";
 import { modeTheme } from "@/lib/theme";
+import { useAnyPlayoffsActive } from "@/lib/playoff-hooks";
 
 function formatDateTime(dateStr: string): string {
   const d = new Date(dateStr);
@@ -58,7 +62,13 @@ function MatchPageInner() {
   const tierParam = searchParams.get("tier");
   const modeParam = searchParams.get("mode");
   const tabParam = searchParams.get("tab");
+  const fromParam = searchParams.get("from");
   const goBack = () => {
+    // If navigated from playoff bracket, go back there
+    if (fromParam === "playoffs" && tierParam) {
+      router.push(`/ladder/playoffs?tier=${tierParam}`);
+      return;
+    }
     const p = new URLSearchParams();
     if (tierParam) p.set("tier", tierParam);
     if (modeParam) p.set("mode", modeParam);
@@ -69,8 +79,11 @@ function MatchPageInner() {
   const matchId = params.id as string;
   const userId = user?.id;
 
-  const L = modeTheme(modeParam === "doubles" ? "doubles" : "singles");
+  const matchMode = modeParam === "doubles" ? "doubles" : "singles";
+  const L = modeTheme(matchMode);
+  const { active: playoffsActive } = useAnyPlayoffsActive(matchMode as "singles" | "doubles");
   const [match, setMatch] = useState<MatchDetail | null>(null);
+  const [playoffMatch, setPlayoffMatch] = useState<PlayoffMatch | null>(null);
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
 
@@ -122,6 +135,14 @@ function MatchPageInner() {
       proposedTime: proposal?.proposed_time || null,
     });
 
+    // Check if this is a playoff match
+    const { data: pmData } = await supabase
+      .from("playoff_matches")
+      .select("*")
+      .eq("match_id", matchId)
+      .single();
+    setPlayoffMatch(pmData);
+
     if (m.player1_scores && m.player2_scores) {
       const pad = (arr: number[]) => {
         const s = arr.map(String);
@@ -169,22 +190,27 @@ function MatchPageInner() {
   const teamBIds = [match.player3_id, match.player4_id].filter(
     Boolean,
   ) as string[];
+  const ADMIN_IDS = (process.env.NEXT_PUBLIC_ADMIN_IDS || "").split(",").map((s) => s.trim()).filter(Boolean);
+  const isAdmin = userId ? ADMIN_IDS.includes(userId) : false;
   const isPlayer = allPlayerIds.includes(userId || "");
   const isTeamA = teamAIds.includes(userId || "");
   const isSubmitter = match.submitted_by === userId;
 
   const canSubmitScore =
-    isPlayer && (match.status === "pending" || match.status === "disputed");
+    (isPlayer || (isAdmin && !!playoffMatch)) && (match.status === "pending" || match.status === "disputed");
   // For doubles: anyone on the opposing team of the submitter can confirm
   const canConfirm = (() => {
-    if (!isPlayer || match.status !== "score_submitted" || isSubmitter)
-      return false;
+    if (match.status !== "score_submitted") return false;
+    if (isAdmin && playoffMatch) return true;
+    if (!isPlayer || isSubmitter) return false;
     if (!isDoubles) return true;
     // Submitter's team shouldn't confirm — opponent team should
     const submitterIsTeamA = teamAIds.includes(match.submitted_by || "");
     return submitterIsTeamA ? !isTeamA : isTeamA;
   })();
   const canCancel = isPlayer && match.status === "pending";
+  // Admin can reopen a confirmed playoff match to edit scores
+  const canAdminEdit = isAdmin && !!playoffMatch && match.status === "confirmed";
   const isOwner = userId === match.player1_id;
 
   // Team display names
@@ -273,54 +299,64 @@ function MatchPageInner() {
       .update({ confirmed_by: userId, status: "confirmed" })
       .eq("id", match.id);
 
-    const loserId =
-      match.winner_id === match.player1_id
-        ? match.player2_id
-        : match.player1_id;
+    // Only update ELO/record if: this is a playoff match, or no playoffs are active
+    const shouldUpdateElo = !!playoffMatch || !playoffsActive;
 
-    const [winnerRating, loserRating] = await Promise.all([
-      supabase
-        .from("ladder_ratings")
-        .select("*")
-        .eq("user_id", match.winner_id)
-        .eq("mode", "singles")
-        .single(),
-      supabase
-        .from("ladder_ratings")
-        .select("*")
-        .eq("user_id", loserId)
-        .eq("mode", "singles")
-        .single(),
-    ]);
+    if (shouldUpdateElo) {
+      const loserId =
+        match.winner_id === match.player1_id
+          ? match.player2_id
+          : match.player1_id;
 
-    if (winnerRating.data && loserRating.data) {
-      const { newWinnerRating, newLoserRating } = calculateElo(
-        winnerRating.data.elo_rating,
-        loserRating.data.elo_rating,
-      );
-      const now = new Date().toISOString();
-      await Promise.all([
+      const [winnerRating, loserRating] = await Promise.all([
         supabase
           .from("ladder_ratings")
-          .update({
-            elo_rating: newWinnerRating,
-            wins: (winnerRating.data as LadderRating).wins + 1,
-            last_played: now,
-            updated_at: now,
-          })
+          .select("*")
           .eq("user_id", match.winner_id)
-          .eq("mode", "singles"),
+          .eq("mode", "singles")
+          .single(),
         supabase
           .from("ladder_ratings")
-          .update({
-            elo_rating: newLoserRating,
-            losses: (loserRating.data as LadderRating).losses + 1,
-            last_played: now,
-            updated_at: now,
-          })
+          .select("*")
           .eq("user_id", loserId)
-          .eq("mode", "singles"),
+          .eq("mode", "singles")
+          .single(),
       ]);
+
+      if (winnerRating.data && loserRating.data) {
+        const { newWinnerRating, newLoserRating } = calculateElo(
+          winnerRating.data.elo_rating,
+          loserRating.data.elo_rating,
+        );
+        const now = new Date().toISOString();
+        await Promise.all([
+          supabase
+            .from("ladder_ratings")
+            .update({
+              elo_rating: newWinnerRating,
+              wins: (winnerRating.data as LadderRating).wins + 1,
+              last_played: now,
+              updated_at: now,
+            })
+            .eq("user_id", match.winner_id)
+            .eq("mode", "singles"),
+          supabase
+            .from("ladder_ratings")
+            .update({
+              elo_rating: newLoserRating,
+              losses: (loserRating.data as LadderRating).losses + 1,
+              last_played: now,
+              updated_at: now,
+            })
+            .eq("user_id", loserId)
+            .eq("mode", "singles"),
+        ]);
+      }
+    }
+
+    // Advance playoff bracket if this is a playoff match
+    if (playoffMatch && match.winner_id) {
+      await advancePlayoffBracket(playoffMatch.bracket_id, playoffMatch.id, match.winner_id);
     }
   };
 
@@ -332,77 +368,80 @@ function MatchPageInner() {
       .update({ confirmed_by: userId, status: "confirmed" })
       .eq("id", match.id);
 
-    const winnerIds = match.winning_team === "a" ? teamAIds : teamBIds;
-    const loserIds = match.winning_team === "a" ? teamBIds : teamAIds;
+    // Only update ELO/record if no playoffs are active (doubles playoffs not yet supported)
+    if (!playoffsActive) {
+      const winnerIds = match.winning_team === "a" ? teamAIds : teamBIds;
+      const loserIds = match.winning_team === "a" ? teamBIds : teamAIds;
 
-    // Fetch all 4 doubles ratings
-    const allIds = [...winnerIds, ...loserIds];
-    const { data: allRatings } = await supabase
-      .from("ladder_ratings")
-      .select("*")
-      .in("user_id", allIds)
-      .eq("mode", "doubles");
-
-    if (!allRatings || allRatings.length < 4) return;
-
-    const ratingMap = new Map(
-      allRatings.map((r: LadderRating) => [r.user_id, r]),
-    );
-    const w1 = ratingMap.get(winnerIds[0]);
-    const w2 = ratingMap.get(winnerIds[1]);
-    const l1 = ratingMap.get(loserIds[0]);
-    const l2 = ratingMap.get(loserIds[1]);
-
-    if (!w1 || !w2 || !l1 || !l2) return;
-
-    const { newWinnerRatings, newLoserRatings } = calculateDoublesElo(
-      [w1.elo_rating, w2.elo_rating],
-      [l1.elo_rating, l2.elo_rating],
-    );
-
-    const now = new Date().toISOString();
-    await Promise.all([
-      supabase
+      // Fetch all 4 doubles ratings
+      const allIds = [...winnerIds, ...loserIds];
+      const { data: allRatings } = await supabase
         .from("ladder_ratings")
-        .update({
-          elo_rating: newWinnerRatings[0],
-          wins: w1.wins + 1,
-          last_played: now,
-          updated_at: now,
-        })
-        .eq("user_id", winnerIds[0])
-        .eq("mode", "doubles"),
-      supabase
-        .from("ladder_ratings")
-        .update({
-          elo_rating: newWinnerRatings[1],
-          wins: w2.wins + 1,
-          last_played: now,
-          updated_at: now,
-        })
-        .eq("user_id", winnerIds[1])
-        .eq("mode", "doubles"),
-      supabase
-        .from("ladder_ratings")
-        .update({
-          elo_rating: newLoserRatings[0],
-          losses: l1.losses + 1,
-          last_played: now,
-          updated_at: now,
-        })
-        .eq("user_id", loserIds[0])
-        .eq("mode", "doubles"),
-      supabase
-        .from("ladder_ratings")
-        .update({
-          elo_rating: newLoserRatings[1],
-          losses: l2.losses + 1,
-          last_played: now,
-          updated_at: now,
-        })
-        .eq("user_id", loserIds[1])
-        .eq("mode", "doubles"),
-    ]);
+        .select("*")
+        .in("user_id", allIds)
+        .eq("mode", "doubles");
+
+      if (allRatings && allRatings.length >= 4) {
+        const ratingMap = new Map(
+          allRatings.map((r: LadderRating) => [r.user_id, r]),
+        );
+        const w1 = ratingMap.get(winnerIds[0]);
+        const w2 = ratingMap.get(winnerIds[1]);
+        const l1 = ratingMap.get(loserIds[0]);
+        const l2 = ratingMap.get(loserIds[1]);
+
+        if (w1 && w2 && l1 && l2) {
+          const { newWinnerRatings, newLoserRatings } = calculateDoublesElo(
+            [w1.elo_rating, w2.elo_rating],
+            [l1.elo_rating, l2.elo_rating],
+          );
+
+          const now = new Date().toISOString();
+          await Promise.all([
+            supabase
+              .from("ladder_ratings")
+              .update({
+                elo_rating: newWinnerRatings[0],
+                wins: w1.wins + 1,
+                last_played: now,
+                updated_at: now,
+              })
+              .eq("user_id", winnerIds[0])
+              .eq("mode", "doubles"),
+            supabase
+              .from("ladder_ratings")
+              .update({
+                elo_rating: newWinnerRatings[1],
+                wins: w2.wins + 1,
+                last_played: now,
+                updated_at: now,
+              })
+              .eq("user_id", winnerIds[1])
+              .eq("mode", "doubles"),
+            supabase
+              .from("ladder_ratings")
+              .update({
+                elo_rating: newLoserRatings[0],
+                losses: l1.losses + 1,
+                last_played: now,
+                updated_at: now,
+              })
+              .eq("user_id", loserIds[0])
+              .eq("mode", "doubles"),
+            supabase
+              .from("ladder_ratings")
+              .update({
+                elo_rating: newLoserRatings[1],
+                losses: l2.losses + 1,
+                last_played: now,
+                updated_at: now,
+              })
+              .eq("user_id", loserIds[1])
+              .eq("mode", "doubles"),
+          ]);
+        }
+      }
+    }
   };
 
   const handleConfirm = async () => {
@@ -547,6 +586,27 @@ function MatchPageInner() {
           }
           onBack={goBack}
         />
+
+        {/* Playoff badge */}
+        {playoffMatch && (
+          <div className="flex justify-center">
+            <span className="inline-flex items-center gap-1.5 text-[12px] font-semibold px-3 py-1 rounded-full bg-gradient-to-r from-sky-100 to-blue-100 text-sky-800 border border-sky-200 dark:from-sky-900/40 dark:to-blue-900/40 dark:text-sky-300 dark:border-sky-700">
+              Playoff — {ROUND_LABELS[playoffMatch.round as PlayoffRound]}
+            </span>
+          </div>
+        )}
+
+        {/* Practice match notice during playoffs */}
+        {!playoffMatch && playoffsActive && (
+          <div className="rounded-lg border border-amber-200 bg-amber-50 dark:border-amber-900 dark:bg-amber-950/30 px-4 py-2.5 text-center">
+            <p className="text-[12px] font-medium text-amber-800 dark:text-amber-300">
+              Practice match — Season playoffs in progress
+            </p>
+            <p className="text-[11px] text-amber-700 dark:text-amber-400">
+              This match won&apos;t affect ELO or record.
+            </p>
+          </div>
+        )}
 
         {/* Players */}
         <Card>
@@ -791,11 +851,35 @@ function MatchPageInner() {
               )}
 
             {match.status === "confirmed" && (
-              <p className="text-[12px] text-muted-foreground text-center">
-                {isAutoConfirmed
-                  ? "Score was auto-confirmed after 24 hours. Ratings have been updated."
-                  : "Match confirmed. Ratings have been updated."}
-              </p>
+              <div className="space-y-2">
+                <p className="text-[12px] text-muted-foreground text-center">
+                  {isAutoConfirmed
+                    ? "Score was auto-confirmed after 24 hours. Ratings have been updated."
+                    : "Match confirmed. Ratings have been updated."}
+                </p>
+                {canAdminEdit && (
+                  <Button
+                    onClick={async () => {
+                      setSubmitting(true);
+                      try {
+                        await supabase
+                          .from("matches")
+                          .update({ status: "disputed", confirmed_by: null })
+                          .eq("id", match.id);
+                        await fetchMatch();
+                      } finally {
+                        setSubmitting(false);
+                      }
+                    }}
+                    disabled={submitting}
+                    variant="outline"
+                    size="sm"
+                    className="w-full text-[12px] text-amber-600 border-amber-300 hover:bg-amber-50"
+                  >
+                    {submitting ? "..." : "Edit Scores (Admin)"}
+                  </Button>
+                )}
+              </div>
             )}
 
             {match.status === "disputed" && (
