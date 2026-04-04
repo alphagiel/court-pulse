@@ -19,6 +19,7 @@ import {
   type TierPreview,
   type TierMatchEntry,
 } from "@/lib/ladder-hooks";
+import { usePlayoffStatus, useAnyPlayoffsActive, useLastSeasonChampions } from "@/lib/playoff-hooks";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { AppHeader } from "@/components/app-header";
@@ -85,6 +86,8 @@ function LadderPageInner() {
   const userId = user?.id;
 
   const userTier = profile ? getSkillTier(profile.skill_level) : "intermediate";
+  const season = getSeasonRange();
+  const seasonLabel = `${new Date(season.start).getFullYear()} ${season.label} Season`;
 
   const { member, loading: memberLoading, refetch: refetchMember } = useLadderMembership(userId);
   const { previews, loading: previewsLoading } = useTierPreviews();
@@ -401,7 +404,7 @@ function LadderPageInner() {
           <div className="max-w-lg mx-auto lg:max-w-none">
             <AppHeader
               title="Court Pulse"
-              subtitle="Your local pickleball ladder"
+              subtitle={seasonLabel}
             />
           </div>
 
@@ -426,6 +429,9 @@ function LadderPageInner() {
               </p>
             </div>
           )}
+
+          {/* Playoffs active banner */}
+          <PlayoffsActiveBanner mode={mode} />
 
           {/* Two-column layout: main + sidebar on desktop */}
           <div className="mt-6 flex flex-col lg:flex-row gap-6">
@@ -514,10 +520,16 @@ function LadderPageInner() {
                 </CardContent>
               </Card>
 
+              {/* Playoff link */}
+              <PlayoffSidebarLinks mode={mode} />
+
               {/* Weather */}
               <WeatherForecast />
 
-              {/* Announcements placeholder */}
+              {/* Last season champions */}
+              <LastSeasonChampionsCard mode={mode} />
+
+              {/* Announcements */}
               <Card>
                 <CardContent className="p-4 space-y-3">
                   <h3 className="text-[13px] font-semibold">Announcements</h3>
@@ -545,8 +557,8 @@ function LadderPageInner() {
         <AppHeader
           title={`${TIER_SHORT[selectedTier]} ${isDoubles ? "Doubles" : "Ladder"}`}
           subtitle={isOwnTier
-            ? `${rankings.find(r => r.user_id === userId)?.elo_rating || "—"} ELO`
-            : `${TIER_RANGE[selectedTier]} · View only`
+            ? `${rankings.find(r => r.user_id === userId)?.elo_rating || "—"} ELO · ${seasonLabel}`
+            : `${TIER_RANGE[selectedTier]} · View only · ${seasonLabel}`
           }
           onBack={() => handleSetTier(null)}
           action={!isReadOnly ? (
@@ -706,6 +718,7 @@ function TierCard({
 }) {
   const openProposals = mode === "doubles" ? preview.openProposalsDoubles : preview.openProposalsSingles;
   const accent = TIER_ACCENT[preview.tier];
+  const { exists: hasPlayoffs, status: playoffStatus, championName } = usePlayoffStatus(preview.tier, mode);
 
   return (
     <div
@@ -726,6 +739,24 @@ function TierCard({
               <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full ${accent.badge}`}>
                 You
               </span>
+            )}
+            {hasPlayoffs && playoffStatus === "active" && (
+              <a
+                href={`/ladder/playoffs?tier=${preview.tier}&mode=${mode}`}
+                onClick={(e) => e.stopPropagation()}
+                className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-sky-100 text-sky-700 border border-sky-200 dark:bg-sky-900/40 dark:text-sky-300 dark:border-sky-700 hover:bg-sky-200 dark:hover:bg-sky-800/40 transition-colors"
+              >
+                Playoffs →
+              </a>
+            )}
+            {hasPlayoffs && playoffStatus === "completed" && (
+              <a
+                href={`/ladder/playoffs?tier=${preview.tier}`}
+                onClick={(e) => e.stopPropagation()}
+                className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-green-100 text-green-700 border border-green-200 dark:bg-green-900/40 dark:text-green-300 dark:border-green-700 hover:bg-green-200 dark:hover:bg-green-800/40 transition-colors"
+              >
+                {championName ? `🏆 ${championName}` : "Playoffs Complete →"}
+              </a>
             )}
           </div>
           <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-muted-foreground/40"><path d="m9 18 6-6-6-6" /></svg>
@@ -2058,5 +2089,90 @@ function LadderSkeleton() {
         </div>
       </div>
     </main>
+  );
+}
+
+function PlayoffSidebarLinks({ mode }: { mode: MatchMode }) {
+  const beginner = usePlayoffStatus("beginner", mode);
+  const intermediate = usePlayoffStatus("intermediate", mode);
+  const advanced = usePlayoffStatus("advanced", mode);
+
+  const active: { tier: SkillTier; label: string }[] = [];
+  if (beginner.exists && beginner.status === "active") active.push({ tier: "beginner", label: "Beginner" });
+  if (intermediate.exists && intermediate.status === "active") active.push({ tier: "intermediate", label: "Intermediate" });
+  if (advanced.exists && advanced.status === "active") active.push({ tier: "advanced", label: "Advanced" });
+
+  if (active.length === 0) return null;
+
+  return (
+    <Card>
+      <CardContent className="p-4 space-y-2">
+        <div className="flex items-center gap-2">
+          <div className="w-2 h-2 rounded-full bg-sky-500 animate-pulse" />
+          <span className="text-[13px] font-semibold">Playoffs Active</span>
+        </div>
+        {active.map(({ tier, label }) => (
+          <a
+            key={tier}
+            href={`/ladder/playoffs?tier=${tier}&mode=${mode}`}
+            className="flex items-center justify-between group py-1"
+          >
+            <span className="text-[12px] font-medium">{label}</span>
+            <span className="text-[12px] text-sky-600 group-hover:underline font-medium">
+              View Bracket →
+            </span>
+          </a>
+        ))}
+      </CardContent>
+    </Card>
+  );
+}
+
+function PlayoffsActiveBanner({ mode }: { mode: MatchMode }) {
+  const { active } = useAnyPlayoffsActive(mode);
+
+  if (!active) return null;
+
+  return (
+    <div className="max-w-lg mx-auto lg:max-w-none mt-4 rounded-xl border border-sky-200 bg-sky-50 dark:border-sky-900 dark:bg-sky-950/30 p-4 text-center space-y-1">
+      <p className="text-[13px] font-semibold text-sky-800 dark:text-sky-300">
+        Season Playoffs in progress
+      </p>
+      <p className="text-[12px] text-sky-700 dark:text-sky-400">
+        All regular matches are practice only — they won&apos;t affect your ELO or record until next season.
+      </p>
+    </div>
+  );
+}
+
+function LastSeasonChampionsCard({ mode }: { mode: MatchMode }) {
+  const { champions, seasonLabel, loading } = useLastSeasonChampions(mode);
+
+  if (loading || champions.length === 0) return null;
+
+  const TIER_SHORT_MAP: Record<string, string> = {
+    "Beginner (2.5–3.0)": "Beginner",
+    "Intermediate (3.5–4.0)": "Intermediate",
+    "Advanced (4.5–5.0)": "Advanced",
+  };
+
+  return (
+    <Card>
+      <CardContent className="p-4 space-y-3">
+        <div className="flex items-center gap-2">
+          <span className="text-[14px]">🏆</span>
+          <h3 className="text-[13px] font-semibold">{seasonLabel} Season Champions</h3>
+        </div>
+        <hr className="border-border" />
+        <div className="space-y-2">
+          {champions.map((c) => (
+            <div key={c.tier} className="flex items-center justify-between">
+              <span className="text-[12px] text-muted-foreground">{TIER_SHORT_MAP[c.tierLabel] || c.tierLabel}</span>
+              <span className="text-[13px] font-bold">{c.username}</span>
+            </div>
+          ))}
+        </div>
+      </CardContent>
+    </Card>
   );
 }

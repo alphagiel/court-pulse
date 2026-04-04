@@ -321,6 +321,16 @@ export function getSeasonRange(): { label: string; start: string; end: string; c
   return { label, start, end, currentWeek, totalWeeks };
 }
 
+/** Returns the previous season label (e.g. current=Spring → previous=Winter) */
+export function getPreviousSeasonLabel(): string {
+  const now = new Date();
+  const month = now.getMonth();
+  if (month >= 2 && month <= 4) return "Winter";    // Spring → prev is Winter
+  if (month >= 5 && month <= 7) return "Spring";     // Summer → prev is Spring
+  if (month >= 8 && month <= 10) return "Summer";    // Fall → prev is Summer
+  return "Fall";                                      // Winter → prev is Fall
+}
+
 export function useMyMatches(userId: string | undefined, tier: SkillTier, mode: MatchMode = "singles") {
   const [matches, setMatches] = useState<MatchWithDetails[]>([]);
   const [loading, setLoading] = useState(true);
@@ -668,13 +678,14 @@ export function useActionBanners(userId: string | undefined) {
 
     const now = new Date().toISOString();
 
-    // Singles: proposals I created that were accepted (match exists)
+    // Singles: proposals I created that were accepted (match exists) — exclude playoff proposals
     const { data: accepted } = await supabase
       .from("proposals")
       .select("id, proposed_time, location_name, acceptor:profiles!proposals_accepted_by_fkey(username), matches(id)")
       .eq("creator_id", userId)
       .eq("mode", "singles")
       .eq("status", "accepted")
+      .neq("location_name", "Playoff Match")
       .gte("proposed_time", now);
 
     // Doubles: proposals I'm signed up for that are in pairing status
