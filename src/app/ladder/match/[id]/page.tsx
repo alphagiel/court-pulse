@@ -368,8 +368,9 @@ function MatchPageInner() {
       .update({ confirmed_by: userId, status: "confirmed" })
       .eq("id", match.id);
 
-    // Only update ELO/record if no playoffs are active (doubles playoffs not yet supported)
-    if (!playoffsActive) {
+    // Update ELO/record if: this is a playoff match, or no playoffs are active
+    const shouldUpdateDoublesElo = !!playoffMatch || !playoffsActive;
+    if (shouldUpdateDoublesElo) {
       const winnerIds = match.winning_team === "a" ? teamAIds : teamBIds;
       const loserIds = match.winning_team === "a" ? teamBIds : teamAIds;
 
@@ -440,6 +441,15 @@ function MatchPageInner() {
               .eq("mode", "doubles"),
           ]);
         }
+      }
+    }
+
+    // Advance playoff bracket if this is a playoff match
+    if (playoffMatch && match.winning_team) {
+      // For doubles: team A lead = player1_id, team B lead = player3_id
+      const winnerId = match.winning_team === "a" ? match.player1_id : match.player3_id;
+      if (winnerId) {
+        await advancePlayoffBracket(playoffMatch.bracket_id, playoffMatch.id, winnerId);
       }
     }
   };

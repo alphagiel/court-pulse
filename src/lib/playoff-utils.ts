@@ -1,5 +1,5 @@
 import { supabase } from "@/lib/supabase";
-import type { PlayoffRound } from "@/types/database";
+import type { PlayoffRound, MatchMode } from "@/types/database";
 import { getSeasonRange } from "@/lib/ladder-hooks";
 
 // Seeding matchups: 1v8, 4v5, 3v6, 2v7 (standard bracket)
@@ -17,17 +17,18 @@ interface TopPlayer {
 
 /**
  * Create a playoff bracket for a tier.
- * Inserts bracket, seeds, playoff match slots, and linked matches for QF round.
+ * Singles: top 8 players → 8-player bracket.
+ * Doubles: top 16 players → auto-paired into 8 teams → 8-team bracket.
  */
 export async function createBracket(
   tier: string,
-  mode: "singles",
+  mode: MatchMode,
   topPlayers: TopPlayer[],
 ) {
-  if (topPlayers.length < 8) throw new Error("Need at least 8 players");
+  if (mode === "singles" && topPlayers.length < 8) throw new Error("Need at least 8 players");
+  if (mode === "doubles" && topPlayers.length < 16) throw new Error("Need at least 16 players for doubles playoffs");
 
   const season = getSeasonRange();
-  const top8 = topPlayers.slice(0, 8);
 
   // 1. Insert bracket
   const { data: bracket, error: bracketErr } = await supabase
@@ -38,36 +39,27 @@ export async function createBracket(
 
   if (bracketErr || !bracket) throw bracketErr || new Error("Failed to create bracket");
 
-  // 2. Insert seeds
+  if (mode === "singles") {
+    await createSinglesBracket(bracket.id, tier, topPlayers.slice(0, 8));
+  } else {
+    await createDoublesBracket(bracket.id, tier, topPlayers.slice(0, 16));
+  }
+
+  return bracket;
+}
+
+async function createSinglesBracket(bracketId: string, tier: string, top8: TopPlayer[]) {
+  // Insert seeds
   const seedRows = top8.map((p, i) => ({
-    bracket_id: bracket.id,
+    bracket_id: bracketId,
     user_id: p.user_id,
     seed: i + 1,
     elo_at_seed: p.elo_rating,
   }));
   await supabase.from("playoff_seeds").insert(seedRows);
 
-  // 3. Insert 7 playoff_matches slots
-  const slots: { bracket_id: string; round: PlayoffRound; position: number; player1_id: string | null; player2_id: string | null }[] = [];
-
-  // QF slots (round 1, positions 1-4)
-  for (let i = 0; i < 4; i++) {
-    const [s1, s2] = QF_SEEDS[i];
-    slots.push({
-      bracket_id: bracket.id,
-      round: 1,
-      position: i + 1,
-      player1_id: top8[s1 - 1].user_id,
-      player2_id: top8[s2 - 1].user_id,
-    });
-  }
-
-  // SF slots (round 2, positions 1-2) — empty until QF winners determined
-  slots.push({ bracket_id: bracket.id, round: 2, position: 1, player1_id: null, player2_id: null });
-  slots.push({ bracket_id: bracket.id, round: 2, position: 2, player1_id: null, player2_id: null });
-
-  // Final slot (round 3, position 1)
-  slots.push({ bracket_id: bracket.id, round: 3, position: 1, player1_id: null, player2_id: null });
+  // Insert 7 playoff_matches slots
+  const slots = buildBracketSlots(bracketId, top8.map(p => p.user_id));
 
   const { data: playoffMatches } = await supabase
     .from("playoff_matches")
@@ -76,37 +68,118 @@ export async function createBracket(
 
   if (!playoffMatches) throw new Error("Failed to create playoff match slots");
 
-  // 4. Create a playoff proposal + 4 matches for QF round
+  // Create proposal + matches for QF round
+  const proposalId = await createPlayoffProposal(bracketId, top8[0].user_id, top8[1].user_id, tier, "singles");
+  if (!proposalId) throw new Error("Failed to create playoff proposal");
+
+  await linkQfMatches(playoffMatches, proposalId, "singles");
+}
+
+async function createDoublesBracket(bracketId: string, tier: string, top16: TopPlayer[]) {
+  // Insert 16 individual seeds
+  const seedRows = top16.map((p, i) => ({
+    bracket_id: bracketId,
+    user_id: p.user_id,
+    seed: i + 1,
+    elo_at_seed: p.elo_rating,
+  }));
+  await supabase.from("playoff_seeds").insert(seedRows);
+
+  // Straight pairing into 8 teams: seed 1+2, 3+4, ..., 15+16
+  const teams: { seed: number; lead: TopPlayer; partner: TopPlayer }[] = [];
+  for (let i = 0; i < 8; i++) {
+    teams.push({
+      seed: i + 1,
+      lead: top16[i * 2],
+      partner: top16[i * 2 + 1],
+    });
+  }
+
+  // Insert team rows
+  const teamRows = teams.map(t => ({
+    bracket_id: bracketId,
+    seed: t.seed,
+    lead_id: t.lead.user_id,
+    partner_id: t.partner.user_id,
+    team_elo: Math.round((t.lead.elo_rating + t.partner.elo_rating) / 2),
+  }));
+  await supabase.from("playoff_teams").insert(teamRows);
+
+  // Build bracket slots using team lead IDs (same 1v8 seeding pattern)
+  const teamLeadIds = teams.map(t => t.lead.user_id);
+  const slots = buildBracketSlots(bracketId, teamLeadIds);
+
+  const { data: playoffMatches } = await supabase
+    .from("playoff_matches")
+    .insert(slots)
+    .select();
+
+  if (!playoffMatches) throw new Error("Failed to create playoff match slots");
+
+  // Create proposal + matches for QF round
+  const proposalId = await createPlayoffProposal(bracketId, teams[0].lead.user_id, teams[1].lead.user_id, tier, "doubles");
+  if (!proposalId) throw new Error("Failed to create playoff proposal");
+
+  await linkQfMatchesDoubles(playoffMatches, proposalId, teams);
+}
+
+function buildBracketSlots(bracketId: string, orderedIds: string[]) {
+  const slots: { bracket_id: string; round: PlayoffRound; position: number; player1_id: string | null; player2_id: string | null }[] = [];
+
+  // QF slots (round 1, positions 1-4)
+  for (let i = 0; i < 4; i++) {
+    const [s1, s2] = QF_SEEDS[i];
+    slots.push({
+      bracket_id: bracketId,
+      round: 1,
+      position: i + 1,
+      player1_id: orderedIds[s1 - 1],
+      player2_id: orderedIds[s2 - 1],
+    });
+  }
+
+  // SF slots (round 2, positions 1-2)
+  slots.push({ bracket_id: bracketId, round: 2, position: 1, player1_id: null, player2_id: null });
+  slots.push({ bracket_id: bracketId, round: 2, position: 2, player1_id: null, player2_id: null });
+
+  // Final slot (round 3, position 1)
+  slots.push({ bracket_id: bracketId, round: 3, position: 1, player1_id: null, player2_id: null });
+
+  return slots;
+}
+
+async function createPlayoffProposal(bracketId: string, creatorId: string, acceptorId: string, tier: string, mode: MatchMode): Promise<string | null> {
   const { data: proposal } = await supabase
     .from("proposals")
     .insert({
-      creator_id: top8[0].user_id,
+      creator_id: creatorId,
       location_name: "Playoff Match",
       proposed_time: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(),
       message: `Playoff: ${tier} Quarterfinals`,
       status: "accepted",
-      accepted_by: top8[1].user_id,
+      accepted_by: acceptorId,
       accepted_at: new Date().toISOString(),
-      mode: "singles",
+      mode,
       expires_at: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(),
     })
     .select()
     .single();
 
-  if (!proposal) throw new Error("Failed to create playoff proposal");
+  return proposal?.id || null;
+}
 
+async function linkQfMatches(playoffMatches: Array<Record<string, unknown>>, proposalId: string, mode: MatchMode) {
   const deadline = new Date(Date.now() + 48 * 60 * 60 * 1000).toISOString();
-
-  // Create a match row for each QF and link it
   const qfSlots = playoffMatches.filter((pm) => pm.round === 1);
+
   for (const slot of qfSlots) {
     const { data: matchRow } = await supabase
       .from("matches")
       .insert({
-        proposal_id: proposal.id,
+        proposal_id: proposalId,
         player1_id: slot.player1_id,
         player2_id: slot.player2_id,
-        mode: "singles",
+        mode,
         status: "pending",
       })
       .select()
@@ -116,36 +189,90 @@ export async function createBracket(
       await supabase
         .from("playoff_matches")
         .update({ match_id: matchRow.id, forfeit_deadline: deadline })
-        .eq("id", slot.id);
+        .eq("id", slot.id as string);
     }
   }
+}
 
-  return bracket;
+async function linkQfMatchesDoubles(
+  playoffMatches: Array<Record<string, unknown>>,
+  proposalId: string,
+  teams: { seed: number; lead: TopPlayer; partner: TopPlayer }[],
+) {
+  const deadline = new Date(Date.now() + 48 * 60 * 60 * 1000).toISOString();
+  const qfSlots = playoffMatches.filter((pm) => pm.round === 1);
+
+  // Build lead → partner lookup
+  const teamByLead = new Map(teams.map(t => [t.lead.user_id, t]));
+
+  for (const slot of qfSlots) {
+    const team1 = teamByLead.get(slot.player1_id as string);
+    const team2 = teamByLead.get(slot.player2_id as string);
+    if (!team1 || !team2) continue;
+
+    const { data: matchRow } = await supabase
+      .from("matches")
+      .insert({
+        proposal_id: proposalId,
+        player1_id: team1.lead.user_id,
+        player2_id: team1.partner.user_id,
+        player3_id: team2.lead.user_id,
+        player4_id: team2.partner.user_id,
+        mode: "doubles",
+        status: "pending",
+      })
+      .select()
+      .single();
+
+    if (matchRow) {
+      await supabase
+        .from("playoff_matches")
+        .update({ match_id: matchRow.id, forfeit_deadline: deadline })
+        .eq("id", slot.id as string);
+    }
+  }
 }
 
 /**
  * Map a QF/SF winner position to the next round slot.
- * QF1 winner → SF1.player1, QF2 winner → SF1.player2
- * QF3 winner → SF2.player1, QF4 winner → SF2.player2
- * SF1 winner → Final.player1, SF2 winner → Final.player2
  */
 function getNextSlot(round: PlayoffRound, position: number): { nextRound: PlayoffRound; nextPosition: number; slot: "player1_id" | "player2_id" } | null {
   if (round === 1) {
-    // QF → SF
     const nextPosition = position <= 2 ? 1 : 2;
     const slot = position % 2 === 1 ? "player1_id" : "player2_id";
     return { nextRound: 2, nextPosition, slot };
   }
   if (round === 2) {
-    // SF → Final
     const slot = position === 1 ? "player1_id" : "player2_id";
     return { nextRound: 3, nextPosition: 1, slot };
   }
-  return null; // Final has no next
+  return null;
+}
+
+/** Look up team partner for a given lead_id in a doubles bracket */
+async function getTeamPartner(bracketId: string, leadId: string): Promise<string | null> {
+  const { data } = await supabase
+    .from("playoff_teams")
+    .select("partner_id")
+    .eq("bracket_id", bracketId)
+    .eq("lead_id", leadId)
+    .single();
+  return data?.partner_id || null;
+}
+
+/** Get the bracket mode */
+async function getBracketMode(bracketId: string): Promise<MatchMode> {
+  const { data } = await supabase
+    .from("playoff_brackets")
+    .select("mode")
+    .eq("id", bracketId)
+    .single();
+  return (data?.mode as MatchMode) || "singles";
 }
 
 /**
  * Advance the bracket after a match is confirmed or forfeit.
+ * For doubles, winnerId is the team lead — partner is resolved from playoff_teams.
  */
 export async function advancePlayoffBracket(
   bracketId: string,
@@ -182,7 +309,7 @@ export async function advancePlayoffBracket(
     return;
   }
 
-  // 2. Set winner on next-round match (race-condition guard: only if slot is still null)
+  // 2. Set winner on next-round match
   const { data: nextMatch } = await supabase
     .from("playoff_matches")
     .select("*")
@@ -192,8 +319,6 @@ export async function advancePlayoffBracket(
     .single();
 
   if (!nextMatch) return;
-
-  // Only update if slot is still empty
   if (nextMatch[next.slot] !== null) return;
 
   await supabase
@@ -201,7 +326,7 @@ export async function advancePlayoffBracket(
     .update({ [next.slot]: winnerId })
     .eq("id", nextMatch.id);
 
-  // Refetch to check if both players are now set
+  // Refetch to check if both players/teams are now set
   const { data: updated } = await supabase
     .from("playoff_matches")
     .select("*")
@@ -210,19 +335,38 @@ export async function advancePlayoffBracket(
 
   if (!updated || !updated.player1_id || !updated.player2_id) return;
 
-  // Both players set — create a match row and link it
-  const proposalId = await getOrCreatePlayoffProposal(bracketId, updated.player1_id, updated.player2_id);
+  // Both sides set — create a match row and link it
+  const mode = await getBracketMode(bracketId);
+  const proposalId = await getOrCreatePlayoffProposal(bracketId, updated.player1_id, updated.player2_id, mode);
   if (!proposalId) return;
 
-  const { data: matchRow } = await supabase
-    .from("matches")
-    .insert({
+  let matchInsert: Record<string, unknown>;
+
+  if (mode === "doubles") {
+    const partner1 = await getTeamPartner(bracketId, updated.player1_id);
+    const partner2 = await getTeamPartner(bracketId, updated.player2_id);
+    matchInsert = {
+      proposal_id: proposalId,
+      player1_id: updated.player1_id,
+      player2_id: partner1,
+      player3_id: updated.player2_id,
+      player4_id: partner2,
+      mode: "doubles",
+      status: "pending",
+    };
+  } else {
+    matchInsert = {
       proposal_id: proposalId,
       player1_id: updated.player1_id,
       player2_id: updated.player2_id,
       mode: "singles",
       status: "pending",
-    })
+    };
+  }
+
+  const { data: matchRow } = await supabase
+    .from("matches")
+    .insert(matchInsert)
     .select()
     .single();
 
@@ -236,7 +380,7 @@ export async function advancePlayoffBracket(
 }
 
 /** Find an existing proposal for this bracket's matches, or create one */
-async function getOrCreatePlayoffProposal(bracketId: string, player1Id: string, player2Id: string): Promise<string | null> {
+async function getOrCreatePlayoffProposal(bracketId: string, player1Id: string, player2Id: string, mode: MatchMode = "singles"): Promise<string | null> {
   // Try to find proposal from any existing match in this bracket
   const { data: linked } = await supabase
     .from("playoff_matches")
@@ -254,7 +398,7 @@ async function getOrCreatePlayoffProposal(bracketId: string, player1Id: string, 
     if (refMatch?.proposal_id) return refMatch.proposal_id;
   }
 
-  // No existing proposal found — create one using the current user as creator (RLS requires creator_id = auth.uid())
+  // No existing proposal found — create one
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return null;
 
@@ -268,7 +412,7 @@ async function getOrCreatePlayoffProposal(bracketId: string, player1Id: string, 
       status: "accepted",
       accepted_by: player1Id === user.id ? player2Id : player1Id,
       accepted_at: new Date().toISOString(),
-      mode: "singles",
+      mode,
       expires_at: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(),
     })
     .select()
@@ -279,8 +423,6 @@ async function getOrCreatePlayoffProposal(bracketId: string, player1Id: string, 
 
 /**
  * Admin undo: reverse an advancement.
- * Clears winner on this match, removes the winner from the next-round slot,
- * and deletes the next-round match row if it was auto-created and hasn't been played.
  */
 export async function undoPlayoffAdvancement(
   bracketId: string,
@@ -330,14 +472,9 @@ export async function undoPlayoffAdvancement(
     .single();
 
   if (!nextMatch) return;
-
-  // Only clear if the slot still holds the winner we're undoing
   if (nextMatch[next.slot] !== winnerId) return;
-
-  // If next-round match has already been played (has a winner), don't undo further
   if (nextMatch.winner_id) return;
 
-  // Delete the auto-created match row if it exists and is still pending
   if (nextMatch.match_id) {
     const { data: linkedMatch } = await supabase
       .from("matches")
@@ -352,7 +489,6 @@ export async function undoPlayoffAdvancement(
         .update({ [next.slot]: null, match_id: null, forfeit_deadline: null })
         .eq("id", nextMatch.id);
     } else {
-      // Match already in progress, just clear the player slot
       await supabase
         .from("playoff_matches")
         .update({ [next.slot]: null })
@@ -368,7 +504,6 @@ export async function undoPlayoffAdvancement(
 
 /**
  * Ensure all playoff matches with both players have a linked match row.
- * Fixes cases where advancement set both players but match creation failed.
  */
 export async function ensurePlayoffMatchRows(bracketId: string) {
   const { data: slots, error: slotsErr } = await supabase
@@ -384,21 +519,41 @@ export async function ensurePlayoffMatchRows(bracketId: string) {
 
   if (!slots || slots.length === 0) return;
 
+  const mode = await getBracketMode(bracketId);
+
   for (const slot of slots) {
     console.log("[playoff] creating match for slot", slot.round, slot.position, "players:", slot.player1_id, "vs", slot.player2_id);
 
-    const proposalId = await getOrCreatePlayoffProposal(bracketId, slot.player1_id!, slot.player2_id!);
+    const proposalId = await getOrCreatePlayoffProposal(bracketId, slot.player1_id!, slot.player2_id!, mode);
     if (!proposalId) { console.error("[playoff] failed to get/create proposal"); continue; }
 
-    const { data: matchRow, error: matchErr } = await supabase
-      .from("matches")
-      .insert({
+    let matchInsert: Record<string, unknown>;
+
+    if (mode === "doubles") {
+      const partner1 = await getTeamPartner(bracketId, slot.player1_id!);
+      const partner2 = await getTeamPartner(bracketId, slot.player2_id!);
+      matchInsert = {
+        proposal_id: proposalId,
+        player1_id: slot.player1_id,
+        player2_id: partner1,
+        player3_id: slot.player2_id,
+        player4_id: partner2,
+        mode: "doubles",
+        status: "pending",
+      };
+    } else {
+      matchInsert = {
         proposal_id: proposalId,
         player1_id: slot.player1_id,
         player2_id: slot.player2_id,
         mode: "singles",
         status: "pending",
-      })
+      };
+    }
+
+    const { data: matchRow, error: matchErr } = await supabase
+      .from("matches")
+      .insert(matchInsert)
       .select()
       .single();
 
@@ -417,7 +572,6 @@ export async function ensurePlayoffMatchRows(bracketId: string) {
 
 /**
  * Lazy forfeit check — run on page load.
- * Finds playoff matches where deadline has passed and no winner, auto-advances.
  */
 export async function checkForfeitDeadlines(bracketId: string) {
   const now = new Date().toISOString();
@@ -433,7 +587,6 @@ export async function checkForfeitDeadlines(bracketId: string) {
   if (!overdue || overdue.length === 0) return;
 
   for (const pm of overdue) {
-    // If only one player present, they win by forfeit
     const p1 = pm.player1_id;
     const p2 = pm.player2_id;
 
@@ -441,14 +594,11 @@ export async function checkForfeitDeadlines(bracketId: string) {
     if (p1 && !p2) winnerId = p1;
     else if (p2 && !p1) winnerId = p2;
     else if (p1 && p2) {
-      // Both present but no match played — check if match exists and has no scores
-      // For now, skip — both players had the chance to play
       continue;
     } else {
       continue;
     }
 
-    // Mark as forfeit
     await supabase
       .from("playoff_matches")
       .update({ forfeit: true })

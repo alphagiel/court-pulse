@@ -255,6 +255,20 @@ export interface PlayoffMatch {
   created_at: string;
 }
 
+export interface PlayoffTeam {
+  id: string;
+  bracket_id: string;
+  seed: number;
+  lead_id: string;
+  partner_id: string;
+  team_elo: number;
+}
+
+export interface PlayoffTeamWithProfiles extends PlayoffTeam {
+  lead: Profile;
+  partner: Profile;
+}
+
 export interface PlayoffMatchWithDetails extends PlayoffMatch {
   player1: Profile | null;
   player2: Profile | null;
