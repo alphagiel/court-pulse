@@ -11,7 +11,7 @@ import { Loader } from "@/components/loader";
 import { createBracket } from "@/lib/playoff-utils";
 import { usePlayoffBracket } from "@/lib/playoff-hooks";
 import { getSeasonRange } from "@/lib/ladder-hooks";
-import type { SkillTier } from "@/types/database";
+import type { SkillTier, MatchMode } from "@/types/database";
 import { SKILL_TIER_LEVELS, SKILL_TIER_LABELS } from "@/types/database";
 import type { LadderRating, Profile, SkillLevel } from "@/types/database";
 
@@ -527,6 +527,7 @@ export default function AdminPage() {
 function PlayoffsSection() {
   const season = getSeasonRange();
   const tiers: SkillTier[] = ["beginner", "intermediate", "advanced"];
+  const [mode, setMode] = useState<MatchMode>("singles");
   const [tierCounts, setTierCounts] = useState<Record<SkillTier, number>>({ beginner: 0, intermediate: 0, advanced: 0 });
   const [tierPlayers, setTierPlayers] = useState<Record<SkillTier, { user_id: string; elo_rating: number }[]>>({ beginner: [], intermediate: [], advanced: [] });
   const [loading, setLoading] = useState(true);
@@ -534,9 +535,9 @@ function PlayoffsSection() {
   const [cancelling, setCancelling] = useState<SkillTier | null>(null);
   const [confirmCancel, setConfirmCancel] = useState<SkillTier | null>(null);
 
-  const { bracket: beginnerBracket, refetch: refetchBeginner } = usePlayoffBracket("beginner");
-  const { bracket: intermediateBracket, refetch: refetchIntermediate } = usePlayoffBracket("intermediate");
-  const { bracket: advancedBracket, refetch: refetchAdvanced } = usePlayoffBracket("advanced");
+  const { bracket: beginnerBracket, refetch: refetchBeginner } = usePlayoffBracket("beginner", mode);
+  const { bracket: intermediateBracket, refetch: refetchIntermediate } = usePlayoffBracket("intermediate", mode);
+  const { bracket: advancedBracket, refetch: refetchAdvanced } = usePlayoffBracket("advanced", mode);
 
   const brackets: Record<SkillTier, typeof beginnerBracket> = {
     beginner: beginnerBracket,
@@ -549,12 +550,16 @@ function PlayoffsSection() {
     advanced: refetchAdvanced,
   };
 
+  const isDoubles = mode === "doubles";
+  const minPlayers = isDoubles ? 16 : 8;
+
   useEffect(() => {
     (async () => {
+      setLoading(true);
       const { data: ratings } = await supabase
         .from("ladder_ratings")
         .select("*")
-        .eq("mode", "singles")
+        .eq("mode", mode)
         .order("elo_rating", { ascending: false });
 
       const { data: profiles } = await supabase
@@ -583,12 +588,12 @@ function PlayoffsSection() {
       setTierPlayers(players);
       setLoading(false);
     })();
-  }, []);
+  }, [mode]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const handleStart = async (tier: SkillTier) => {
     setStarting(tier);
     try {
-      await createBracket(tier, "singles", tierPlayers[tier]);
+      await createBracket(tier, mode, tierPlayers[tier]);
       await refetches[tier]();
     } catch (err) {
       console.error("Start playoffs error:", err);
@@ -617,8 +622,6 @@ function PlayoffsSection() {
     }
   };
 
-  if (loading) return <Loader />;
-
   return (
     <div className="space-y-4">
       <div className="text-center">
@@ -627,10 +630,34 @@ function PlayoffsSection() {
         </p>
       </div>
 
-      {tiers.map((tier) => {
+      {/* Mode toggle */}
+      <div className="flex gap-1 bg-muted rounded-lg p-1 max-w-[200px] mx-auto">
+        <button
+          onClick={() => { setMode("singles"); setConfirmCancel(null); }}
+          className={`flex-1 text-[13px] font-medium py-1.5 rounded-md transition-colors ${
+            mode === "singles"
+              ? "bg-background text-foreground shadow-sm"
+              : "text-muted-foreground hover:text-foreground"
+          }`}
+        >
+          Singles
+        </button>
+        <button
+          onClick={() => { setMode("doubles"); setConfirmCancel(null); }}
+          className={`flex-1 text-[13px] font-medium py-1.5 rounded-md transition-colors ${
+            mode === "doubles"
+              ? "bg-background text-foreground shadow-sm"
+              : "text-muted-foreground hover:text-foreground"
+          }`}
+        >
+          Doubles
+        </button>
+      </div>
+
+      {loading ? <Loader /> : tiers.map((tier) => {
         const bracket = brackets[tier];
         const count = tierCounts[tier];
-        const hasEnough = count >= 8;
+        const hasEnough = count >= minPlayers;
         const isActive = bracket?.status === "active";
         const isCompleted = bracket?.status === "completed";
 
@@ -642,9 +669,9 @@ function PlayoffsSection() {
                   <p className="text-[15px] font-semibold">{SKILL_TIER_LABELS[tier]}</p>
                   <p className="text-[12px] text-muted-foreground">
                     <span className={hasEnough ? "text-green-600 font-medium" : "text-red-500 font-medium"}>
-                      {count} players
+                      {count} {isDoubles ? "doubles" : ""} players
                     </span>
-                    {" "}(8 required)
+                    {" "}({minPlayers} required)
                   </p>
                 </div>
                 {bracket && (
@@ -660,8 +687,8 @@ function PlayoffsSection() {
 
               {isActive && (
                 <a
-                  href={`/ladder/playoffs?tier=${tier}`}
-                  className="block text-[12px] text-sky-600 hover:underline font-medium"
+                  href={`/ladder/playoffs?tier=${tier}&mode=${mode}`}
+                  className={`block text-[12px] ${isDoubles ? "text-amber-600" : "text-sky-600"} hover:underline font-medium`}
                 >
                   View Bracket →
                 </a>
@@ -672,10 +699,10 @@ function PlayoffsSection() {
                   <Button
                     onClick={() => handleStart(tier)}
                     disabled={!hasEnough || starting === tier}
-                    className="flex-1 bg-sky-600 hover:bg-sky-700 text-white"
+                    className={`flex-1 text-white ${isDoubles ? "bg-amber-600 hover:bg-amber-700" : "bg-sky-600 hover:bg-sky-700"}`}
                     size="sm"
                   >
-                    {starting === tier ? "Starting..." : "Start Playoffs"}
+                    {starting === tier ? "Starting..." : `Start ${isDoubles ? "Doubles " : ""}Playoffs`}
                   </Button>
                 ) : isActive ? (
                   <Button

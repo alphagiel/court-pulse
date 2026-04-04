@@ -7,6 +7,7 @@ import type {
   PlayoffSeedWithProfile,
   PlayoffMatchWithDetails,
   PlayoffMatch,
+  PlayoffTeamWithProfiles,
   Profile,
   Match,
   SkillTier,
@@ -88,6 +89,48 @@ export function usePlayoffSeeds(bracketId: string | undefined) {
   useEffect(() => { fetch(); }, [fetch]);
 
   return { seeds, loading };
+}
+
+export function usePlayoffTeams(bracketId: string | undefined) {
+  const [teams, setTeams] = useState<PlayoffTeamWithProfiles[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  const fetch = useCallback(async () => {
+    if (!bracketId) { setLoading(false); return; }
+
+    const { data } = await supabase
+      .from("playoff_teams")
+      .select("*")
+      .eq("bracket_id", bracketId)
+      .order("seed", { ascending: true });
+
+    if (!data || data.length === 0) {
+      setTeams([]);
+      setLoading(false);
+      return;
+    }
+
+    const userIds = data.flatMap((t) => [t.lead_id, t.partner_id]);
+    const { data: profiles } = await supabase
+      .from("profiles")
+      .select("*")
+      .in("id", userIds);
+
+    const profileMap = new Map((profiles || []).map((p: Profile) => [p.id, p]));
+
+    setTeams(
+      data.map((t) => ({
+        ...t,
+        lead: profileMap.get(t.lead_id)!,
+        partner: profileMap.get(t.partner_id)!,
+      })),
+    );
+    setLoading(false);
+  }, [bracketId]);
+
+  useEffect(() => { fetch(); }, [fetch]);
+
+  return { teams, loading };
 }
 
 export function usePlayoffMatches(bracketId: string | undefined) {

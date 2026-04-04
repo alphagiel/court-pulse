@@ -742,7 +742,7 @@ function TierCard({
             )}
             {hasPlayoffs && playoffStatus === "active" && (
               <a
-                href={`/ladder/playoffs?tier=${preview.tier}`}
+                href={`/ladder/playoffs?tier=${preview.tier}&mode=${mode}`}
                 onClick={(e) => e.stopPropagation()}
                 className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-sky-100 text-sky-700 border border-sky-200 dark:bg-sky-900/40 dark:text-sky-300 dark:border-sky-700 hover:bg-sky-200 dark:hover:bg-sky-800/40 transition-colors"
               >
@@ -2114,7 +2114,7 @@ function PlayoffSidebarLinks({ mode }: { mode: MatchMode }) {
         {active.map(({ tier, label }) => (
           <a
             key={tier}
-            href={`/ladder/playoffs?tier=${tier}`}
+            href={`/ladder/playoffs?tier=${tier}&mode=${mode}`}
             className="flex items-center justify-between group py-1"
           >
             <span className="text-[12px] font-medium">{label}</span>
