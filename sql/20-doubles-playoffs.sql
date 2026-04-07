@@ -43,6 +43,16 @@ create policy "playoff_matches_delete" on playoff_matches for delete to authenti
 drop policy if exists "playoff_teams_delete" on playoff_teams;
 create policy "playoff_teams_delete" on playoff_teams for delete to authenticated using (true);
 
+-- Allow any authenticated user to update/delete matches linked to playoffs (admin actions)
+drop policy if exists "Playoff match update" on matches;
+create policy "Playoff match update" on matches for update to authenticated using (
+  id in (select match_id from playoff_matches where match_id is not null)
+);
+drop policy if exists "Playoff match delete" on matches;
+create policy "Playoff match delete" on matches for delete to authenticated using (
+  id in (select match_id from playoff_matches where match_id is not null)
+);
+
 -- Realtime
 do $$ begin
   alter publication supabase_realtime add table playoff_teams;

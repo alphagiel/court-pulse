@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useRef } from "react";
 import { supabase } from "@/lib/supabase";
 import type {
   PlayoffBracket,
@@ -19,8 +19,10 @@ import { SKILL_TIER_LABELS } from "@/types/database";
 export function usePlayoffBracket(tier: SkillTier, mode: MatchMode = "singles") {
   const [bracket, setBracket] = useState<PlayoffBracket | null>(null);
   const [loading, setLoading] = useState(true);
+  const fetchId = useRef(0);
 
   const fetch = useCallback(async () => {
+    const id = ++fetchId.current;
     const season = getSeasonRange();
     const { data } = await supabase
       .from("playoff_brackets")
@@ -30,11 +32,13 @@ export function usePlayoffBracket(tier: SkillTier, mode: MatchMode = "singles") 
       .eq("mode", mode)
       .single();
 
+    if (id !== fetchId.current) return;
     setBracket(data);
     setLoading(false);
   }, [tier, mode]);
 
   useEffect(() => {
+    setLoading(true);
     fetch();
 
     const channel = supabase
@@ -53,15 +57,26 @@ export function usePlayoffBracket(tier: SkillTier, mode: MatchMode = "singles") 
 export function usePlayoffSeeds(bracketId: string | undefined) {
   const [seeds, setSeeds] = useState<PlayoffSeedWithProfile[]>([]);
   const [loading, setLoading] = useState(true);
+  const fetchId = useRef(0);
+  const prevBracketId = useRef(bracketId);
+
+  if (bracketId !== prevBracketId.current) {
+    prevBracketId.current = bracketId;
+    setSeeds([]);
+    setLoading(true);
+  }
 
   const fetch = useCallback(async () => {
-    if (!bracketId) { setLoading(false); return; }
+    const id = ++fetchId.current;
+    if (!bracketId) { setSeeds([]); setLoading(false); return; }
 
     const { data } = await supabase
       .from("playoff_seeds")
       .select("*")
       .eq("bracket_id", bracketId)
       .order("seed", { ascending: true });
+
+    if (id !== fetchId.current) return;
 
     if (!data || data.length === 0) {
       setSeeds([]);
@@ -74,6 +89,8 @@ export function usePlayoffSeeds(bracketId: string | undefined) {
       .from("profiles")
       .select("*")
       .in("id", userIds);
+
+    if (id !== fetchId.current) return;
 
     const profileMap = new Map((profiles || []).map((p: Profile) => [p.id, p]));
 
@@ -94,15 +111,26 @@ export function usePlayoffSeeds(bracketId: string | undefined) {
 export function usePlayoffTeams(bracketId: string | undefined) {
   const [teams, setTeams] = useState<PlayoffTeamWithProfiles[]>([]);
   const [loading, setLoading] = useState(true);
+  const fetchId = useRef(0);
+  const prevBracketId = useRef(bracketId);
+
+  if (bracketId !== prevBracketId.current) {
+    prevBracketId.current = bracketId;
+    setTeams([]);
+    setLoading(true);
+  }
 
   const fetch = useCallback(async () => {
-    if (!bracketId) { setLoading(false); return; }
+    const id = ++fetchId.current;
+    if (!bracketId) { setTeams([]); setLoading(false); return; }
 
     const { data } = await supabase
       .from("playoff_teams")
       .select("*")
       .eq("bracket_id", bracketId)
       .order("seed", { ascending: true });
+
+    if (id !== fetchId.current) return;
 
     if (!data || data.length === 0) {
       setTeams([]);
@@ -115,6 +143,8 @@ export function usePlayoffTeams(bracketId: string | undefined) {
       .from("profiles")
       .select("*")
       .in("id", userIds);
+
+    if (id !== fetchId.current) return;
 
     const profileMap = new Map((profiles || []).map((p: Profile) => [p.id, p]));
 
@@ -136,9 +166,19 @@ export function usePlayoffTeams(bracketId: string | undefined) {
 export function usePlayoffMatches(bracketId: string | undefined) {
   const [matches, setMatches] = useState<PlayoffMatchWithDetails[]>([]);
   const [loading, setLoading] = useState(true);
+  const fetchId = useRef(0);
+  const prevBracketId = useRef(bracketId);
+
+  // When bracketId changes, clear stale matches immediately to prevent showing old names
+  if (bracketId !== prevBracketId.current) {
+    prevBracketId.current = bracketId;
+    setMatches([]);
+    setLoading(true);
+  }
 
   const fetch = useCallback(async () => {
-    if (!bracketId) { setLoading(false); return; }
+    const id = ++fetchId.current;
+    if (!bracketId) { setMatches([]); setLoading(false); return; }
 
     const { data } = await supabase
       .from("playoff_matches")
@@ -146,6 +186,8 @@ export function usePlayoffMatches(bracketId: string | undefined) {
       .eq("bracket_id", bracketId)
       .order("round", { ascending: true })
       .order("position", { ascending: true });
+
+    if (id !== fetchId.current) return;
 
     if (!data || data.length === 0) {
       setMatches([]);
@@ -170,6 +212,8 @@ export function usePlayoffMatches(bracketId: string | undefined) {
         data.filter((pm) => pm.match_id).map((pm) => pm.match_id!),
       ),
     ]);
+
+    if (id !== fetchId.current) return;
 
     const profileMap = new Map((profilesRes.data || []).map((p: Profile) => [p.id, p]));
     const matchMap = new Map((matchesRes.data || []).map((m: Match) => [m.id, m]));

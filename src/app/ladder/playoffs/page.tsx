@@ -78,15 +78,16 @@ function PlayoffsPageInner() {
     if (!authLoading && !user) router.replace("/login");
   }, [authLoading, user, router]);
 
-  if (authLoading || bracketLoading || matchesLoading || seedsLoading || teamsLoading) return <Loader />;
+  if (authLoading) return <Loader />;
+  const dataLoading = bracketLoading || matchesLoading || seedsLoading || teamsLoading;
 
-  if (!bracket || bracket.status === "cancelled") {
+  if (dataLoading || !bracket || bracket.status === "cancelled") {
     return (
       <main className="min-h-screen bg-background">
-        <div className="max-w-lg mx-auto px-4 py-8 sm:px-6 space-y-5">
+        <div className="max-w-4xl mx-auto px-4 py-8 sm:px-6 space-y-5">
           <AppHeader title="Playoffs" subtitle={seasonLabel} onBack={() => router.push("/ladder")} />
           <ModeToggle mode={mode} onChange={handleSetMode} />
-          <div className="flex gap-1 bg-muted rounded-lg p-1">
+          <div className="flex gap-1 bg-muted rounded-lg p-1 max-w-md mx-auto">
             {TIERS.map((t) => (
               <button
                 key={t}
@@ -101,9 +102,13 @@ function PlayoffsPageInner() {
               </button>
             ))}
           </div>
-          <div className="text-center py-12 text-[14px] text-muted-foreground">
-            No active {isDoubles ? "doubles " : ""}playoffs for {SKILL_TIER_LABELS[tier]}.
-          </div>
+          {dataLoading ? (
+            <BracketSkeleton />
+          ) : (
+            <div className="text-center py-12 text-[14px] text-muted-foreground">
+              No active {isDoubles ? "doubles " : ""}playoffs for {SKILL_TIER_LABELS[tier]}.
+            </div>
+          )}
         </div>
       </main>
     );
@@ -112,6 +117,7 @@ function PlayoffsPageInner() {
   const qf = matches.filter((m) => m.round === 1).sort((a, b) => a.position - b.position);
   const sf = matches.filter((m) => m.round === 2).sort((a, b) => a.position - b.position);
   const final = matches.filter((m) => m.round === 3);
+
 
   // Build seed lookup (individual seeds)
   const seedMap = new Map(seeds.map((s) => [s.user_id, s.seed]));
@@ -196,82 +202,98 @@ function PlayoffsPageInner() {
 
         {/* Bracket grid — scrollable on mobile */}
         <div className="overflow-x-auto -mx-4 px-4 sm:mx-0 sm:px-0">
-        <div className="grid grid-cols-3 gap-3 md:gap-6 items-start min-w-[600px]">
-          {/* QF Column */}
-          <div className="space-y-3">
-            <h3 className="text-[12px] font-semibold text-muted-foreground uppercase tracking-wider text-center">
-              Quarterfinals
-            </h3>
-            {qf.map((pm) => (
-              <BracketMatchCard
-                key={pm.id}
-                pm={pm}
-                seedMap={isDoubles ? teamSeedMap : seedMap}
-                teamByLead={teamByLead}
-                tier={tier}
-                mode={mode}
-                userId={userId}
-                isAdmin={!!isAdmin}
-                bracketCompleted={bracket.status === "completed"}
-                onAdminAdvance={handleAdminAdvance}
-                onAdminUndo={handleAdminUndo}
-                onExtendDeadline={handleExtendDeadline}
-              />
-            ))}
+        <div className="min-w-[700px]">
+          {/* Column headers */}
+          <div className="grid grid-cols-[1fr_40px_1fr_40px_1fr] mb-3">
+            <h3 className="text-[12px] font-semibold text-muted-foreground uppercase tracking-wider text-center">Quarterfinals</h3>
+            <div />
+            <h3 className="text-[12px] font-semibold text-muted-foreground uppercase tracking-wider text-center">Semifinals</h3>
+            <div />
+            <h3 className="text-[12px] font-semibold text-muted-foreground uppercase tracking-wider text-center">Final</h3>
           </div>
 
-          {/* SF Column */}
-          <div className="flex flex-col justify-around h-full space-y-6 pt-8">
-            <h3 className="text-[12px] font-semibold text-muted-foreground uppercase tracking-wider text-center">
-              Semifinals
-            </h3>
-            {sf.map((pm) => (
-              <BracketMatchCard
-                key={pm.id}
-                pm={pm}
-                seedMap={isDoubles ? teamSeedMap : seedMap}
-                teamByLead={teamByLead}
-                tier={tier}
-                mode={mode}
-                userId={userId}
-                isAdmin={!!isAdmin}
-                bracketCompleted={bracket.status === "completed"}
-                onAdminAdvance={handleAdminAdvance}
-                onAdminUndo={handleAdminUndo}
-                onExtendDeadline={handleExtendDeadline}
-              />
-            ))}
-          </div>
+          {/* Bracket with connectors */}
+          <div className="grid grid-cols-[1fr_40px_1fr_40px_1fr] items-stretch">
+            {/* QF Column */}
+            <div className="flex flex-col justify-between gap-3">
+              {qf.map((pm) => (
+                <BracketMatchCard
+                  key={pm.id}
+                  pm={pm}
+                  seedMap={isDoubles ? teamSeedMap : seedMap}
+                  teamByLead={teamByLead}
+                  tier={tier}
+                  mode={mode}
+                  userId={userId}
+                  isAdmin={!!isAdmin}
+                  bracketCompleted={bracket.status === "completed"}
+                  onAdminAdvance={handleAdminAdvance}
+                  onAdminUndo={handleAdminUndo}
+                  onExtendDeadline={handleExtendDeadline}
+                />
+              ))}
+            </div>
 
-          {/* Final Column */}
-          <div className="flex flex-col justify-center h-full pt-8">
-            <h3 className="text-[12px] font-semibold text-muted-foreground uppercase tracking-wider text-center mb-3">
-              Final
-            </h3>
-            {final.map((pm) => (
-              <BracketMatchCard
-                key={pm.id}
-                pm={pm}
-                seedMap={isDoubles ? teamSeedMap : seedMap}
-                teamByLead={teamByLead}
-                tier={tier}
-                mode={mode}
-                userId={userId}
-                isAdmin={!!isAdmin}
-                bracketCompleted={bracket.status === "completed"}
-                onAdminAdvance={handleAdminAdvance}
-                onAdminUndo={handleAdminUndo}
-                onExtendDeadline={handleExtendDeadline}
-              />
-            ))}
-            {bracket.status === "completed" && championName && (
-              <div className="mt-4 text-center">
-                <div className="inline-block bg-gradient-to-r from-yellow-400 to-amber-500 text-white px-4 py-2 rounded-xl shadow-lg">
-                  <p className="text-[11px] uppercase tracking-wider font-semibold opacity-80">Champion{isDoubles ? "s" : ""}</p>
-                  <p className="text-[16px] font-bold">{championName}</p>
+            {/* QF → SF connectors */}
+            <div className="flex flex-col justify-between py-2">
+              {/* Top pair: QF1+QF2 → SF1 */}
+              <BracketConnector />
+              {/* Bottom pair: QF3+QF4 → SF2 */}
+              <BracketConnector />
+            </div>
+
+            {/* SF Column */}
+            <div className="flex flex-col justify-around gap-6">
+              {sf.map((pm) => (
+                <BracketMatchCard
+                  key={pm.id}
+                  pm={pm}
+                  seedMap={isDoubles ? teamSeedMap : seedMap}
+                  teamByLead={teamByLead}
+                  tier={tier}
+                  mode={mode}
+                  userId={userId}
+                  isAdmin={!!isAdmin}
+                  bracketCompleted={bracket.status === "completed"}
+                  onAdminAdvance={handleAdminAdvance}
+                  onAdminUndo={handleAdminUndo}
+                  onExtendDeadline={handleExtendDeadline}
+                />
+              ))}
+            </div>
+
+            {/* SF → Final connector */}
+            <div className="flex flex-col justify-center py-2">
+              <BracketConnector />
+            </div>
+
+            {/* Final Column */}
+            <div className="flex flex-col justify-center">
+              {final.map((pm) => (
+                <BracketMatchCard
+                  key={pm.id}
+                  pm={pm}
+                  seedMap={isDoubles ? teamSeedMap : seedMap}
+                  teamByLead={teamByLead}
+                  tier={tier}
+                  mode={mode}
+                  userId={userId}
+                  isAdmin={!!isAdmin}
+                  bracketCompleted={bracket.status === "completed"}
+                  onAdminAdvance={handleAdminAdvance}
+                  onAdminUndo={handleAdminUndo}
+                  onExtendDeadline={handleExtendDeadline}
+                />
+              ))}
+              {bracket.status === "completed" && championName && (
+                <div className="mt-4 text-center">
+                  <div className="inline-block bg-gradient-to-r from-yellow-400 to-amber-500 text-white px-4 py-2 rounded-xl shadow-lg">
+                    <p className="text-[11px] uppercase tracking-wider font-semibold opacity-80">Champion{isDoubles ? "s" : ""}</p>
+                    <p className="text-[16px] font-bold">{championName}</p>
+                  </div>
                 </div>
-              </div>
-            )}
+              )}
+            </div>
           </div>
         </div>
         </div>
@@ -632,6 +654,88 @@ function PlayerRow({
           })}
         </div>
       )}
+    </div>
+  );
+}
+
+function BracketSkeleton() {
+  const SkeletonCard = () => (
+    <div className="rounded-xl border border-border bg-card p-3 animate-pulse" style={{ minHeight: 100 }}>
+      <div className="flex items-center gap-2 py-1.5">
+        <div className="w-4 h-3 rounded bg-muted shrink-0" />
+        <div className="h-3 rounded bg-muted w-24" />
+        <div className="ml-auto flex gap-0.5">
+          <div className="w-5 h-3 rounded-sm bg-muted" />
+          <div className="w-5 h-3 rounded-sm bg-muted" />
+        </div>
+      </div>
+      <div className="border-t border-border my-1" />
+      <div className="flex items-center gap-2 py-1.5">
+        <div className="w-4 h-3 rounded bg-muted shrink-0" />
+        <div className="h-3 rounded bg-muted w-20" />
+        <div className="ml-auto flex gap-0.5">
+          <div className="w-5 h-3 rounded-sm bg-muted" />
+          <div className="w-5 h-3 rounded-sm bg-muted" />
+        </div>
+      </div>
+      <div className="mt-2 h-3 rounded bg-muted w-20 mx-auto" />
+    </div>
+  );
+
+  return (
+    <div className="overflow-x-auto -mx-4 px-4 sm:mx-0 sm:px-0">
+      <div className="min-w-[700px]">
+        <div className="grid grid-cols-[1fr_40px_1fr_40px_1fr] mb-3">
+          <div className="h-3 rounded bg-muted w-24 mx-auto animate-pulse" />
+          <div />
+          <div className="h-3 rounded bg-muted w-20 mx-auto animate-pulse" />
+          <div />
+          <div className="h-3 rounded bg-muted w-12 mx-auto animate-pulse" />
+        </div>
+        <div className="grid grid-cols-[1fr_40px_1fr_40px_1fr] items-stretch">
+          <div className="flex flex-col justify-between gap-3">
+            <SkeletonCard />
+            <SkeletonCard />
+            <SkeletonCard />
+            <SkeletonCard />
+          </div>
+          <div className="flex flex-col justify-between py-2">
+            <BracketConnector />
+            <BracketConnector />
+          </div>
+          <div className="flex flex-col justify-around gap-6">
+            <SkeletonCard />
+            <SkeletonCard />
+          </div>
+          <div className="flex flex-col justify-center py-2">
+            <BracketConnector />
+          </div>
+          <div className="flex flex-col justify-center">
+            <SkeletonCard />
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/** SVG connector that merges two bracket lines into one */
+function BracketConnector() {
+  return (
+    <div className="flex-1 flex items-center justify-center min-h-[80px]">
+      <svg
+        viewBox="0 0 40 100"
+        className="w-full h-full text-border"
+        preserveAspectRatio="none"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="1.5"
+      >
+        {/* Top line: from left-middle-top to right-center */}
+        <path d="M 0,25 L 20,25 L 20,50 L 40,50" vectorEffect="non-scaling-stroke" />
+        {/* Bottom line: from left-middle-bottom to right-center */}
+        <path d="M 0,75 L 20,75 L 20,50 L 40,50" vectorEffect="non-scaling-stroke" />
+      </svg>
     </div>
   );
 }
