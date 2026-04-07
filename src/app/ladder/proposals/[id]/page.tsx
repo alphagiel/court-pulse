@@ -5,6 +5,7 @@ import { useRouter, useParams, useSearchParams } from "next/navigation";
 import { useAuth } from "@/lib/auth-context";
 import { supabase } from "@/lib/supabase";
 import { useProposalSignups } from "@/lib/ladder-hooks";
+import { useAnyPlayoffsActive } from "@/lib/playoff-hooks";
 import { getSkillTier, proposalLocationName } from "@/types/database";
 
 import { CourtPairing } from "@/components/court-pairing";
@@ -47,7 +48,9 @@ function ProposalDetailInner() {
   const tabParam = searchParams.get("tab");
   const proposalId = params.id as string;
   const userId = user?.id;
-  const L = modeTheme(modeParam === "doubles" ? "doubles" : "singles");
+  const proposalMode = modeParam === "doubles" ? "doubles" : "singles" as const;
+  const L = modeTheme(proposalMode);
+  const { active: playoffsActive } = useAnyPlayoffsActive(proposalMode);
   const goBack = () => {
     const params = new URLSearchParams();
     if (tierParam) params.set("tier", tierParam);
@@ -379,6 +382,14 @@ function ProposalDetailInner() {
           }
           onBack={goBack}
         />
+
+        {playoffsActive && (
+          <div className="rounded-xl border border-amber-200 bg-amber-50 dark:border-amber-900 dark:bg-amber-950/30 p-3 text-center">
+            <p className="text-[12px] text-amber-800 dark:text-amber-300">
+              Season playoffs are in progress — matches created here won&apos;t affect your ELO or record.
+            </p>
+          </div>
+        )}
 
         {/* Proposal info */}
         <Card>
