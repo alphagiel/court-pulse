@@ -553,17 +553,13 @@ export async function ensurePlayoffMatchRows(bracketId: string) {
     .is("match_id", null)
     .is("winner_id", null);
 
-  console.log("[playoff] ensureMatchRows: found", slots?.length ?? 0, "slots needing match rows", slotsErr?.message ?? "");
-
   if (!slots || slots.length === 0) return;
 
   const mode = await getBracketMode(bracketId);
 
   for (const slot of slots) {
-    console.log("[playoff] creating match for slot", slot.round, slot.position, "players:", slot.player1_id, "vs", slot.player2_id);
-
     const proposalId = await getOrCreatePlayoffProposal(bracketId, slot.player1_id!, slot.player2_id!, mode);
-    if (!proposalId) { console.error("[playoff] failed to get/create proposal"); continue; }
+    if (!proposalId) continue;
 
     let matchInsert: Record<string, unknown>;
 
@@ -595,15 +591,12 @@ export async function ensurePlayoffMatchRows(bracketId: string) {
       .select()
       .single();
 
-    console.log("[playoff] match insert:", matchRow?.id ?? "FAILED", matchErr?.message ?? "");
-
     if (matchRow) {
       const deadline = new Date(Date.now() + 48 * 60 * 60 * 1000).toISOString();
       await supabase
         .from("playoff_matches")
         .update({ match_id: matchRow.id, forfeit_deadline: deadline })
         .eq("id", slot.id);
-      console.log("[playoff] linked match", matchRow.id, "to playoff slot", slot.id);
     }
   }
 }
