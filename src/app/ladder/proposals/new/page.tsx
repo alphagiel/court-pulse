@@ -5,6 +5,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { useAuth } from "@/lib/auth-context";
 import { supabase } from "@/lib/supabase";
 import { useLadderMembership } from "@/lib/ladder-hooks";
+import { useAnyPlayoffsActive } from "@/lib/playoff-hooks";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { AppHeader } from "@/components/app-header";
@@ -45,6 +46,7 @@ function NewProposalPageInner() {
 
   const [mode, setMode] = useState<MatchMode>(modeParam === "doubles" ? "doubles" : "singles");
   const L = modeTheme(mode);
+  const { active: playoffsActive } = useAnyPlayoffsActive(mode);
   const [locationName, setLocationName] = useState("");
   const [locationAddress, setLocationAddress] = useState("");
   const [date, setDate] = useState("");
@@ -190,6 +192,14 @@ function NewProposalPageInner() {
             </button>
           ))}
         </div>
+
+        {playoffsActive && (
+          <div className="rounded-xl border border-amber-200 bg-amber-50 dark:border-amber-900 dark:bg-amber-950/30 p-3 text-center">
+            <p className="text-[12px] text-amber-800 dark:text-amber-300">
+              Season playoffs are in progress — matches created here won&apos;t affect your ELO or record.
+            </p>
+          </div>
+        )}
 
         <Card>
           <CardContent className="pt-6 space-y-4">

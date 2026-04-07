@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { AppHeader } from "@/components/app-header";
 import { Loader } from "@/components/loader";
-import { createBracket } from "@/lib/playoff-utils";
+import { createBracket, undoPlayoffAdvancement } from "@/lib/playoff-utils";
 import { usePlayoffBracket } from "@/lib/playoff-hooks";
 import { getSeasonRange } from "@/lib/ladder-hooks";
 import type { SkillTier, MatchMode } from "@/types/database";
@@ -534,6 +534,8 @@ function PlayoffsSection() {
   const [starting, setStarting] = useState<SkillTier | null>(null);
   const [cancelling, setCancelling] = useState<SkillTier | null>(null);
   const [confirmCancel, setConfirmCancel] = useState<SkillTier | null>(null);
+  const [reopening, setReopening] = useState<SkillTier | null>(null);
+  const [confirmReopen, setConfirmReopen] = useState<SkillTier | null>(null);
 
   const { bracket: beginnerBracket, refetch: refetchBeginner } = usePlayoffBracket("beginner", mode);
   const { bracket: intermediateBracket, refetch: refetchIntermediate } = usePlayoffBracket("intermediate", mode);
@@ -622,6 +624,34 @@ function PlayoffsSection() {
     }
   };
 
+  const handleReopen = async (tier: SkillTier) => {
+    if (confirmReopen !== tier) { setConfirmReopen(tier); return; }
+    setReopening(tier);
+    try {
+      const bracket = brackets[tier];
+      if (bracket) {
+        // Find the final match and undo it
+        const { data: finalMatch } = await supabase
+          .from("playoff_matches")
+          .select("id")
+          .eq("bracket_id", bracket.id)
+          .eq("round", 3)
+          .eq("position", 1)
+          .single();
+
+        if (finalMatch) {
+          await undoPlayoffAdvancement(bracket.id, finalMatch.id);
+        }
+        await refetches[tier]();
+      }
+    } catch (err) {
+      console.error("Reopen playoffs error:", err);
+    } finally {
+      setReopening(null);
+      setConfirmReopen(null);
+    }
+  };
+
   return (
     <div className="space-y-4">
       <div className="text-center">
@@ -685,7 +715,7 @@ function PlayoffsSection() {
                 )}
               </div>
 
-              {isActive && (
+              {(isActive || isCompleted) && (
                 <a
                   href={`/ladder/playoffs?tier=${tier}&mode=${mode}`}
                   className={`block text-[12px] ${isDoubles ? "text-amber-600" : "text-sky-600"} hover:underline font-medium`}
@@ -717,6 +747,20 @@ function PlayoffsSection() {
                     size="sm"
                   >
                     {cancelling === tier ? "Cancelling..." : confirmCancel === tier ? "Confirm Cancel?" : "Cancel Playoffs"}
+                  </Button>
+                ) : isCompleted ? (
+                  <Button
+                    onClick={() => handleReopen(tier)}
+                    disabled={reopening === tier}
+                    variant="outline"
+                    className={`flex-1 ${
+                      confirmReopen === tier
+                        ? "text-amber-600 border-amber-300 hover:bg-amber-50"
+                        : "text-muted-foreground"
+                    }`}
+                    size="sm"
+                  >
+                    {reopening === tier ? "Reopening..." : confirmReopen === tier ? "Confirm Reopen?" : "Reopen Playoffs"}
                   </Button>
                 ) : null}
               </div>
