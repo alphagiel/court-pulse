@@ -194,8 +194,9 @@ function PlayoffsPageInner() {
           ))}
         </div>
 
-        {/* Bracket grid */}
-        <div className="grid grid-cols-3 gap-3 md:gap-6 items-start">
+        {/* Bracket grid — scrollable on mobile */}
+        <div className="overflow-x-auto -mx-4 px-4 sm:mx-0 sm:px-0">
+        <div className="grid grid-cols-3 gap-3 md:gap-6 items-start min-w-[600px]">
           {/* QF Column */}
           <div className="space-y-3">
             <h3 className="text-[12px] font-semibold text-muted-foreground uppercase tracking-wider text-center">
@@ -272,6 +273,7 @@ function PlayoffsPageInner() {
               </div>
             )}
           </div>
+        </div>
         </div>
 
         {/* Seeds / Teams table */}
@@ -547,8 +549,8 @@ function BracketMatchCard({
           </div>
         )}
 
-        {/* Admin: undo */}
-        {isAdmin && !bracketCompleted && isComplete && (
+        {/* Admin: undo (allow on completed brackets for the final match) */}
+        {isAdmin && isComplete && (!bracketCompleted || pm.round === 3) && (
           <div className="pt-2 border-t border-dashed border-border">
             <Button
               onClick={handleUndo}
