@@ -30,14 +30,48 @@ export async function createBracket(
 
   const season = getSeasonRange();
 
-  // 1. Insert bracket
-  const { data: bracket, error: bracketErr } = await supabase
+  // Check for existing bracket (unique constraint on season/tier/mode)
+  const { data: rows } = await supabase
     .from("playoff_brackets")
-    .insert({ season: season.label, tier, mode })
-    .select()
-    .single();
+    .select("id, status")
+    .eq("season", season.label)
+    .eq("tier", tier)
+    .eq("mode", mode)
+    .limit(1);
+  const existing = rows && rows.length > 0 ? rows[0] : null;
 
-  if (bracketErr || !bracket) throw bracketErr || new Error("Failed to create bracket");
+  let bracket: { id: string; season: string; tier: string; mode: string; status: string };
+
+  if (existing && existing.status === "cancelled") {
+    // Clean up old data from cancelled bracket
+    const { error: e1 } = await supabase.from("playoff_matches").delete().eq("bracket_id", existing.id);
+    const { error: e2 } = await supabase.from("playoff_seeds").delete().eq("bracket_id", existing.id);
+    const { error: e3 } = await supabase.from("playoff_teams").delete().eq("bracket_id", existing.id);
+    if (e1 || e2 || e3) console.warn("[playoff] cleanup errors:", e1?.message, e2?.message, e3?.message);
+
+    // Reuse the bracket row
+    const { data: updated, error: updateErr } = await supabase
+      .from("playoff_brackets")
+      .update({ status: "active", champion_id: null, completed_at: null })
+      .eq("id", existing.id)
+      .select()
+      .single();
+
+    if (updateErr || !updated) throw updateErr || new Error("Failed to reset bracket");
+    bracket = updated;
+  } else if (existing) {
+    throw new Error(`A ${existing.status} bracket already exists for this season/tier/mode`);
+  } else {
+    // Create new bracket
+    const { data: created, error: bracketErr } = await supabase
+      .from("playoff_brackets")
+      .insert({ season: season.label, tier, mode })
+      .select()
+      .single();
+
+    if (bracketErr || !created) throw bracketErr || new Error("Failed to create bracket");
+    bracket = created;
+  }
 
   if (mode === "singles") {
     await createSinglesBracket(bracket.id, tier, topPlayers.slice(0, 8));
@@ -148,16 +182,20 @@ function buildBracketSlots(bracketId: string, orderedIds: string[]) {
   return slots;
 }
 
-async function createPlayoffProposal(bracketId: string, creatorId: string, acceptorId: string, tier: string, mode: MatchMode): Promise<string | null> {
+async function createPlayoffProposal(bracketId: string, _creatorId: string, acceptorId: string, tier: string, mode: MatchMode): Promise<string | null> {
+  // RLS requires creator_id = auth.uid()
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return null;
+
   const { data: proposal } = await supabase
     .from("proposals")
     .insert({
-      creator_id: creatorId,
+      creator_id: user.id,
       location_name: "Playoff Match",
       proposed_time: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(),
       message: `Playoff: ${tier} Quarterfinals`,
       status: "accepted",
-      accepted_by: acceptorId,
+      accepted_by: acceptorId === user.id ? _creatorId : acceptorId,
       accepted_at: new Date().toISOString(),
       mode,
       expires_at: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(),

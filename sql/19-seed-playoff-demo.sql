@@ -1,14 +1,18 @@
--- 19-seed-playoff-demo.sql — Playoff demo data
+-- 19-seed-playoff-demo.sql — Complete playoff demo data
 -- ============================================================
--- Creates 20 players per tier (60 total) with ladder ratings,
--- ready for admin to trigger playoffs via the UI.
+-- Creates 60 dummy players (20 per tier) with ladder ratings,
+-- then builds 6 playoff brackets (3 tiers × singles + doubles)
+-- with realistic scores through the semifinals.
 --
 -- UUID pattern: b0000000-0000-0000-0000-00000000XXXX
 -- Users 1-20:  Beginner   (1-10 = 2.5, 11-20 = 3.0)
 -- Users 21-40: Intermediate (21-30 = 3.5, 31-40 = 4.0)
 -- Users 41-60: Advanced   (41-50 = 4.5, 51-60 = 5.0)
 --
--- To clean up: DELETE WHERE id LIKE 'b0000000-%'
+-- Idempotent: safe to re-run (uses ON CONFLICT for users/ratings,
+-- deletes and recreates brackets on each run).
+--
+-- To clean up: run sql/99-cleanup-all-demo.sql
 -- ============================================================
 -- ============================================================
 -- 1. Auth users (60)
@@ -1041,3 +1045,221 @@ SELECT
   'doubles'
 FROM
   generate_series(1, 60) AS i ON CONFLICT (user_id, mode) DO NOTHING;
+
+-- ============================================================
+-- 6. Playoff brackets with scores
+-- ============================================================
+-- Clean any existing brackets first
+DELETE FROM playoff_brackets;
+DELETE FROM proposals WHERE location_name = 'Playoff Match';
+
+DO $$
+DECLARE
+  _tier text;
+  _mode text;
+  _bracket_id uuid;
+  _proposal_id uuid;
+
+  _players uuid[];
+  _elos int[];
+
+  -- QF seeding: 1v8, 4v5, 3v6, 2v7
+  _qf_s1 int[] := ARRAY[1,4,3,2];
+  _qf_s2 int[] := ARRAY[8,5,6,7];
+
+  _match_id uuid;
+  _pm_id uuid;
+  _qf_winners uuid[4];
+  _p1_scores int[];
+  _p2_scores int[];
+  _winner_idx int;
+  _winning_team text;
+
+  _team_leads uuid[8];
+  _team_partners uuid[8];
+
+  _sf_match_id uuid;
+
+  _skill_levels text[];
+  _beginner_levels text[] := ARRAY['2.5','3.0'];
+  _intermediate_levels text[] := ARRAY['3.5','4.0'];
+  _advanced_levels text[] := ARRAY['4.5','5.0'];
+
+BEGIN
+  FOREACH _tier IN ARRAY ARRAY['beginner','intermediate','advanced']
+  LOOP
+    IF _tier = 'beginner' THEN _skill_levels := _beginner_levels;
+    ELSIF _tier = 'intermediate' THEN _skill_levels := _intermediate_levels;
+    ELSE _skill_levels := _advanced_levels;
+    END IF;
+
+    FOREACH _mode IN ARRAY ARRAY['singles','doubles']
+    LOOP
+      RAISE NOTICE '=== Creating % % bracket ===', _tier, _mode;
+
+      -- Get top players
+      IF _mode = 'singles' THEN
+        SELECT array_agg(r.user_id ORDER BY r.elo_rating DESC),
+               array_agg(r.elo_rating ORDER BY r.elo_rating DESC)
+        INTO _players, _elos
+        FROM (
+          SELECT lr.user_id, lr.elo_rating
+          FROM ladder_ratings lr
+          JOIN profiles p ON p.id = lr.user_id
+          WHERE lr.mode = 'singles' AND p.skill_level = ANY(_skill_levels)
+          ORDER BY lr.elo_rating DESC LIMIT 8
+        ) r;
+
+        IF array_length(_players, 1) IS NULL OR array_length(_players, 1) < 8 THEN
+          RAISE NOTICE '  Skipping % singles — not enough players', _tier;
+          CONTINUE;
+        END IF;
+      ELSE
+        SELECT array_agg(r.user_id ORDER BY r.elo_rating DESC),
+               array_agg(r.elo_rating ORDER BY r.elo_rating DESC)
+        INTO _players, _elos
+        FROM (
+          SELECT lr.user_id, lr.elo_rating
+          FROM ladder_ratings lr
+          JOIN profiles p ON p.id = lr.user_id
+          WHERE lr.mode = 'doubles' AND p.skill_level = ANY(_skill_levels)
+          ORDER BY lr.elo_rating DESC LIMIT 16
+        ) r;
+
+        IF array_length(_players, 1) IS NULL OR array_length(_players, 1) < 16 THEN
+          RAISE NOTICE '  Skipping % doubles — not enough players', _tier;
+          CONTINUE;
+        END IF;
+      END IF;
+
+      -- Create bracket
+      INSERT INTO playoff_brackets (season, tier, mode, status)
+      VALUES ('Spring', _tier, _mode, 'active')
+      RETURNING id INTO _bracket_id;
+
+      -- Create seeds
+      IF _mode = 'singles' THEN
+        FOR i IN 1..8 LOOP
+          INSERT INTO playoff_seeds (bracket_id, user_id, seed, elo_at_seed)
+          VALUES (_bracket_id, _players[i], i, _elos[i]);
+        END LOOP;
+      ELSE
+        FOR i IN 1..16 LOOP
+          INSERT INTO playoff_seeds (bracket_id, user_id, seed, elo_at_seed)
+          VALUES (_bracket_id, _players[i], i, _elos[i]);
+        END LOOP;
+
+        -- Straight-pair teams: 1+2, 3+4, ..., 15+16
+        FOR i IN 1..8 LOOP
+          _team_leads[i] := _players[(i-1)*2 + 1];
+          _team_partners[i] := _players[(i-1)*2 + 2];
+          INSERT INTO playoff_teams (bracket_id, seed, lead_id, partner_id, team_elo)
+          VALUES (_bracket_id, i, _team_leads[i], _team_partners[i],
+                  (_elos[(i-1)*2 + 1] + _elos[(i-1)*2 + 2]) / 2);
+        END LOOP;
+      END IF;
+
+      -- Create proposal
+      INSERT INTO proposals (creator_id, location_name, proposed_time, message, status, accepted_by, accepted_at, mode, expires_at)
+      VALUES (_players[1], 'Playoff Match', NOW() + interval '7 days', 'Playoff: ' || _tier,
+        'accepted', _players[2], NOW(), _mode, NOW() + interval '30 days')
+      RETURNING id INTO _proposal_id;
+
+      -- QF matches with scores
+      FOR i IN 1..4 LOOP
+        DECLARE
+          _p1 uuid; _p2 uuid; _p1_partner uuid; _p2_partner uuid;
+        BEGIN
+          IF _mode = 'singles' THEN
+            _p1 := _players[_qf_s1[i]]; _p2 := _players[_qf_s2[i]];
+          ELSE
+            _p1 := _team_leads[_qf_s1[i]]; _p2 := _team_leads[_qf_s2[i]];
+            _p1_partner := _team_partners[_qf_s1[i]]; _p2_partner := _team_partners[_qf_s2[i]];
+          END IF;
+
+          CASE i
+            WHEN 1 THEN _p1_scores := ARRAY[11,11];   _p2_scores := ARRAY[7,5];    _winner_idx := 1;
+            WHEN 2 THEN _p1_scores := ARRAY[9,11,9];  _p2_scores := ARRAY[11,8,11]; _winner_idx := 2;
+            WHEN 3 THEN _p1_scores := ARRAY[11,11];   _p2_scores := ARRAY[6,9];    _winner_idx := 1;
+            WHEN 4 THEN _p1_scores := ARRAY[11,11];   _p2_scores := ARRAY[4,7];    _winner_idx := 1;
+          END CASE;
+
+          IF _winner_idx = 1 THEN _qf_winners[i] := _p1; _winning_team := 'a';
+          ELSE _qf_winners[i] := _p2; _winning_team := 'b'; END IF;
+
+          IF _mode = 'singles' THEN
+            INSERT INTO matches (proposal_id, player1_id, player2_id, mode, status,
+              player1_scores, player2_scores, winner_id, submitted_by, confirmed_by, played_at)
+            VALUES (_proposal_id, _p1, _p2, 'singles', 'confirmed',
+              _p1_scores, _p2_scores, _qf_winners[i], _p1, _p2,
+              NOW() - interval '3 days' + (i || ' hours')::interval)
+            RETURNING id INTO _match_id;
+          ELSE
+            INSERT INTO matches (proposal_id, player1_id, player2_id, player3_id, player4_id,
+              mode, status, player1_scores, player2_scores, winning_team, submitted_by, confirmed_by, played_at)
+            VALUES (_proposal_id, _p1, _p1_partner, _p2, _p2_partner,
+              'doubles', 'confirmed', _p1_scores, _p2_scores, _winning_team, _p1, _p2,
+              NOW() - interval '3 days' + (i || ' hours')::interval)
+            RETURNING id INTO _match_id;
+          END IF;
+
+          INSERT INTO playoff_matches (bracket_id, round, position, match_id,
+            player1_id, player2_id, winner_id, forfeit_deadline)
+          VALUES (_bracket_id, 1, i, _match_id, _p1, _p2, _qf_winners[i], NOW() + interval '2 days');
+        END;
+      END LOOP;
+
+      -- SF1: scored (p1 wins)
+      _p1_scores := ARRAY[11,9,11]; _p2_scores := ARRAY[9,11,6];
+
+      IF _mode = 'singles' THEN
+        INSERT INTO matches (proposal_id, player1_id, player2_id, mode, status,
+          player1_scores, player2_scores, winner_id, submitted_by, confirmed_by, played_at)
+        VALUES (_proposal_id, _qf_winners[1], _qf_winners[2], 'singles', 'confirmed',
+          _p1_scores, _p2_scores, _qf_winners[1], _qf_winners[1], _qf_winners[2], NOW() - interval '1 day')
+        RETURNING id INTO _sf_match_id;
+      ELSE
+        DECLARE _sf_p1_partner uuid; _sf_p2_partner uuid;
+        BEGIN
+          SELECT partner_id INTO _sf_p1_partner FROM playoff_teams WHERE bracket_id = _bracket_id AND lead_id = _qf_winners[1];
+          SELECT partner_id INTO _sf_p2_partner FROM playoff_teams WHERE bracket_id = _bracket_id AND lead_id = _qf_winners[2];
+          INSERT INTO matches (proposal_id, player1_id, player2_id, player3_id, player4_id,
+            mode, status, player1_scores, player2_scores, winning_team, submitted_by, confirmed_by, played_at)
+          VALUES (_proposal_id, _qf_winners[1], _sf_p1_partner, _qf_winners[2], _sf_p2_partner,
+            'doubles', 'confirmed', _p1_scores, _p2_scores, 'a', _qf_winners[1], _qf_winners[2], NOW() - interval '1 day')
+          RETURNING id INTO _sf_match_id;
+        END;
+      END IF;
+
+      INSERT INTO playoff_matches (bracket_id, round, position, match_id,
+        player1_id, player2_id, winner_id, forfeit_deadline)
+      VALUES (_bracket_id, 2, 1, _sf_match_id, _qf_winners[1], _qf_winners[2], _qf_winners[1], NOW() + interval '2 days');
+
+      -- SF2: pending
+      IF _mode = 'singles' THEN
+        INSERT INTO matches (proposal_id, player1_id, player2_id, mode, status)
+        VALUES (_proposal_id, _qf_winners[3], _qf_winners[4], 'singles', 'pending')
+        RETURNING id INTO _sf_match_id;
+      ELSE
+        DECLARE _sf2_p1_partner uuid; _sf2_p2_partner uuid;
+        BEGIN
+          SELECT partner_id INTO _sf2_p1_partner FROM playoff_teams WHERE bracket_id = _bracket_id AND lead_id = _qf_winners[3];
+          SELECT partner_id INTO _sf2_p2_partner FROM playoff_teams WHERE bracket_id = _bracket_id AND lead_id = _qf_winners[4];
+          INSERT INTO matches (proposal_id, player1_id, player2_id, player3_id, player4_id, mode, status)
+          VALUES (_proposal_id, _qf_winners[3], _sf2_p1_partner, _qf_winners[4], _sf2_p2_partner, 'doubles', 'pending')
+          RETURNING id INTO _sf_match_id;
+        END;
+      END IF;
+
+      INSERT INTO playoff_matches (bracket_id, round, position, match_id,
+        player1_id, player2_id, forfeit_deadline)
+      VALUES (_bracket_id, 2, 2, _sf_match_id, _qf_winners[3], _qf_winners[4], NOW() + interval '2 days');
+
+      -- Final: SF1 winner vs TBD
+      INSERT INTO playoff_matches (bracket_id, round, position, player1_id)
+      VALUES (_bracket_id, 3, 1, _qf_winners[1]);
+
+      RAISE NOTICE '=== Done: % % ===', _tier, _mode;
+    END LOOP;
+  END LOOP;
+END $$;

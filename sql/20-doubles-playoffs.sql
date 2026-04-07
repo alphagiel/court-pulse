@@ -22,13 +22,26 @@ create table if not exists playoff_teams (
 create index if not exists idx_playoff_teams_bracket on playoff_teams(bracket_id);
 create index if not exists idx_playoff_teams_lead on playoff_teams(lead_id);
 
--- RLS
+-- RLS for playoff_teams
 alter table playoff_teams enable row level security;
 
 drop policy if exists "playoff_teams_select" on playoff_teams;
 create policy "playoff_teams_select" on playoff_teams for select using (true);
 drop policy if exists "playoff_teams_insert" on playoff_teams;
 create policy "playoff_teams_insert" on playoff_teams for insert to authenticated with check (true);
+
+-- DELETE policies for all playoff tables (needed for restart/cleanup)
+drop policy if exists "playoff_brackets_delete" on playoff_brackets;
+create policy "playoff_brackets_delete" on playoff_brackets for delete to authenticated using (true);
+
+drop policy if exists "playoff_seeds_delete" on playoff_seeds;
+create policy "playoff_seeds_delete" on playoff_seeds for delete to authenticated using (true);
+
+drop policy if exists "playoff_matches_delete" on playoff_matches;
+create policy "playoff_matches_delete" on playoff_matches for delete to authenticated using (true);
+
+drop policy if exists "playoff_teams_delete" on playoff_teams;
+create policy "playoff_teams_delete" on playoff_teams for delete to authenticated using (true);
 
 -- Realtime
 do $$ begin
