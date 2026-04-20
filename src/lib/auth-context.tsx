@@ -53,24 +53,20 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, [user, fetchProfile]);
 
   useEffect(() => {
-    // Get initial session
-    supabase.auth.getSession().then(({ data: { session } }: { data: { session: Session | null } }) => {
-      setUser(session?.user ?? null);
-      if (session?.user) {
-        fetchProfile(session.user.id).finally(() => setLoading(false));
-      } else {
-        setLoading(false);
-      }
-    });
-
-    // Listen for auth changes
+    // INITIAL_SESSION fires after any pending PKCE code exchange (e.g. Google OAuth),
+    // ensuring we don't set loading=false before the session is established.
+    // Using getSession() alone sets loading=false too early for PKCE flows, causing
+    // a race condition where the home page sees user=null and redirects to /login.
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      (_event: string, session: Session | null) => {
+      (event: string, session: Session | null) => {
         setUser(session?.user ?? null);
         if (session?.user) {
-          fetchProfile(session.user.id);
+          fetchProfile(session.user.id).finally(() => {
+            if (event === "INITIAL_SESSION") setLoading(false);
+          });
         } else {
           setProfile(null);
+          if (event === "INITIAL_SESSION") setLoading(false);
         }
       }
     );

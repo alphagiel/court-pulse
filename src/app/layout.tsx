@@ -6,7 +6,7 @@ import "./globals.css";
 
 export const metadata: Metadata = {
   title: "Court Pulse",
-  description: "Real-time pickup pickleball court activity. See who's playing, find your skill level, and signal you're ready to play.",
+  description: "Real-time pickup tennis court activity. See who's playing, find your skill level, and signal you're ready to play.",
 };
 
 export const viewport: Viewport = {

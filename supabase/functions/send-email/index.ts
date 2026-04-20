@@ -13,8 +13,8 @@ import {
 const RESEND_API_KEY = Deno.env.get("RESEND_API_KEY")!;
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
-const FROM_EMAIL = "Court Pulse <noreply@send.pickleconnect.club>";
-const APP_URL = "https://court-pulse-raleigh.vercel.app";
+const FROM_EMAIL = "Court Pulse <noreply@send.livecourtpulse.com>";
+const APP_URL = "https://tennis.livecourtpulse.com";
 
 // Throttle window for new-proposal fan-out (ms)
 const THROTTLE_WINDOW_MS = 5 * 60 * 1000; // 5 minutes

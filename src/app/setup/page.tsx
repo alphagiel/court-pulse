@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import type { SkillLevel } from "@/types/database";
+import { skillToElo } from "@/lib/elo";
 import { Loader } from "@/components/loader";
 
 const SKILL_LEVELS: { value: SkillLevel; label: string }[] = [
@@ -82,6 +83,14 @@ export default function SetupPage() {
       setSaving(false);
       return;
     }
+
+    // Auto-join the ladder so the user is counted in player totals
+    const initialElo = skillToElo(skillLevel);
+    await supabase.from("ladder_members").insert({ user_id: user.id });
+    await supabase.from("ladder_ratings").insert([
+      { user_id: user.id, elo_rating: initialElo, mode: "singles" },
+      { user_id: user.id, elo_rating: initialElo, mode: "doubles" },
+    ]);
 
     await refreshProfile();
     router.replace("/");
