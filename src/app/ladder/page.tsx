@@ -314,7 +314,7 @@ function LadderPageInner() {
         <div className="max-w-lg mx-auto px-4 py-8 sm:px-6 space-y-6">
           <AppHeader
             title="Court Pulse"
-            subtitle="Your local pickleball ladder"
+            subtitle="Your local tennis ladder"
           />
 
           <div className={`rounded-xl border ${L.cardActive} p-4 text-center space-y-2`}>
@@ -361,7 +361,7 @@ function LadderPageInner() {
         <div className="max-w-lg mx-auto px-4 py-8 sm:px-6 space-y-8">
           <AppHeader
             title="Court Pulse"
-            subtitle="Your local pickleball ladder"
+            subtitle="Your local tennis ladder"
           />
 
           <Card>

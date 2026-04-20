@@ -12,14 +12,14 @@ export default function AboutPage() {
         <section className="space-y-3">
           <h2 className="text-[16px] font-semibold">Why Court Pulse?</h2>
           <p className="text-[14px] text-muted-foreground leading-relaxed">
-            Pickleball is one of the fastest-growing sports in the country, but finding competitive
-            matches at your level can still feel random. You text the same three friends every weekend,
-            or show up at a park hoping someone decent is around. Court Pulse fixes that. It gives your
-            local pickleball community a competitive ladder — propose matches, find opponents at your
-            skill level, report scores, and track your rating over time.
+            Tennis has always been competitive, but finding matches at your level can still feel random.
+            You text the same three friends every weekend, or show up at a court hoping someone decent
+            is around. Court Pulse fixes that. It gives your local tennis community a competitive ladder
+            — propose matches, find opponents at your skill level, report scores, and track your rating
+            over time.
           </p>
           <p className="text-[14px] text-muted-foreground leading-relaxed">
-            Whether you&apos;re a 2.5 looking for friendly competition or a 5.0 chasing the top spot,
+            Whether you&apos;re a 2.5 NTRP looking for friendly competition or a 5.0 chasing the top spot,
             the goal is the same: build a local scene where everyone can find the right match, at the
             right level, any day of the week.
           </p>

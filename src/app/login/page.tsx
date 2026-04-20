@@ -107,7 +107,7 @@ export default function LoginPage() {
         <div className="text-center space-y-2">
           <h1 className="text-[32px] font-bold tracking-[0.5px]">Court Pulse</h1>
           <p className="text-[15px] text-muted-foreground">
-            Pickup Pickleball, Live
+            Pickup Tennis, Live
           </p>
         </div>
 
@@ -203,7 +203,7 @@ export default function LoginPage() {
         </div>
 
         <p className="text-[12px] text-muted-foreground text-center">
-          See who&apos;s playing and signal you&apos;re ready for pickup pickleball
+          See who&apos;s playing and signal you&apos;re ready for pickup tennis
         </p>
       </div>
     </main>

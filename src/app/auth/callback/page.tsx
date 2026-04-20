@@ -17,6 +17,7 @@ export default function AuthCallbackPage() {
   const router = useRouter();
 
   useEffect(() => {
+<<<<<<< Updated upstream
     const code = new URLSearchParams(window.location.search).get("code");
 
     if (code) {
@@ -35,6 +36,33 @@ export default function AuthCallbackPage() {
         router.replace(path);
       });
     }
+=======
+    let redirected = false;
+
+    async function handleUser(userId: string) {
+      if (redirected) return;
+      redirected = true;
+      const path = await getRedirectPath(userId);
+      router.replace(path);
+    }
+
+    // Supabase v2 auto-exchanges the code/token from the URL (detectSessionInUrl: true).
+    // Listen for SIGNED_IN to handle the async case.
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+      if (event === "SIGNED_IN" && session?.user) {
+        handleUser(session.user.id);
+      }
+    });
+
+    // Also check if session is already available (exchange may have completed synchronously).
+    supabase.auth.getSession().then(({ data }) => {
+      if (data.session?.user) {
+        handleUser(data.session.user.id);
+      }
+    });
+
+    return () => subscription.unsubscribe();
+>>>>>>> Stashed changes
   }, [router]);
 
   return null;
